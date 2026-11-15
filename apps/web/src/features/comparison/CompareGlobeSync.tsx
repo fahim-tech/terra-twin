@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGlobeBus } from "../../app/globeBus";
-import { api } from "../../services/api";
+import { api, useSites } from "../../services/api";
 import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
 import { selectedCandidate } from "../analogs/candidates";
 import { normLon, R_EARTH_MEAN_M } from "../../lib/geodesy";
+import { useCompareStage, whyDrawerWidth } from "./layout";
 import { compareTargets } from "./model";
-
-/** Width of the Why drawer on desktop/tablet (kept in step with WhyDrawer). */
-export function whyDrawerWidth(stageW: number) {
-  return Math.min(440, stageW - 24);
-}
 
 /** Fallback altitude when the stage has not been measured yet. */
 export const COMPARE_HEIGHT_KM = 420;
@@ -56,6 +52,38 @@ export function CompareGlobeSync() {
     };
   }, [bus, active, targets]);
 
+  // Only the compared footprints may be drawn: the explorer's AOI and research-zone outline (Mars)
+  // and the results' candidate footprint (Earth, a filled cell for tier 1) are hidden while comparing.
+  // Local workaround until the globe protocol can hide a group by stage: clear those groups here,
+  // after the owning syncs have run, and put the Mars AOI back on the way out (the Earth results
+  // sync re-sends its footprint itself when the stage changes).
+  const sites = useSites();
+  const sitesRef = useRef(sites.data);
+  sitesRef.current = sites.data;
+  const selection = useApp((s) => s.selection);
+  useEffect(() => {
+    if (!active) return;
+    const t = setTimeout(() => {
+      bus.send("mars", { t: "setFootprints", group: "aoi", footprints: [] });
+      bus.send("earth", { t: "setFootprints", group: "cand", footprints: [] });
+    }, 0);
+    return () => clearTimeout(t);
+  }, [bus, active, targets, selection]);
+  useEffect(() => {
+    if (!active) return;
+    return () => {
+      const { selection: sel, footprintKm } = useApp.getState();
+      if (!sel) return;
+      const site = sitesRef.current?.find((x) => x.id === sel.siteId);
+      bus.send("mars", {
+        t: "setFootprints", group: "aoi", footprints: [
+          { id: "aoi", kind: "aoi", lat: sel.lat, lon: sel.lon, km: footprintKm },
+          ...(site ? [{ id: "ez", kind: "research_bbox" as const, lat: site.lat, lon: site.lon, bbox: [site.bbox.lon_min, site.bbox.lat_min, site.bbox.lon_max, site.bbox.lat_max] as [number, number, number, number] }] : []),
+        ],
+      });
+    };
+  }, [bus, active]);
+
   // The global-screen similarity field is a different basis (tier 1, as measured); keep it off the
   // spatial comparison and restore the user's layer on the way out.
   useEffect(() => {
@@ -77,26 +105,25 @@ export function CompareGlobeSync() {
   // Matched altitude from the free area of both frames (smallest of the two), debounced so the
   // strip expanding re-frames once rather than on every measurement.
   const [height, setHeight] = useState<number | null>(null);
+  const stageW = useCompareStage((s) => s.w);
+  const stageH = useCompareStage((s) => s.h);
   useEffect(() => {
-    if (!active || !targets) return;
+    if (!active || !targets || !stageW || !stageH) return;
     const t = setTimeout(() => {
-      const main = document.querySelector("main");
-      if (!main) return;
-      const W = main.clientWidth, H = main.clientHeight;
+      const W = stageW, H = stageH;
       const frameW = W < 768 ? W : W / 2;
       // Side drawers (Why this analog?) re-centre the globe but must not change the shared altitude.
       const free = (["mars", "earth"] as const).map((p) => Math.min(frameW, H - insets[p].top - insets[p].bottom));
       setHeight(matchedHeightKm(Math.max(targets.mars.km, targets.earth.km), H, Math.min(...free)));
     }, 220);
     return () => clearTimeout(t);
-  }, [active, targets, insets]);
+  }, [active, targets, insets, stageW, stageH]);
 
   const flown = useRef<string>("");
   const whyOpen = useApp((s) => s.whyOpen);
   useEffect(() => {
     if (!active || !targets || height === null) return;
-    const main = document.querySelector("main");
-    const W = main?.clientWidth ?? 0, H = main?.clientHeight ?? 0;
+    const { w: W, h: H } = useCompareStage.getState();
     // The Why drawer covers the right of the Earth half on desktop. The shell's inset model would read
     // a drawer that wide as a top/bottom cover, so the drawer does not mark itself as an occluder;
     // instead the Earth window is shifted left into the uncovered part by aiming east of it.

@@ -1,7 +1,8 @@
 import { ArrowLeft, ChevronDown, MessageCircleQuestion } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { IconButton, Kicker, Measure, Tabs, Term } from "../../components/primitives";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { IconButton, Kicker, Measure, Tabs } from "../../components/primitives";
+import { CompareTerm as Term } from "./CompareTerm";
 import { Button, cx } from "../../components/ui";
 import { useLayout } from "../../app/useLayout";
 import { G5 } from "../../lib/glossary";
@@ -10,6 +11,7 @@ import type { AnalogSearch } from "../../types/contracts";
 import { type CandidateView, selectedCandidate } from "../analogs/candidates";
 import { ComparePlates } from "./ComparePlates";
 import { EvidenceMode } from "./EvidenceMode";
+import { StageProbe } from "./layout";
 import { basisFor, compareTargets, verdictFor, type Verdict } from "./model";
 import { RatioChart } from "./RatioChart";
 import { RelevanceMode } from "./RelevanceMode";
@@ -39,6 +41,8 @@ export function tier1Rows(search: AnalogSearch, c: CandidateView): { rows: Compa
 }
 
 type Mode = "spatial" | "measurements" | "evidence" | "relevance";
+const PANEL_ID = "compare-mode-panel";
+const tabId = (m: Mode) => `compare-mode-tab-${m}`;
 const MODES: { value: Mode; label: string }[] = [
   { value: "spatial", label: "Spatial" },
   { value: "measurements", label: "Measurements" },
@@ -77,31 +81,62 @@ export function ComparisonPanel() {
     useApp.getState().announce(`Comparing ${targets.mars.name} on Mars with ${targets.earth.name} on Earth. ${verdict.headline}. Similarity ${c.score === null ? "not available" : c.score.toFixed(3)}, ${basisFor(c)}.`);
   }, [targets, verdict, c]);
 
-  // Escape collapses an expanded mode before the shell's Escape leaves the comparison.
+  // Escape collapses an expanded mode before it leaves the comparison. The shell routes Escape from
+  // the page and from a focused globe through closeTopmost(), so the collapse step is layered onto
+  // it while a mode is open (Why drawer first, then the mode, then the shell's own order). An open
+  // term popover consumes Escape itself (CompareTerm), so one press never closes two layers.
   useEffect(() => {
     if (!expanded) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || e.defaultPrevented || useApp.getState().whyOpen) return;
-      e.preventDefault();
+    const shell = useApp.getState().closeTopmost;
+    const closeTopmost = () => {
+      const s = useApp.getState();
+      if (s.whyOpen || s.stage !== "compare") return shell();
       setMode("spatial");
+      return true;
     };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    useApp.setState({ closeTopmost });
+    return () => { if (useApp.getState().closeTopmost === closeTopmost) useApp.setState({ closeTopmost: shell }); };
   }, [expanded, setMode]);
+
+  // The shared Tabs primitive has no roving focus or tab/panel ids yet; add both here.
+  useLayoutEffect(() => {
+    const tabs = stripRef.current?.querySelectorAll<HTMLElement>('[role="tablist"][aria-label="Comparison mode"] [role="tab"]');
+    tabs?.forEach((t, i) => {
+      const m = MODES[i]?.value;
+      if (!m) return;
+      const on = m === mode;
+      t.id = tabId(m);
+      t.tabIndex = on ? 0 : -1;
+      if (on && expanded) t.setAttribute("aria-controls", PANEL_ID); else t.removeAttribute("aria-controls");
+    });
+  });
+  const onTabKeys = useCallback((e: React.KeyboardEvent) => {
+    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
+    if (!keys.includes(e.key) || (e.target as HTMLElement).getAttribute("role") !== "tab") return;
+    e.preventDefault();
+    const i = MODES.findIndex((m) => m.value === mode);
+    const n = MODES.length;
+    const next = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + n) % n;
+    setMode(MODES[next].value);
+  }, [mode, setMode]);
 
   if (!search || !c || !targets || !verdict) return <NoCandidate hasSearch={!!search} phone={phone} />;
 
   return (
     <>
-      {!phone && <ComparePlates targets={targets} planets={["mars", "earth"]} />}
+      <StageProbe />
+      {!phone && <ComparePlates targets={targets} planets={["mars", "earth"]} whyOpen={whyOpen} />}
+      {/* Phones: the shell's Mars|Earth switch sits over the top of the frame; mark that band as covered
+          so the globe frames the compared window below it (the switch itself is not an occluder). */}
+      {phone && <div aria-hidden data-occludes="both" className="pointer-events-none absolute inset-x-0 top-0 h-[64px]" />}
       <motion.section ref={stripRef} aria-label="Mars–Earth comparison" data-occludes="both"
         initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", bounce: 0, duration: 0.35 }}
-        style={expanded ? { height: phone ? "82%" : "56%" } : undefined}
+        style={expanded ? { height: phone ? "70%" : "56%" } : undefined}
         className={cx("surface no-print absolute z-20 flex flex-col overflow-hidden",
           phone ? "inset-x-0 bottom-0 rounded-t-surface [padding-bottom:env(safe-area-inset-bottom)]" : "inset-x-3 bottom-3 rounded-surface")}>
-        <Summary c={c} targets={targets} verdict={verdict} mode={mode} setMode={setMode} phone={phone} onWhy={() => set({ whyOpen: true })} />
+        <Summary c={c} targets={targets} verdict={verdict} mode={mode} setMode={setMode} onTabKeys={onTabKeys} phone={phone} onWhy={() => set({ whyOpen: true })} />
         {expanded && (
-          <div role="tabpanel" aria-label={MODES.find((m) => m.value === mode)!.label} className="relative flex min-h-0 flex-1 flex-col">
+          <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(mode)} className="relative flex min-h-0 flex-1 flex-col">
             <div className="mx-6 h-px shrink-0 bg-line/70 max-md:mx-4" aria-hidden />
             <IconButton label="Collapse to spatial view" onClick={() => setMode("spatial")} className="absolute right-3 top-1.5 z-10"><ChevronDown className="h-4 w-4" /></IconButton>
             <motion.div key={mode} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
@@ -137,9 +172,9 @@ export function ComparisonPanel() {
   );
 }
 
-function Summary({ c, targets, verdict, mode, setMode, phone, onWhy }: {
+function Summary({ c, targets, verdict, mode, setMode, onTabKeys, phone, onWhy }: {
   c: CandidateView; targets: NonNullable<ReturnType<typeof compareTargets>>; verdict: Verdict;
-  mode: Mode; setMode: (m: Mode) => void; phone: boolean; onWhy: () => void;
+  mode: Mode; setMode: (m: Mode) => void; onTabKeys: (e: React.KeyboardEvent) => void; phone: boolean; onWhy: () => void;
 }) {
   const go = useApp((s) => s.go);
   const verdictTerm = verdict.kind === "leader" ? "stableLeader" : verdict.kind === "tie_member" ? "tie" : verdict.kind === "insufficient" ? "notEnough" : null;
@@ -168,7 +203,7 @@ function Summary({ c, targets, verdict, mode, setMode, phone, onWhy }: {
       <MessageCircleQuestion className="h-4 w-4" aria-hidden /> Why this analog?
     </Button>
   );
-  const tabs = <Tabs ariaLabel="Comparison mode" value={mode} onChange={setMode} options={MODES} className={phone ? "gap-4" : undefined} />;
+  const tabs = <div onKeyDown={onTabKeys}><Tabs ariaLabel="Comparison mode" value={mode} onChange={setMode} options={MODES} className={phone ? "gap-4" : undefined} /></div>;
 
   if (phone) {
     // Phone: one column, the G5 verdict label and scope one tap away (Term popovers).
