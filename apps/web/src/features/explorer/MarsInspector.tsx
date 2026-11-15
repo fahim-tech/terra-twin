@@ -190,7 +190,7 @@ function useSheetFit(root: React.RefObject<HTMLDivElement>, mounted: boolean): b
   const [inSheet, setInSheet] = useState(false);
   useLayoutEffect(() => {
     const el = root.current;
-    const sheet = el?.closest<HTMLElement>('section[aria-label="Selected location"]');
+    const sheet = el?.closest<HTMLElement>("[data-sheet]");
     const host = sheet?.parentElement;
     if (!el || !sheet || !host) { setInSheet(false); return; }
     let scroller: HTMLElement | null = el.parentElement;

@@ -112,7 +112,7 @@ export function Sheet({ children, label, snap, onSnapChange, peek = 112, header,
   };
 
   return (
-    <motion.section ref={host} aria-label={label} style={{ y }} data-occludes={occludes}
+    <motion.section ref={host} aria-label={label} style={{ y }} data-occludes={occludes} data-sheet=""
       className={cx("absolute inset-x-0 top-0 z-20 flex flex-col rounded-t-[18px] bg-surface shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_-12px_40px_rgba(0,0,0,0.5)]", className)}
       >
       <div className="touch-none select-none" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
