@@ -27,7 +27,7 @@ Machine-readable schema: `GET /openapi.json`. Frontend validation: `apps/web/src
 | GET | `/api/evidence` | method evidence and limitations |
 | GET | `/api/earth/pool` | the 230 research-pool windows tier 2 examined (`windows`, `window_km`, `note`) |
 | GET | `/api/earth/pool/{window_id}/relief` | elevation grid of one research-pool window, Earth as measured (3D relief) |
-| GET | `/api/mars/relief?site=` | Mars elevation grid for an Exploration Zone; 503 with the reason until a MOLA mosaic reader is connected |
+| GET | `/api/mars/relief?site=` | Mars elevation grid of an Exploration Zone's 50 km window from the MOLA 463 m mosaic; 503 with the reason when the mosaic or GDAL is not connected |
 | POST | `/v1/compare` | G5 tier-2 adapter: `{site | lat+lon, mission, gate_mode?, representation, window_km}` |
 
 ## `/v1/compare` response (G5)
@@ -85,15 +85,24 @@ tier 2 already reads (`earth_pool_463m.npy`).
 - Errors: `404 {"detail": "unknown research-pool window '<id>'"}`; `503 {"detail": {"status": "unavailable",
   "reason": "…"}}` when the research data is not imported.
 
-`GET /api/mars/relief?site=<EZ id>` — same response shape once a MOLA reader exists. Today it never returns a
-grid and never substitutes one:
+`GET /api/mars/relief?site=<EZ id>` — the Earth relief's shape for the zone's 50 km window, centred on the zone
+(`lat_c`, `lon_c`), read from the USGS MOLA 463 m mosaic with the research extraction `aoi.mars_aoi` (bilinear,
+463.09 m cells, local AEQD on the Mars sphere R = 3,396,190 m). `planet: "mars"`, `kind: "nasa_exploration_zone"`,
+`source.dataset: "mola_mosaic"`, `source.representation: "as_measured"`, and `source.note` says the mosaic is a
+grid of binned laser returns, mostly interpolated (grid spacing is not observation resolution). Cached per zone.
+It needs `TERRATWIN_MOLA_MOSAIC` and GDAL (the production server takes GDAL from the GIS environment). It never
+substitutes a grid:
 
 - `503 {"detail": {"status": "unavailable", "reason": "MOLA mosaic not connected", "missing_inputs": ["USGS MOLA
-  463 m mosaic (TERRATWIN_MOLA_MOSAIC)"], "owner": "GIS workstream", "site": "Jezero"}}`. With
-  `TERRATWIN_MOLA_MOSAIC` set the reason becomes "MOLA mosaic connected, but the API has no reader for it (the
-  research extraction aoi.mars_aoi needs GDAL)" with `missing_inputs: ["Mars AOI extraction service
-  (aoi.mars_aoi, GDAL)"]`.
+  463 m mosaic (TERRATWIN_MOLA_MOSAIC)"], "owner": "GIS workstream", "site": "Jezero"}}`.
+- With the mosaic but no GDAL: reason "MOLA mosaic connected, but this server has no reader for it (the research
+  extraction aoi.mars_aoi needs GDAL)", `missing_inputs: ["GDAL Python bindings for aoi.mars_aoi"]`.
+- A read error: reason "The MOLA mosaic could not be read (<error type>)". A window near the 180° meridian (none of
+  the 39 zones) is refused, because only the GIS workstream's extractor handles it.
 - `404 {"detail": "unknown site '<id>'"}` for a site outside the 39 Exploration Zones; `422` without `site`.
+
+`GET /api/datasets` reports `mola_mosaic` and `mola_counts_tiles` as `connected` when the configured paths exist
+on the server (`TERRATWIN_MOLA_MOSAIC`, `TERRATWIN_MEGDR_COUNTS_DIR`), otherwise `missing`.
 
 ## What the GIS team provides
 

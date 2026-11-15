@@ -98,8 +98,9 @@ const shot = await renderReliefSnapshot(relief, { planet: "earth", ve: 4, width:
   (the payload's `source.note` says so), so relief views and captions say "Earth as measured" and never
   "as MOLA would observe it" — that phrase describes the research comparison's decision, which does compare
   Earth as MOLA would observe it. Nulls are water-masked cells, never 0.
-- **Mars relief** exists only when a MOLA mosaic reader is connected. Until then `GET /api/mars/relief` answers
-  503 with the reason and the view shows it; nothing is substituted.
+- **Mars relief** exists only where the API server has the MOLA mosaic and GDAL (production does: the GIS
+  workstream's `/srv/terratwin`). Elsewhere `GET /api/mars/relief` answers 503 with the reason and the view shows
+  it; nothing is substituted.
 
 ## App state — `src/store/app.ts`
 `stage` (mars | earth | compare | evidence | report), `selection`, `mission`, `footprintKm`, `search`
