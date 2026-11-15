@@ -74,6 +74,52 @@ describe("capture queue", () => {
     expect(q.wanted("k")).toBe(false);
   });
 
+  it("withdraws a running capture as soon as its last reader leaves, so the globe is not held on the plate view", async () => {
+    const q = createCaptureQueue();
+    const a = q.want("plate");
+    const b = q.want("plate"); // the same plate asked for twice
+    let signal!: AbortSignal;
+    const p = q.run("mars", "plate", (s) => {
+      signal = s;
+      return new Promise<number | null>((resolve) => s.addEventListener("abort", () => resolve(null)));
+    });
+    await tick();
+    expect(q.isRunning("plate")).toBe(true);
+    a();
+    expect(signal.aborted).toBe(false); // someone still wants it
+    b();
+    expect(signal.aborted).toBe(true);
+    expect(await p).toBeNull();
+    expect(q.isRunning("plate")).toBe(false);
+  });
+
+  it("leaves other captures running when one reader leaves", async () => {
+    const q = createCaptureQueue();
+    const releasePlate = q.want("plate");
+    q.want("disk");
+    let plate!: AbortSignal, disk!: AbortSignal;
+    void q.run("mars", "plate", (s) => { plate = s; return new Promise(() => {}); });
+    void q.run("earth", "disk", (s) => { disk = s; return new Promise(() => {}); });
+    await tick();
+    releasePlate();
+    expect(plate.aborted).toBe(true);
+    expect(disk.aborted).toBe(false);
+  });
+
+  it("runs the next capture on the lane once a withdrawn one has wound up", async () => {
+    const q = createCaptureQueue();
+    const release = q.want("a");
+    q.want("b");
+    const log: string[] = [];
+    const a = q.run("mars", "a", (s) => new Promise<string | null>((resolve) => s.addEventListener("abort", () => { log.push("a:withdrawn"); resolve(null); })));
+    const b = q.run("mars", "b", async () => { log.push("b:start"); return "b"; });
+    await tick();
+    release();
+    expect(await a).toBeNull();
+    expect(await b).toBe("b");
+    expect(log).toEqual(["a:withdrawn", "b:start"]);
+  });
+
   it("carries on after a failed capture", async () => {
     const q = createCaptureQueue();
     q.want("a");

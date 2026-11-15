@@ -1,11 +1,26 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { type GlobeToParent, type ParentToGlobe, type Planet, isEnvelope, wrap } from "./protocol";
 import { useGlobes } from "../store/globes";
 
+/** A globe snapshot: a JPEG data URL and its size. `imagery` is "partial" when tiles were still loading at the bound. */
+export interface GlobeShot { dataUrl: string; width: number; height: number; imagery?: "complete" | "partial" }
+
+export interface SnapshotOptions {
+  /** Hide everything the app draws on the globe for this capture only (protocol: snapshot `clean`). */
+  clean?: boolean;
+  /** Aborting withdraws the snapshot: the globe puts the reader's view back at once, and the promise resolves null. */
+  signal?: AbortSignal;
+  /** Withdraw it after this long, ms (default 20 s; the globe's own wait for tiles is bounded well inside that). */
+  timeoutMs?: number;
+}
+
 export interface GlobeHandle {
   send: (msg: ParentToGlobe) => void;
-  /** Render a top-down view of a location and resolve with a JPEG data URL (visualization imagery only). */
-  snapshot: (lat: number, lon: number, heightKm: number, maxWidth?: number) => Promise<{ dataUrl: string; width: number; height: number } | null>;
+  /**
+   * Render a top-down view of a location and resolve with a JPEG data URL (visualization imagery only), or null
+   * when it could not be taken or was withdrawn.
+   */
+  snapshot: (lat: number, lon: number, heightKm: number, maxWidth?: number, opts?: SnapshotOptions) => Promise<GlobeShot | null>;
 }
 
 interface Props {
@@ -15,6 +30,7 @@ interface Props {
 }
 
 const ION_TOKEN = (import.meta.env.VITE_CESIUM_ION_TOKEN || "").trim() || null;
+let snapshotSeq = 0;
 
 /**
  * Hosts one planet's Cesium viewer in an isolated iframe. Messages sent before the frame is
@@ -27,27 +43,40 @@ export const GlobeFrame = forwardRef<GlobeHandle, Props>(function GlobeFrame({ p
   const handler = useRef(onMessage);
   handler.current = onMessage;
   const [loaded, setLoaded] = useState(false);
-  const pending = useRef(new Map<string, (v: { dataUrl: string; width: number; height: number } | null) => void>());
+  const pending = useRef(new Map<string, (v: GlobeShot | null) => void>());
 
   const deliver = (msg: ParentToGlobe) => frame.current?.contentWindow?.postMessage(wrap(msg), location.origin);
+  const send = useCallback((msg: ParentToGlobe) => {
+    if (ready.current) deliver(msg);
+    else queue.current.push(msg);
+  }, []);
 
-  useImperativeHandle(ref, () => {
-    const send = (msg: ParentToGlobe) => {
-      if (ready.current) deliver(msg);
-      else queue.current.push(msg);
-    };
-    return {
-      send,
-      snapshot(lat, lon, heightKm, maxWidth) {
-        const requestId = `${planet}-${Math.round(performance.now())}-${pending.current.size}`;
-        return new Promise((resolve) => {
-          pending.current.set(requestId, resolve);
-          send({ t: "snapshot", requestId, lat, lon, heightKm, maxWidth });
-          setTimeout(() => { if (pending.current.delete(requestId)) resolve(null); }, 15000);
-        });
-      },
-    };
-  }, [planet]);
+  useImperativeHandle(ref, () => ({
+    send,
+    snapshot(lat, lon, heightKm, maxWidth, opts = {}) {
+      const requestId = `${planet}-${++snapshotSeq}`;
+      return new Promise<GlobeShot | null>((resolve) => {
+        if (opts.signal?.aborted) { resolve(null); return; }
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        const finish = (v: GlobeShot | null) => {
+          if (!pending.current.delete(requestId)) return;
+          if (timer) clearTimeout(timer);
+          opts.signal?.removeEventListener("abort", withdraw);
+          resolve(v);
+        };
+        // Withdrawn by the caller or timed out: tell the globe to stop and put the reader's view back now.
+        function withdraw() {
+          if (!pending.current.has(requestId)) return;
+          send({ t: "cancelSnapshot", requestId });
+          finish(null);
+        }
+        pending.current.set(requestId, finish);
+        opts.signal?.addEventListener("abort", withdraw, { once: true });
+        send({ t: "snapshot", requestId, lat, lon, heightKm, maxWidth, ...(opts.clean ? { clean: true } : {}) });
+        timer = setTimeout(withdraw, opts.timeoutMs ?? 20_000);
+      });
+    },
+  }), [planet, send]);
 
   useEffect(() => {
     function onMsg(ev: MessageEvent) {
@@ -72,9 +101,7 @@ export const GlobeFrame = forwardRef<GlobeHandle, Props>(function GlobeFrame({ p
         useGlobes.getState().reportImagery(planet, msg.layer, msg.failures);
         return;
       } else if (msg.t === "snapshot") {
-        const done = pending.current.get(msg.requestId);
-        pending.current.delete(msg.requestId);
-        done?.(msg.dataUrl ? { dataUrl: msg.dataUrl, width: msg.width, height: msg.height } : null);
+        pending.current.get(msg.requestId)?.(msg.dataUrl ? { dataUrl: msg.dataUrl, width: msg.width, height: msg.height, imagery: msg.imagery } : null);
         return;
       }
       handler.current?.(msg);

@@ -1,4 +1,3 @@
-import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useGlobeBus } from "../../app/globeBus";
@@ -9,7 +8,7 @@ import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
 import { fmtLat, fmtLon } from "./model";
 import { DISPLAY } from "./parts";
-import { withCleanGlobe } from "./plateCapture";
+import { capturePlate } from "./plateCapture";
 import { createCaptureQueue } from "./captureQueue";
 import { DiskLocator } from "./DiskLocator";
 import { type EdgeTick, formatTick, groundAt, nadirKmPerPx, plateBody, plateCamera, type PlateTicks, plateTicks, shotSize, visibleRect } from "./plateGeometry";
@@ -36,7 +35,8 @@ export function stageAspect(): number {
   return w > 0 && h > 0 ? w / h : 16 / 10;
 }
 
-type Shot = { dataUrl: string; width: number; height: number };
+/** `imagery` "partial": the globe's bounded wait ran out with tiles still loading (some ground coarser). */
+type Shot = { dataUrl: string; width: number; height: number; imagery?: "complete" | "partial" };
 export type SnapshotState = { status: "loading" } | { status: "ok"; shot: Shot } | { status: "failed" };
 type State = SnapshotState;
 
@@ -52,10 +52,13 @@ const onReport = () => useApp.getState().stage === "report";
  * Real imagery from the planet's own globe, or a failure that the plate shows honestly: the view straight down
  * on (lat, lon) from `heightKm`. Waits for the globe to be ready; gives up after a bounded time. `announce`
  * names the product in the polite live region when it is ready (or not).
+ *
+ * The globe takes the picture as soon as the view's imagery tiles have loaded, finishing any camera flight first
+ * (plateCapture.ts). A capture whose turn comes after the reader has left never runs, and one still rendering
+ * when they leave is withdrawn, so the globe they return to is never held on a plate's view.
  */
 export function useSnapshot(planet: Planet, lat: number, lon: number, enabled = true, heightKm = PLATE_HEIGHT_KM, announce: string | null = "location plate"): State {
   const bus = useGlobeBus();
-  const qc = useQueryClient();
   const ready = useGlobes((s) => s.ready[planet]);
   const [state, setState] = useState<State>({ status: "loading" });
   const key = `${planet}:${lat.toFixed(5)}:${lon.toFixed(5)}:${heightKm}`;
@@ -71,15 +74,8 @@ export function useSnapshot(planet: Planet, lat: number, lon: number, enabled = 
     const release = captures.want(key);
     let p = cache.get(key);
     if (!p) {
-      const h = bus.handles[planet].current;
-      const stillWanted = () => captures.wanted(key) && onReport();
-      p = h
-        ? captures.run(planet, key, () => waitForStillCamera(planet)
-          // A camera that never settles means the capture could show another place: no imagery rather than wrong imagery.
-          // The reader may also have left while it settled: then the globe is left alone.
-          .then((ok) => (ok && stillWanted() ? withCleanGlobe(bus, qc, planet, () => h.snapshot(lat, lon, heightKm, PLATE_MAX_WIDTH)) : null)), onReport)
-          .catch(() => null)
-        : Promise.resolve(null);
+      p = captures.run(planet, key, (signal) => capturePlate(bus.handles[planet].current, { lat, lon, heightKm, maxWidth: PLATE_MAX_WIDTH }, signal), onReport)
+        .catch(() => null);
       cache.set(key, p);
       void p.then((r) => { if (!r) cache.delete(key); });
     }
@@ -90,29 +86,9 @@ export function useSnapshot(planet: Planet, lat: number, lon: number, enabled = 
       if (announce) useApp.getState().announce(r ? `${name} ${announce} ready` : `${name} imagery unavailable; the ${announce} shows coordinates only`);
     });
     return () => { live = false; release(); };
-  }, [bus, qc, planet, lat, lon, ready, key, enabled, heightKm, announce]);
+  }, [bus, planet, lat, lon, ready, key, enabled, heightKm, announce]);
 
   return state;
-}
-
-/**
- * A camera flight still running on the (hidden) globe would keep moving the camera while the snapshot
- * waits for tiles, and the plate would show somewhere else under this plate's coordinates. Wait until the
- * globe reports a still camera before capturing.
- */
-function waitForStillCamera(planet: Planet, timeoutMs = 8000): Promise<boolean> {
-  return new Promise((resolve) => {
-    const t0 = performance.now();
-    let still = 0;
-    const tick = () => {
-      const cam = useGlobes.getState().camera[planet];
-      still = cam && !cam.moving ? still + 1 : 0;
-      if (still >= 3) resolve(true);
-      else if (performance.now() - t0 > timeoutMs) resolve(false);
-      else setTimeout(tick, 150);
-    };
-    tick();
-  });
 }
 
 export interface PlateFrame {
@@ -215,7 +191,9 @@ export function LocationPlate({ planet, plate, lat, lon, frame, kicker, name, im
           </div>
           <div className="mt-1.5 flex items-center gap-2 text-caption text-faint">
             <span aria-hidden className={cx("h-1.5 w-1.5 shrink-0", onImagery ? "bg-faint" : "ring-1 ring-inset ring-faint")} />
-            {onImagery ? `${imagery} — visualization only` : snap.status === "loading" ? "Rendering imagery…" : "No imagery snapshot — coordinate plate"}
+            {onImagery
+              ? `${imagery} — visualization only${snap.shot.imagery === "partial" ? " · some tiles had not loaded; coarser there" : ""}`
+              : snap.status === "loading" ? "Rendering imagery…" : "No imagery snapshot — coordinate plate"}
           </div>
         </div>
         {disk && disk.snapshot.status !== "failed" && (
