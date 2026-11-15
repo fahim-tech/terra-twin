@@ -282,7 +282,7 @@ function placeCredits() {
 function initKeyboardSurface() {
   if (!viewer) return;
   const canvas = viewer.scene.canvas;
-  canvas.tabIndex = 0;
+  canvas.tabIndex = lightMode === "intro" ? -1 : 0;
   canvas.setAttribute("role", "application");
   canvas.setAttribute("aria-roledescription", "globe");
   let title = "";
@@ -299,7 +299,8 @@ function initKeyboardSurface() {
   keys.innerHTML = [["← ↑ → ↓", "Pan"], ["+ −", "Zoom"], ["N", "North up"], ["T", "3D / top-down"], ["Enter", "Select centre"]]
     .map(([k, v]) => `<span><b>${k}</b>${v}</span>`).join("");
   viewer.container.appendChild(keys);
-  const placeKeys = () => { keys.style.top = `${Math.max(insets.top, 64) + 8}px`; keys.style.left = `calc(${insets.left}px + (100% - ${insets.left + insets.right}px) / 2)`; };
+  // Top-right of the free area: clear of the navigator (top-left), the instruments (bottom) and the orbit labels.
+  const placeKeys = () => { keys.style.top = `${insets.top + 12}px`; keys.style.right = `${insets.right + 12}px`; };
   canvas.addEventListener("focus", () => {
     placeKeys();
     keys.classList.toggle("on", canvas.matches(":focus-visible"));
@@ -309,6 +310,22 @@ function initKeyboardSurface() {
   canvas.addEventListener("blur", () => keys.classList.remove("on"));
   canvas.addEventListener("pointerdown", () => keys.classList.remove("on"));
   window.addEventListener("focus", () => requestAnimationFrame(unscrollAncestors));
+
+  // Until the first imagery has loaded the planet is the flat placeholder tone: say so, quietly, at the bottom.
+  const status = document.createElement("div");
+  status.className = "tt-status";
+  status.setAttribute("role", "status");
+  status.textContent = "Imagery loading";
+  viewer.container.appendChild(status);
+  const started = performance.now();
+  const off = viewer.scene.postRender.addEventListener(() => {
+    status.style.bottom = `${insets.bottom + 22}px`;
+    status.style.left = `calc(${insets.left}px + (100% - ${insets.left + insets.right}px) / 2)`;
+    if (!viewer?.scene.globe || viewer.scene.globe.tilesLoaded || performance.now() - started > 60_000) {
+      status.remove();
+      off();
+    }
+  });
 }
 
 /** Put back any overflow-hidden ancestor of this frame that focus scrolled (it has no scrollbar to undo that). */
@@ -1945,6 +1962,8 @@ window.addEventListener("message", (ev: MessageEvent) => {
       case "setSpin": { const on = m.on; cameraCommand(() => { spinning = on; }); break; }
       case "setLight":
         lightMode = m.mode === "intro" ? "intro" : "work";
+        // On the title screen the planet is a backdrop: the copy's buttons come first, and the globe is no tab stop.
+        if (viewer) viewer.scene.canvas.tabIndex = lightMode === "intro" ? -1 : 0;
         // The shell slides the frame as the intro opens or closes (0.6 s): keep rendering until it has arrived,
         // so the orbit labels are placed for where the frame ends up, not where it was mid-slide.
         settle(900);
