@@ -142,7 +142,8 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
             </div>
           ))}
         </dl>
-        <button type="button" onClick={onProvenance} className="no-print hit label-caps -my-1 shrink-0 px-1 py-1 !text-[11px] text-muted hover:text-ink">
+        {/* The padding is a touch target only: the words line up with the column (the left edge on phones). */}
+        <button type="button" onClick={onProvenance} className="no-print hit label-caps -mx-1 -my-1 shrink-0 px-1 py-1 !text-[11px] text-muted hover:text-ink">
           Full provenance →
         </button>
       </div>
