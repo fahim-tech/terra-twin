@@ -109,3 +109,23 @@ on the server (`TERRATWIN_MOLA_MOSAIC`, `TERRATWIN_MEGDR_COUNTS_DIR`), otherwise
 `get_mars_features(lat, lon, half_km)`, `refine_earth_candidates(target, shortlist, mission, window_km,
 representation)` returning the response above, and dataset provenance records. Wire them via
 `TERRATWIN_GIS_PROVIDER` without changing routes.
+
+## GIS workstream routes (`/api/gis`, gis-contract-1.0)
+
+Served where the GIS library `terratwin_gis` (repo `fahim-tech/terratwin-dataset`), GDAL and its data are
+installed (production: the us-east-1 host, `/srv/terratwin`). Elsewhere every route answers
+`503 {"detail": {"status": "unavailable", "reason", "missing_inputs", "owner": "GIS workstream"}}`.
+Payloads are the GIS library's, passed through; non-finite numbers become `null`.
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/gis/status` | Library, grids, context and discovery availability (worker heartbeat, active runs, cap) |
+| GET | `/api/gis/mars/features?lat&lon` | GIS Mars feature record (50 km window, tier-1 200 km record, observation support as metadata, operator status, notes) for any coordinate |
+| GET | `/api/gis/tier1?lat&lon&mission&top_n` | Global tier-1 screen of the 249,165 Earth cells for any Mars coordinate (app mission id mapped to the GIS mission) |
+| POST | `/api/gis/discovery` | `{lat, lon, mission, n_refine: 20\|40, site?}`: cached run → `status: done, cached: true`; same parameters queued → that job; otherwise a new job on the GIS worker. 429 when two runs are active or twelve were accepted in the last hour |
+| GET | `/api/gis/jobs/{job_id}` | Job state (`pending` Queued, `running`, `paused`/`blocked` "Queued — server busy", `done`, `failed`), queue position, elapsed time, progress read from the run log (stage, cells scored, windows k/n), error type and message (never the trace) |
+| GET | `/api/gis/runs` · `/api/gis/runs/{run_id}` | Cached discovery runs; the run record as the pipeline wrote it (Mars record, refinement in G5 shape with scope fields, tier-1 gate log) |
+| GET | `/api/gis/grid/{planet}/info` | ~1 km grid map layers with legends (viridis on a stated p2–p98 display stretch, or classes), flags, use rules, tile URL template |
+| GET | `/api/gis/grid/{planet}/point?lat&lon` | All grid layers at the containing cell (Earth adds `surface_class_label`) |
+| GET | `/api/gis/grid/{planet}/tile/{z}/{x}/{y}.png?layer&v` | 256 px tile, geographic scheme (level z: 2^(z+1) × 2^z tiles); Mars ≤ 6, Earth ≤ 7; transparent where no value |
+| GET | `/api/gis/context/{planet}/point?lat&lon` · `/api/gis/context/catalog` | Context layers at native resolution (context only, never a similarity feature) |
