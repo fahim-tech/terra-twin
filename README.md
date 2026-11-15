@@ -1,3 +1,5 @@
+<p align="center"><img src="apps/web/public/og-image.png" alt="TerraTwin: a Mars terrain profile above a datum line, its Earth twin mirrored below" width="840"></p>
+
 # TerraTwin
 
 **Two Worlds. Shared Terrain. New Discoveries.**

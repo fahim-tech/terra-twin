@@ -1,1 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#080D14"/><circle cx="12.5" cy="16" r="7" fill="none" stroke="#EB896A" stroke-width="2"/><circle cx="19.5" cy="16" r="7" fill="none" stroke="#57BDB4" stroke-width="2"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>TerraTwin</title>
+  <rect width="64" height="64" rx="14" fill="#07090c"/>
+  <rect x=".5" y=".5" width="63" height="63" rx="13.5" fill="none" stroke="#fff" stroke-opacity=".1"/>
+  <!-- Mars terrain above the datum, its Earth twin mirrored below. The gap (y 32–36) is one pixel row at 16 px. -->
+  <path fill="#ec7f53" d="M5 32 11 24.72 14 26.8 19 21.6 27 8.08 34 20.56 39 16.4 49 28.88 59 32Z"/>
+  <path fill="#c9603a" d="M11 24.72 14 26.8 13.2 32H11.6ZM27 8.08 34 20.56 33 32H29.2ZM39 16.4 49 28.88 59 32H41.4Z"/>
+  <path fill="#4fc9bb" d="M5 36 11 43.28 14 41.2 19 46.4 27 59.92 34 47.44 39 51.6 49 39.12 59 36Z"/>
+  <path fill="#2fa194" d="M11 43.28 14 41.2 13.2 36H11.6ZM27 59.92 34 47.44 33 36H29.2ZM39 51.6 49 39.12 59 36H41.4Z"/>
+</svg>

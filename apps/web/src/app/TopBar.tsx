@@ -17,11 +17,12 @@ export function Wordmark({ compact }: { compact?: boolean }) {
     <button type="button" onClick={() => useApp.getState().set({ stage: "mars", introOpen: true, whyOpen: false })}
       aria-label="TerraTwin — back to the start"
       className="hit flex shrink-0 items-center justify-center gap-3 rounded-control px-1 text-ink/90 transition-[color,opacity] duration-150 hover:text-ink active:opacity-60 active:duration-0 [&_svg]:transition-opacity hover:[&_svg]:opacity-100 [&_svg]:opacity-85">
-      {/* Two bodies on one axis: the Mars–Earth twin, drawn as instrument linework. */}
-      <svg width="26" height="18" viewBox="0 0 26 18" aria-hidden>
-        <circle cx="7" cy="9" r="5.5" fill="none" stroke="var(--color-mars)" strokeWidth="1.2" />
-        <circle cx="19" cy="9" r="5.5" fill="none" stroke="var(--color-earth)" strokeWidth="1.2" />
-        <path d="M0 9h26" stroke="var(--color-ink)" strokeOpacity=".55" strokeWidth="1" />
+      {/* The twin ridge (public/logo.svg without its limb): one terrain profile, Mars above the datum and its
+          Earth twin mirrored below, east faces in shade. */}
+      <svg width="24" height="22" viewBox="4 6.5 56 51" aria-hidden>
+        <path fill="var(--color-mars)" d="M5 30.5 11 23.5 14 25.5 19 20.5 27 7.5 34 19.5 39 15.5 49 27.5 59 30.5Z" />
+        <path fill="var(--color-earth)" d="M5 33.5 11 40.5 14 38.5 19 43.5 27 56.5 34 44.5 39 48.5 49 36.5 59 33.5Z" />
+        <path fill="#000" fillOpacity=".18" d="M11 23.5 14 25.5 13.2 30.5H11.6ZM27 7.5 34 19.5 33 30.5H29.2ZM39 15.5 49 27.5 59 30.5H41.4ZM11 40.5 14 38.5 13.2 33.5H11.6ZM27 56.5 34 44.5 33 33.5H29.2ZM39 48.5 49 36.5 59 33.5H41.4Z" />
       </svg>
       {/* The name from 1024 px; tablets keep the mark alone so the investigation trail has the room. */}
       {!compact && <span className="hidden font-[family-name:var(--font-display)] text-[15px] font-semibold uppercase leading-none tracking-[0.28em] lg:inline">TerraTwin</span>}

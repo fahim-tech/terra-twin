@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>TerraTwin</title>
+  <defs>
+    <linearGradient id="tt-limb-mars" gradientUnits="userSpaceOnUse" x1="0" y1="3.5" x2="0" y2="32">
+      <stop offset="0" stop-color="#ec7f53"/><stop offset="1" stop-color="#ec7f53" stop-opacity=".18"/>
+    </linearGradient>
+    <linearGradient id="tt-limb-earth" gradientUnits="userSpaceOnUse" x1="0" y1="60.5" x2="0" y2="32">
+      <stop offset="0" stop-color="#4fc9bb"/><stop offset="1" stop-color="#4fc9bb" stop-opacity=".18"/>
+    </linearGradient>
+  </defs>
+  <!-- Split limb: the Mars hemisphere above, Earth below, each lit at its pole; the datum gap runs through the equator. -->
+  <path fill="none" stroke="url(#tt-limb-mars)" stroke-width="1.5" d="M3.532 30.65A28.5 28.5 0 0 1 60.468 30.65"/>
+  <path fill="none" stroke="url(#tt-limb-earth)" stroke-width="1.5" d="M3.532 33.35A28.5 28.5 0 0 0 60.468 33.35"/>
+  <!-- Twin ridge: one terrain profile, Mars above the datum and Earth mirrored below; east faces in shade. -->
+  <g transform="translate(3.2 3.2) scale(.9)">
+    <path fill="#ec7f53" d="M5 30.5 11 23.5 14 25.5 19 20.5 27 7.5 34 19.5 39 15.5 49 27.5 59 30.5Z"/>
+    <path fill="#c9603a" d="M11 23.5 14 25.5 13.2 30.5H11.6ZM27 7.5 34 19.5 33 30.5H29.2ZM39 15.5 49 27.5 59 30.5H41.4Z"/>
+    <path fill="#4fc9bb" d="M5 33.5 11 40.5 14 38.5 19 43.5 27 56.5 34 44.5 39 48.5 49 36.5 59 33.5Z"/>
+    <path fill="#2fa194" d="M11 40.5 14 38.5 13.2 33.5H11.6ZM27 56.5 34 44.5 33 33.5H29.2ZM39 48.5 49 36.5 59 33.5H41.4Z"/>
+  </g>
+</svg>
