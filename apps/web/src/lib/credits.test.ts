@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { imageryCredit, MARS_ION_CREDIT } from "./credits";
+import { imageryCredit, imageryProvider, MARS_ION_CREDIT, MARS_ION_PROVIDER } from "./credits";
 import { factsFrom } from "./facts";
 import { glossaryDefinition, GLOSSARY, NO_FACTS } from "./glossary";
 
@@ -19,6 +19,18 @@ describe("imageryCredit", () => {
   it("says nothing before the globe has reported, or for an unknown layer", () => {
     expect(imageryCredit("mars", null, "viking_color")).toBeNull();
     expect(imageryCredit("earth", { mode: "fallback", layers }, "nope")).toBeNull();
+  });
+});
+
+describe("imageryProvider", () => {
+  it("names the provider from the globe's own note, or the Cesium tiles under ion", () => {
+    expect(imageryProvider("mars", { mode: "fallback", layers }, "viking_color")).toBe("NASA Mars Trek");
+    expect(imageryProvider("mars", { mode: "ion", layers }, "viking_color")).toBe(MARS_ION_PROVIDER);
+    expect(imageryProvider("earth", { mode: "ion", layers: [{ id: "bm", label: "", kind: "imagery", note: "NASA GIBS · Blue Marble, 500 m." }] }, "bm")).toBe("NASA GIBS");
+  });
+  it("says nothing before the globe has reported, or for an unknown layer", () => {
+    expect(imageryProvider("earth", null, "bm")).toBeNull();
+    expect(imageryProvider("mars", { mode: "fallback", layers }, "nope")).toBeNull();
   });
 });
 

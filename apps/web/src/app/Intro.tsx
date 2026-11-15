@@ -1,13 +1,11 @@
 import { motion } from "motion/react";
 import { cx } from "../components/ui";
 import { formatLat, formatLon } from "../lib/geodesy";
-import { imageryCredit } from "../lib/credits";
 import { useDatasets, useEarthPool, useHealth, useSites } from "../services/api";
 import { useGisStatus } from "../services/gis";
-import { useApp } from "../store/app";
 import { useGlobes } from "../store/globes";
 import { gisSummary } from "./gisStatus";
-import { useGlobeSources } from "./globeSources";
+import { useImageryCredit } from "./globeSources";
 import { firstInt, type Readout, readoutGroups } from "./introStats";
 
 /** The intro light is a presentation light (globe-entry.ts setLight "intro"): say so wherever the terminator shows. */
@@ -34,8 +32,7 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
   const health = useHealth();
   const gisQ = useGisStatus();
   const gis = gisSummary(gisQ.data, gisQ.isError);
-  const marsLayer = useApp((s) => s.marsLayer);
-  const credit = imageryCredit("mars", useGlobeSources((s) => s.source.mars), marsLayer);
+  const credit = useImageryCredit("mars").full;
   const ds = (id: string) => datasets.data?.datasets.find((d) => d.id === id);
   const groups = readoutGroups({
     zones: sites.data ? sites.data.length : null,

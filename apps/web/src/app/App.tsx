@@ -89,6 +89,7 @@ function Workspace() {
     bus.emit(planet, m);
     // What the globe draws (ion tiles or NASA imagery, and its layer notes): imagery credits are built from it.
     if (m.t === "ready") useGlobeSources.getState().setSource(planet, { mode: m.mode, layers: m.layers });
+    else if (m.t === "imagery") useGlobeSources.getState().setMode(planet, m.imagery.mode);
     if (m.t === "hover") useGlobes.getState().setHover(m.lat === null || m.lon === null ? null : { planet, lat: m.lat, lon: m.lon });
     else if (m.t === "error") console.warn(`[${planet} globe]`, m.message);
   }, [bus]);
