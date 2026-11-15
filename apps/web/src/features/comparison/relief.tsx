@@ -33,6 +33,10 @@ const SCENE = { min: 180, max: 420 } as const;
 const PHONE_SCENE = 250;
 /** The status bar under each scene (ReliefView), so a half without a grid ends level with one that has. */
 const STATUS_BAR = 28;
+/** Under each scene: the planet strip above it and the status bar; a deck row when the controls sit below; the shared control. */
+const RESERVE = { strip: 28, status: STATUS_BAR, deck: 40, shared: 38 } as const;
+/** A half at least this wide has room beside the block for its controls inside the scene. */
+const FLOAT_MIN_HALF = 540;
 
 function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
   const pool = useEarthPool();
@@ -45,16 +49,19 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
   const both = !!earth.data && !!mars.data;
   const [side, setSide] = useState<"mars" | "earth">("earth");
   const root = useRef<HTMLDivElement>(null);
-  // Desktop: fill what the panel shows (the planet strip and the status bar under the scene are reserved).
-  const fill = useFillHeight(root, both ? 94 : 56);
-  const sceneH = phone ? PHONE_SCENE : fill;
+  const room = usePanelRoom(root);
+  // Wide halves float their controls beside the block; narrower ones (tablets, phones) keep a deck row under the scene.
+  const controls = !phone && room.width >= 2 * FLOAT_MIN_HALF + 16 ? "float" : "deck";
+  // Desktop: the scenes fill what the panel shows, less what sits around them.
+  const reserve = RESERVE.strip + RESERVE.status + (controls === "deck" ? RESERVE.deck : 0) + (both ? RESERVE.shared : 0);
+  const sceneH = phone ? PHONE_SCENE : Math.max(SCENE.min, Math.min(SCENE.max, room.height - reserve));
   // A half with no grid draws its notice over the scene and status bar's height, so both halves end level.
   const noticeH = sceneH + STATUS_BAR;
 
   const half = (planet: "mars" | "earth") => planet === "mars" ? (
     <Half planet="mars" name={targets.mars.name} kind={zone ? "Exploration Zone" : "Search target"} relief={mars.data ?? null}>
       {zone ? (
-        <ReliefView planet="mars" id={zone} title={targets.mars.name} density="compact" controls={phone ? "deck" : "float"} sceneHeight={mars.data ? sceneH : noticeH}
+        <ReliefView planet="mars" id={zone} title={targets.mars.name} density="compact" controls={controls} sceneHeight={mars.data ? sceneH : noticeH}
           wheel="modifier" exaggeration={ve} onExaggerationChange={setVe} exaggerationControl={!both} />
       ) : (
         <ReliefNotice planet="mars" title="No Mars elevation grid" height={noticeH}>
@@ -65,7 +72,7 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
   ) : (
     <Half planet="earth" name={targets.earth.name} kind={c.tier === 2 ? "Research window" : "Screening cell"} relief={earth.data ?? null}>
       {earthId ? (
-        <ReliefView key={earthId} planet="earth" id={earthId} title={targets.earth.name} density="compact" controls={phone ? "deck" : "float"} sceneHeight={earth.isError ? noticeH : sceneH}
+        <ReliefView key={earthId} planet="earth" id={earthId} title={targets.earth.name} density="compact" controls={controls} sceneHeight={earth.isError ? noticeH : sceneH}
           wheel="modifier" exaggeration={ve} onExaggerationChange={setVe} exaggerationControl={!both} />
       ) : c.tier === 2 && pool.isPending ? (
         <div className="grid place-items-center border border-line-strong bg-[#030405]" style={{ height: noticeH }}><Spinner label="Loading the research pool" /></div>
@@ -81,7 +88,8 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
 
   return (
     <div ref={root} className="min-w-0">
-      {phone ? (
+      {/* The views choose their home view once, from the controls layout: wait for the first measure (before paint). */}
+      {!phone && room.width === 0 ? null : phone ? (
         <>
           <PlanetSwitch value={side} onChange={setSide} />
           <div className="mt-2.5">{half(side)}</div>
@@ -190,11 +198,11 @@ function Caption({ earth, earthId, mars, zone, ve, both, marsWhy }: {
 }
 
 /**
- * Scene height that fills the visible height of the scrolling panel around `ref` (less `reserve` px for what sits
- * under the scene), within the scene bounds; re-measured whenever the panel resizes.
+ * Room for the viewer inside the scrolling panel around `ref`: the visible height left under its top edge, and its
+ * width; re-measured whenever the panel or the viewer resizes.
  */
-function useFillHeight(ref: RefObject<HTMLElement | null>, reserve: number): number {
-  const [h, setH] = useState(240);
+function usePanelRoom(ref: RefObject<HTMLElement | null>): { height: number; width: number } {
+  const [room, setRoom] = useState({ height: 300, width: 0 });
   useLayoutEffect(() => {
     const el = ref.current;
     let box = el?.parentElement ?? null;
@@ -204,12 +212,14 @@ function useFillHeight(ref: RefObject<HTMLElement | null>, reserve: number): num
     const measure = () => {
       const top = el.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop;
       const pad = parseFloat(getComputedStyle(panel).paddingBottom) || 0;
-      setH(Math.round(Math.max(SCENE.min, Math.min(SCENE.max, panel.clientHeight - top - pad - reserve))));
+      const next = { height: Math.round(panel.clientHeight - top - pad), width: Math.round(el.clientWidth) };
+      setRoom((r) => (r.height === next.height && r.width === next.width ? r : next));
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(panel);
+    ro.observe(el);
     return () => ro.disconnect();
-  }, [ref, reserve]);
-  return h;
+  }, [ref]);
+  return room;
 }
