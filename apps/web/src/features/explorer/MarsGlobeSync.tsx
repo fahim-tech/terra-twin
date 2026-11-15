@@ -43,7 +43,9 @@ export function MarsGlobeSync() {
       t: "setMarkers", group: "selection", options: { labels: "none" },
       markers: atCentre ? [] : [{ id: "selection", lat: selection.lat, lon: selection.lon, kind: "selection", label: selection.label }],
     });
-    bus.send("mars", { t: "setFootprints", group: "aoi", footprints: [{ id: "aoi", kind: "aoi", lat: selection.lat, lon: selection.lon, km: footprintKm }] });
+    // A fresh id per AOI: re-adding the same entity id in one suspended batch can leave the new square undrawn.
+    const aoiId = `aoi:${selection.lat.toFixed(5)}:${selection.lon.toFixed(5)}:${footprintKm}`;
+    bus.send("mars", { t: "setFootprints", group: "aoi", footprints: [{ id: aoiId, kind: "aoi", lat: selection.lat, lon: selection.lon, km: footprintKm }] });
     bus.send("mars", { t: "select", id: atCentre ? `site:${selection.siteId}` : "selection" });
   }, [bus, selection, footprintKm, sites.data]);
 

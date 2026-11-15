@@ -84,13 +84,13 @@ export function MarsSearch() {
   return (
     <div className="relative w-full" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false); }}>
       {!selection && <h1 data-stage-heading="mars" tabIndex={-1} className="sr-only">Mars explorer</h1>}
-      <div data-occludes="mars" className={cx("surface flex h-11 items-center gap-2.5 rounded-full pl-4 pr-1.5 transition-shadow", open && "shadow-[inset_0_0_0_1px_var(--color-line-strong)]")}>
+      <div data-occludes="mars" className={cx("surface flex h-11 items-center gap-2.5 rounded-full pl-4 pr-1.5 transition-shadow has-[input:focus-visible]:shadow-[0_0_0_2px_color-mix(in_oklab,var(--color-earth)_70%,white)]", open && "shadow-[inset_0_0_0_1px_var(--color-line-strong)]")}>
         <Search className="h-4 w-4 shrink-0 text-muted" aria-hidden />
         <input ref={input} value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); setActive(0); }} onFocus={() => setOpen(true)} onClick={() => setOpen(true)} onKeyDown={onKey}
           role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list" aria-activedescendant={activeId}
           placeholder={selection ? `${selection.label} · search zones or lat, lon` : `Search ${sites.data?.length ?? 39} research zones or enter lat, lon`}
           aria-label="Search research zones or enter a latitude and longitude"
-          className="h-full min-w-0 flex-1 bg-transparent text-body text-ink outline-none placeholder:text-muted focus-visible:outline-none" />
+          style={{ outline: "none" }} className="h-full min-w-0 flex-1 bg-transparent text-body text-ink placeholder:text-muted" />
         {q && (
           <button type="button" aria-label="Clear search" onClick={() => { setQ(""); input.current?.focus(); }}
             className="hit grid h-8 w-8 place-items-center rounded-full text-muted hover:bg-elevated hover:text-ink">
@@ -145,7 +145,7 @@ export function MarsSearch() {
           </ul>
           {!coord && (
             <p className="border-t border-line px-4 py-2 text-caption text-faint">
-              Research outcome for {missionLabel}: <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◉</span> stable leader</span> · <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◎</span> tie</span> · <span className="whitespace-nowrap"><span aria-hidden>—</span> none</span>
+              {missionLabel}: <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◉</span> stable leader</span> · <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◎</span> tie</span> · <span className="whitespace-nowrap"><span aria-hidden>—</span> none</span>
             </p>
           )}
         </div>

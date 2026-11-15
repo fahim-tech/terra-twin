@@ -62,7 +62,7 @@ export function MarsInspector() {
     <div ref={root} className="flex h-full min-h-0 flex-col">
       <PanelHeader onClose={() => select(null)} className="pr-14">
         <Kicker tone={outside ? undefined : "mars"}>{outside ? "Outside research zones" : "Research zone"}</Kicker>
-        <Toponym data-stage-heading="mars" tabIndex={-1} className="mt-1.5 focus-visible:outline-none">{name}</Toponym>
+        <Toponym data-stage-heading="mars" tabIndex={-1} style={{ outline: "none" }} className="mt-1.5">{name}</Toponym>
         <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
           <span className="num text-num">{formatLat(selection.lat, 3)} {formatLon(selection.lon, 3)}</span>
           {!outside && !centred && <span>picked point · zone measures describe the whole zone</span>}
