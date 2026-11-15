@@ -71,7 +71,11 @@ export function Reticle({ planet, className }: { planet: Planet; className?: str
   );
 }
 
-const ctl = "hit grid h-9 w-9 place-items-center text-muted transition-colors duration-150 hover:bg-white/[0.07] hover:text-ink active:bg-white/[0.14] active:duration-0";
+// The stack clips its children (overflow-hidden), so the focus ring is drawn inside each button. Important:
+// the global :focus-visible rule in index.css is unlayered and would beat a layered utility. Ink colour is
+// set per button (a pressed toggle reads in ink; two text colours on one element would let the later one win).
+const ctl = "hit grid h-9 w-9 place-items-center transition-colors duration-150 hover:bg-white/[0.07] hover:text-ink active:bg-white/[0.14] active:duration-0 focus-visible:outline-offset-[-3px]!";
+const idle = "text-muted";
 
 /** North needle: filled half points north, outlined half south; turns with the camera heading. */
 function NorthNeedle({ heading }: { heading: number }) {
@@ -95,18 +99,18 @@ export function NavControls({ planet, className, style }: { planet: Planet; clas
   useGlobeEvents(planet, (m) => { if (m.t === "tilt") useApp.getState().announce(viewName(m.on)); });
   return (
     <div style={style} className={cx("surface flex flex-col overflow-hidden rounded-control", className)} role="group" aria-label="Map navigation">
-      <button className={ctl} aria-label="Zoom in" title="Zoom in (+)" onClick={() => bus.send(planet, { t: "zoom", direction: "in" })}><Plus className="h-4 w-4" strokeWidth={1.6} /></button>
-      <button className={cx(ctl, "border-t border-line")} aria-label="Zoom out" title="Zoom out (−)" onClick={() => bus.send(planet, { t: "zoom", direction: "out" })}><Minus className="h-4 w-4" strokeWidth={1.6} /></button>
-      <button className={cx(ctl, "border-t border-line")} aria-label={`Face north (heading ${Math.round(heading)}°)`} title="Face north (N)" onClick={() => bus.send(planet, { t: "resetHeading" })}>
+      <button className={cx(ctl, idle)} aria-label="Zoom in" title="Zoom in (+)" onClick={() => bus.send(planet, { t: "zoom", direction: "in" })}><Plus className="h-4 w-4" strokeWidth={1.6} /></button>
+      <button className={cx(ctl, idle, "border-t border-line")} aria-label="Zoom out" title="Zoom out (−)" onClick={() => bus.send(planet, { t: "zoom", direction: "out" })}><Minus className="h-4 w-4" strokeWidth={1.6} /></button>
+      <button className={cx(ctl, idle, "border-t border-line")} aria-label={`Face north (heading ${Math.round(heading)}°)`} title="Face north (N)" onClick={() => bus.send(planet, { t: "resetHeading" })}>
         <NorthNeedle heading={heading} />
       </button>
-      <button className={cx(ctl, "relative border-t border-line", tilted && "text-ink")} aria-label={viewName(true)} aria-pressed={tilted}
+      <button className={cx(ctl, "relative border-t border-line", tilted ? "text-ink" : idle)} aria-label={viewName(true)} aria-pressed={tilted}
         title={tilted ? `${viewName(false)} (T)` : `${viewName(true)} (T)`} onClick={() => bus.send(planet, { t: "setTilt", on: !tilted })}>
         <span aria-hidden className="num text-[11px] font-medium tracking-[0.06em]">3D</span>
-        {/* Status mark: filled while tilted, outlined while top-down. */}
-        <span aria-hidden className={cx("absolute right-[5px] top-[5px] h-[5px] w-[5px]", tilted ? "bg-ink" : "border border-faint")} />
+        {/* Status mark (6 px square): filled while tilted, outlined while top-down. */}
+        <span aria-hidden className={cx("absolute right-[5px] top-[5px] h-1.5 w-1.5", tilted ? "bg-ink" : "border border-faint")} />
       </button>
-      <button className={cx(ctl, "border-t border-line")} aria-label="Reset view" title="Reset view" onClick={() => bus.send(planet, { t: "reset" })}><Home className="h-4 w-4" strokeWidth={1.6} /></button>
+      <button className={cx(ctl, idle, "border-t border-line")} aria-label="Reset view" title="Reset view" onClick={() => bus.send(planet, { t: "reset" })}><Home className="h-4 w-4" strokeWidth={1.6} /></button>
     </div>
   );
 }
