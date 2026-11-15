@@ -1,7 +1,35 @@
 import { describe, expect, it } from "vitest";
 import {
-  availabilityItems, baselineFromExplanation, calloutGeometry, gridMetres, LEADER_DX, nextActive, revealDelta, scalesFromEvidence,
+  availabilityItems, baselineFromExplanation, calloutGeometry, graticulePaths, gridMetres, LEADER_DX, nextActive, orthographic, revealDelta,
+  scalesFromEvidence,
 } from "./readouts";
+
+describe("orthographic", () => {
+  it("puts the view centre at the disc centre and the limb at the radius", () => {
+    expect(orthographic(10, 40, 10, 40, 20)).toMatchObject({ x: 0, front: true });
+    expect(orthographic(10, 40, 10, 40, 20).y).toBeCloseTo(0);
+    const east = orthographic(0, 90, 0, 0, 20);
+    expect(east.x).toBeCloseTo(20);
+    expect(east.y).toBeCloseTo(0);
+    expect(orthographic(90, 0, 0, 0, 20).y).toBeCloseTo(20);
+  });
+  it("marks the far hemisphere", () => {
+    expect(orthographic(0, 180, 0, 0, 20).front).toBe(false);
+    expect(orthographic(0, -100, 0, 0, 20).front).toBe(false);
+    expect(orthographic(-60, 10, 0, 10, 20).front).toBe(true);
+  });
+});
+
+describe("graticulePaths", () => {
+  it("draws only near-side lines, all inside the disc", () => {
+    const paths = graticulePaths(20, 77, 23);
+    expect(paths.length).toBeGreaterThan(5);
+    for (const d of paths) {
+      const nums = d.replace(/[ML]/g, " ").trim().split(/\s+/).map(Number);
+      for (let i = 0; i < nums.length; i += 2) expect(Math.hypot(nums[i], nums[i + 1])).toBeLessThanOrEqual(23.01);
+    }
+  });
+});
 
 describe("scalesFromEvidence", () => {
   it("reads cell, window and zone counts from the evidence coverage", () => {

@@ -126,3 +126,49 @@ export function calloutGeometry(a: Pt, side: CalloutSide, dy: number, from: Call
   const start = { x: a.x + vx * t, y: a.y + vy * t };
   return { sx, sy, start, elbow, end };
 }
+
+const D2R = Math.PI / 180;
+
+/**
+ * Orthographic projection of a planetocentric point onto a disc of radius `r` seen from above
+ * (lat0, lon0): x east, y north. `front` is false on the far hemisphere.
+ */
+export function orthographic(lat: number, lon: number, lat0: number, lon0: number, r: number): { x: number; y: number; front: boolean } {
+  const p = lat * D2R, l = (lon - lon0) * D2R, p0 = lat0 * D2R;
+  const cosc = Math.sin(p0) * Math.sin(p) + Math.cos(p0) * Math.cos(p) * Math.cos(l);
+  return {
+    x: r * Math.cos(p) * Math.sin(l),
+    y: r * (Math.cos(p0) * Math.sin(p) - Math.sin(p0) * Math.cos(p) * Math.cos(l)),
+    front: cosc >= 0,
+  };
+}
+
+/**
+ * Graticule of an orthographic disc as SVG path data (screen y down): parallels and meridians every
+ * `step` degrees on the near hemisphere, each line broken where it passes behind the limb.
+ */
+export function graticulePaths(lat0: number, lon0: number, r: number, step = 30, sample = 5): string[] {
+  const out: string[] = [];
+  const trace = (pts: [number, number][]) => {
+    let d = "";
+    let pen = false;
+    for (const [la, lo] of pts) {
+      const q = orthographic(la, lo, lat0, lon0, r);
+      if (!q.front) { pen = false; continue; }
+      d += `${pen ? "L" : "M"}${q.x.toFixed(2)} ${(-q.y).toFixed(2)}`;
+      pen = true;
+    }
+    if (d.includes("L")) out.push(d);
+  };
+  for (let la = -90 + step; la < 90; la += step) {
+    const pts: [number, number][] = [];
+    for (let lo = -180; lo <= 180; lo += sample) pts.push([la, lo]);
+    trace(pts);
+  }
+  for (let lo = -180; lo < 180; lo += step) {
+    const pts: [number, number][] = [];
+    for (let la = -90; la <= 90; la += sample) pts.push([la, lo]);
+    trace(pts);
+  }
+  return out;
+}

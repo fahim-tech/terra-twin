@@ -4,10 +4,11 @@ import { Block, Kicker, PanelBody, PanelFooter, PanelHeader, Term, Toponym } fro
 import { Button, cx, Note, Segmented } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { zoneName } from "../../lib/glossary";
-import { useMarsAnalysis, useMissions } from "../../services/api";
+import { useMarsAnalysis, useMissions, useSites } from "../../services/api";
 import { useApp } from "../../store/app";
 import type { MarsAnalysis, MissionProfile } from "../../types/contracts";
 import { Availability } from "./Availability";
+import { Locator } from "./Locator";
 import { useExplorer } from "./explorerStore";
 import { OutsideActions, OutsideBody } from "./OutsideZone";
 import { Mark, Readout, SectionTitle } from "./parts";
@@ -34,6 +35,7 @@ export function MarsInspector() {
   const a = q.data;
   const search = useRunSearch();
   const scales = useScales();
+  const sites = useSites();
   const root = useRef<HTMLDivElement>(null);
   const inSheet = useSheetFit(root, !!selection);
 
@@ -59,7 +61,9 @@ export function MarsInspector() {
 
   return (
     <div ref={root} className={cx("group/insp flex min-h-0 flex-col overflow-clip", inSheet && "h-full")}>
-      <PanelHeader onClose={() => select(null)} className={cx("pr-14", inSheet && "pb-2 pt-1!")}>
+      <PanelHeader onClose={() => select(null)} className={cx(inSheet ? "pb-2 pr-14 pt-1!" : "pr-[76px]")}>
+        {/* Where on Mars (panel only; the phone sheet keeps its header compact). */}
+        {!inSheet && <div className="absolute right-4 top-[54px]"><Locator lat={selection.lat} lon={selection.lon} zones={sites.data} /></div>}
         <div className="flex items-center gap-2">
           <Mark on={!outside} tone={outside ? "faint" : "mars"} />
           <Kicker tone={outside ? undefined : "mars"}>{outside ? "Outside research zones" : "Research zone"}</Kicker>
