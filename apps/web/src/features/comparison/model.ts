@@ -201,11 +201,14 @@ export function robustness(search: AnalogSearch): Robustness | null {
   };
 }
 
-/** Why the per-descriptor research values are not shown (reasons come from the API record). */
+/**
+ * Why the per-descriptor research values are not shown (reasons come from the API record). The fallbacks
+ * name no window size: sizes come from the record, never from a default.
+ */
 export function notLoadedReasons(c: CandidateView): { mars: string; earthOom: string } {
   const f = (c.t2?.features ?? {}) as { mars_reason?: string; earth_oom_reason?: string };
   return {
-    mars: f.mars_reason ?? "Mars 50 km window descriptors are stored only in the research record.",
+    mars: f.mars_reason ?? "Mars research-window descriptors are stored only in the research record.",
     earthOom: f.earth_oom_reason ?? "Operator output requires the target's MEGDR counts tiles.",
   };
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { G5 } from "../../lib/glossary";
 import type { AnalogSearch } from "../../types/contracts";
 import type { CandidateView } from "../analogs/candidates";
-import { basisFor, compareTargets, earthName, keepFigures, poolKindLabel, VERDICT_MARK, verdictFor } from "./model";
+import { basisFor, compareTargets, earthName, keepFigures, notLoadedReasons, poolKindLabel, VERDICT_MARK, verdictFor } from "./model";
 import { deltaPos, groupRows, ratioPos, ratioRow, S_AT_TOLERANCE } from "./science";
 
 describe("ratio chart geometry", () => {
@@ -140,6 +140,16 @@ describe("targets", () => {
 
   it("names random research windows without inventing a place", () => {
     expect(earthName(t2cand("rand_d8_233", 0.7)).name).toBe("Research window 233");
+  });
+
+  it("says why values are not loaded without naming a window size the record did not give", () => {
+    const r = notLoadedReasons(t2cand("rand_d8_233", 0.7));
+    expect(r.mars).not.toMatch(/\d+\s*km/);
+    expect(r.earthOom).not.toMatch(/\d+\s*km/);
+    // The record's own reasons are quoted as given.
+    const c = t2cand("rand_d8_233", 0.7);
+    const quoted = { ...c, t2: { ...c.t2!, features: { mars_reason: "Mars descriptors are in the research record only." } } } as unknown as CandidateView;
+    expect(notLoadedReasons(quoted).mars).toBe("Mars descriptors are in the research record only.");
   });
 });
 
