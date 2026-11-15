@@ -1,8 +1,18 @@
 import { create } from "zustand";
+import type { DiscoveryJob } from "../services/gis";
 import type { AnalogSearch } from "../types/contracts";
 
 export type Stage = "mars" | "earth" | "compare" | "evidence" | "report";
 export type Tier = 1 | 2;
+
+/**
+ * A live discovery submitted from the Mars inspector (services/gis.ts). `job` is the payload the submission
+ * returned (a cached run comes back `done` at once); polling then follows `job.job_id`.
+ */
+export interface DiscoveryState {
+  request: { lat: number; lon: number; site: string | null; label: string; mission: string; nRefine: 20 | 40 };
+  job: DiscoveryJob;
+}
 
 export interface Selection {
   lat: number;
@@ -34,6 +44,16 @@ interface AppState {
   earthOverlays: { similarity: boolean; coverage: boolean; pool: boolean };
   /** Mars/Earth latitude-longitude grid. */
   graticule: boolean;
+  /** The latest live discovery submission (job and its request), or none. */
+  discovery: DiscoveryState | null;
+  /** The discovery run shown in the Earth stage's Live discovery tab (the submitted one or a previous run). */
+  liveRunId: string | null;
+  /** The Live discovery tab is the active Earth stage (beside research comparison and global screen). */
+  liveOpen: boolean;
+  /** Selected window of the shown discovery run (its candidate id), or none. */
+  liveCandidate: string | null;
+  /** Windows the next discovery refines (the API's choices). */
+  discoveryWindows: 20 | 40;
 
   set: (p: Partial<AppState>) => void;
   go: (stage: Stage) => void;
@@ -64,6 +84,11 @@ export const useApp = create<AppState>((set, get) => ({
   knownFilter: "all",
   earthOverlays: { similarity: true, coverage: false, pool: true },
   graticule: false,
+  discovery: null,
+  liveRunId: null,
+  liveOpen: false,
+  liveCandidate: null,
+  discoveryWindows: 20,
 
   set: (p) => set(p),
   go: (stage) => set({ previousStage: get().stage, stage, whyOpen: false }),
