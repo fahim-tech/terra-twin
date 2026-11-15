@@ -344,6 +344,26 @@ describe("scale labels from every side", () => {
     }
   });
 
+  it("never sets a km label over its own tick on the block's edge", () => {
+    const edgeOf = (key: string, p: [number, number, number]): [number, number, number] => {
+      const g = key.split("-")[1];
+      return g === "w" ? [-real.hx, 0, p[2]] : g === "e" ? [real.hx, 0, p[2]] : g === "n" ? [p[0], 0, -real.hz] : [p[0], 0, real.hz];
+    };
+    for (const az of [0, 25, 70, 115, 160, 205, 250, 295, 340]) {
+      for (const el of [20, 30, 45]) {
+        const c = camera(real, { ...homePose(4), az: (az * Math.PI) / 180, el: (el * Math.PI) / 180 }, 880, 460);
+        for (const l of layoutLabels(real, anchors, c, 880, 460).filter((x) => x.kind === "km")) {
+          const e = project(c.viewProj, edgeOf(l.key, anchors.find((a) => a.key === l.key)!.p), 880, 460);
+          const b = box(l);
+          expect(e.x > b.left && e.x < b.right && e.y > b.top && e.y < b.bottom).toBe(false);
+        }
+      }
+    }
+    // Seen from the south-south-west the west scale runs up the screen: its labels sit to the left of the edge.
+    const home = layoutLabels(real, anchors, camera(real, homePose(4), 880, 460), 880, 460);
+    expect(home.find((l) => l.text === "50 km N")!.align).toBe("right");
+  });
+
   it("writes a single 0 where the scales meet at the south-west corner", () => {
     const zeros = view(205).filter((l) => l.kind === "km" && l.text === "0");
     expect(zeros.map((l) => l.key)).toEqual(["km-s-0"]);

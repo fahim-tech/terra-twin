@@ -769,9 +769,10 @@ function placeNorth(m: Model, a: Anchor, cam: Camera, width: number, height: num
  * Screen positions of the scale labels for one frame. Labels whose anchor is behind the camera or outside
  * the view are dropped, and a label near the border is nudged inside it; a scale too foreshortened to read
  * keeps only its ends (the unit sits on the last label), and the elevation scale keeps two heights whenever
- * they fit; elevation labels sit on the outer side of their corner. Seen from the north, both km scales
- * end on the near corner with different values, so those two labels run apart along their own edges.
- * The north letter is placed last, clear of its arrow and of the scales (`placeNorth`).
+ * they fit; elevation labels sit on the outer side of their corner. A km label beside an edge that runs up and
+ * down the screen sits on the outside of its tick; seen from the north, both km scales end on the near corner
+ * with different values, so (where neither edge runs up the screen) those two labels run apart along their own
+ * edges. The north letter is placed last, clear of its arrow and of the scales (`placeNorth`).
  */
 export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: number, height: number): PlacedLabel[] {
   const place = axisPlacement(cam);
@@ -796,6 +797,14 @@ export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: nu
     const far = project(cam.viewProj, xAxis ? [-cx, 0, cz] : [cx, 0, -cz], width, height);
     return far.x < nearCorner.x ? "right" : "left"; // the text runs along its edge, away from the corner
   };
+  // A km label on an edge that runs up and down the screen sits beside its tick on the outside, its text running
+  // away from the block (centred, "50 km N" would reach back over the edge); across the screen it is centred.
+  const sideAlign = (g: string, a: Anchor, sx: number, sy: number): PlacedLabel["align"] => {
+    const edge: Vec3 = g === "w" ? [-m.hx, 0, a.p[2]] : g === "e" ? [m.hx, 0, a.p[2]] : g === "n" ? [a.p[0], 0, -m.hz] : [a.p[0], 0, m.hz];
+    const e = project(cam.viewProj, edge, width, height);
+    const dx = sx - e.x, dy = sy - e.y;
+    return Math.abs(dx) > Math.abs(dy) * 1.2 ? (dx < 0 ? "right" : "left") : "center";
+  };
   const out: PlacedLabel[] = [];
   for (const [g, list] of groups) {
     let gap = Infinity;
@@ -807,8 +816,9 @@ export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: nu
     list.forEach((it, i) => {
       const ends = i === list.length - 1 || (i === 0 && endsFit);
       if (gap < need && !ends) return;
+      const side = it.a.kind === "km" ? sideAlign(g, it.a, it.x, it.y) : "center";
       const align = it.a.kind === "elev" ? (it.x >= (centre.visible ? centre.x : width / 2) ? "left" : "right")
-        : cornerAlign(g, it.a) ?? "center";
+        : side !== "center" ? side : cornerAlign(g, it.a) ?? "center";
       const box = labelBox(it.a.kind, it.a.text);
       const left = align === "left" ? it.x : align === "right" ? it.x - box.w : it.x - box.w / 2;
       const dx = Math.max(0, LABEL_INSET - left) - Math.max(0, left + box.w - (width - LABEL_INSET));
