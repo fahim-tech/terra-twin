@@ -29,6 +29,10 @@ interface AppState {
   whyOpen: boolean;
   hover: { planet: "mars" | "earth"; lat: number; lon: number } | null;
   knownFilter: "all" | "not_in_reference_set" | "near_documented_analog";
+  /** Earth globe layers: tier-1 similarity field, tier-1 screening coverage, tier-2 research pool. */
+  earthOverlays: { similarity: boolean; coverage: boolean; pool: boolean };
+  /** Mars/Earth latitude-longitude grid. */
+  graticule: boolean;
 
   set: (p: Partial<AppState>) => void;
   go: (stage: Stage) => void;
@@ -54,6 +58,8 @@ export const useApp = create<AppState>((set, get) => ({
   whyOpen: false,
   hover: null,
   knownFilter: "all",
+  earthOverlays: { similarity: true, coverage: false, pool: true },
+  graticule: false,
 
   set: (p) => set(p),
   go: (stage) => set({ previousStage: get().stage, stage, whyOpen: false }),
