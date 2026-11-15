@@ -27,8 +27,9 @@ export function Locator({ lat, lon, zones, size = 48 }: { lat: number; lon: numb
       setView(target);
       return;
     }
+    // Critically damped, in the UI spring range of the motion spec (bounce 0, 0.3–0.4 s).
     const controls = animate(0, 1, {
-      type: "spring", bounce: 0, duration: 0.7,
+      type: "spring", bounce: 0, duration: 0.4,
       onUpdate: (t) => {
         const v = { lat0: from.lat0 + (target.lat0 - from.lat0) * t, lon0: from.lon0 + dLon * t };
         shown.current = v;
