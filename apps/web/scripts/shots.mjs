@@ -49,7 +49,7 @@ const VIEWS = {
     run: async (h, p) => {
       const s = h.useApp.getState(); s.set({ introOpen: false }); s.select(p.jezero);
       const res = await h.api.findAnalogs({ lat: p.jezero.lat, lon: p.jezero.lon, footprint_km: 25, mission: "landing_site" });
-      s.set({ search: res, candidateId: `t1:${res.tier1.candidates[0].region_id}`, tier: 1 }); s.go("earth");
+      s.set({ search: res, candidateId: null, tier: 1 }); s.go("earth"); // a cell is only selected by the user
     },
   },
   "earth-unavailable": {

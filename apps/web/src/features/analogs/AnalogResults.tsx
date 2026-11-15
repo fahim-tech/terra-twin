@@ -136,7 +136,7 @@ export function AnalogResults() {
           <span className="toponym mt-0.5 text-toponym-sm text-ink sm:block sm:text-toponym">{target.siteId ? zoneName(target.siteId) : "Selected point"}</span>
         </h2>
         <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
-          <span className="text-mars">{mission?.label ?? target.mission.replace(/_/g, " ")}</span>
+          <span className="text-ink">{mission?.label ?? target.mission.replace(/_/g, " ")}</span>
           <span aria-hidden>·</span>
           <span className="num text-num-sm">{formatLat(target.lat, 3)} {formatLon(target.lon, 3)}</span>
         </p>
