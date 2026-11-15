@@ -160,6 +160,9 @@ def research_record(site: str, mission_id: str) -> dict:
         },
         "candidate_pool": {"scope": "fixed_research_pool", "n_windows": 230, "n_random_stratified": 213,
                            "n_named_controls": 17, "window_km": 50,
+                           "n_ranked": _n_ranked(gated),
+                           "ranked_basis": ("windows passing the land-cover gate (bare-like ≥ 0.50, vegetated ≤ 0.20; "
+                                            "working hypotheses)") if gated else "all pool windows (land cover reported, not used)",
                            "note": "Stratified research sample. Demonstrates the method; not a worldwide high-resolution search."},
         "weights": "equal (mission-neutral) — mission affects only the land-cover gate mode at tier 2",
         "method_version": OOM_METHOD_VERSION,
@@ -167,6 +170,11 @@ def research_record(site: str, mission_id: str) -> dict:
         "disclaimers": DISCLAIMERS,
         "live_refinement": live_status(),
     }
+
+
+def _n_ranked(gated: bool) -> int:
+    lc = RS.pool_landcover()
+    return int(lc.gate_pass.fillna(False).astype(bool).sum()) if gated else int(len(RS.pool_meta()))
 
 
 def live_status() -> dict:

@@ -103,3 +103,11 @@ def test_tier1_pagination_and_viewport(client):
 def test_arbitrary_earth_coordinate_lookup(client):
     d = client.get("/api/earth/region?lat=-24.09&lon=-69.99").json()
     assert d["planet"] == "earth" and abs(d["lat"] + 24.09) < 0.3
+
+
+@requires_data
+def test_ranked_pool_size_reflects_gate(client):
+    gated = client.post("/v1/compare", json={"site": "Jezero", "mission": "landing_site"}).json()
+    report = client.post("/v1/compare", json={"site": "Jezero", "mission": "terrain_geometry_only"}).json()
+    assert gated["candidate_pool"]["n_ranked"] == 50   # oom_gated_key_numbers.json n_pass
+    assert report["candidate_pool"]["n_ranked"] == 230
