@@ -1,0 +1,8 @@
+# Health probe for terratwin-api: restarts it when /api/health fails twice in a row, and logs every failure
+# to the journal (journalctl -t terratwin-health). Run by terratwin-api-health.timer every 2 minutes.
+[Unit]
+Description=TerraTwin API health probe
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'for i in 1 2; do curl -sf -m 10 -o /dev/null http://127.0.0.1:8710/api/health && exit 0; sleep 5; done; echo "terratwin-api unhealthy: restarting" | systemd-cat -t terratwin-health -p err; systemctl restart terratwin-api'

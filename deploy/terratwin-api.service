@@ -25,6 +25,9 @@ Environment=TERRATWIN_DATA_DIR=/srv/terratwin-app/api/data/research
 Environment=TERRATWIN_MOLA_MOSAIC=/srv/terratwin/data/raw/mars/Mars_MGS_MOLA_DEM_mosaic_global_463m.tif
 Environment=TERRATWIN_MEGDR_COUNTS_DIR=/srv/terratwin/data/raw/mars/megdr_counts
 Environment=TERRATWIN_CORS_LOCALHOST=0
+# /v1/compare outside the zones answers from cached GIS discovery runs; analyses persist across restarts.
+Environment=TERRATWIN_GIS_PROVIDER=terratwin_api.services.gis:compare_provider
+Environment=TERRATWIN_ANALYSIS_DIR=/srv/terratwin/data/cache/analyses
 Environment=PROJ_DATA=/srv/terratwin/tools/envs/gis/share/proj
 Environment=GDAL_DATA=/srv/terratwin/tools/envs/gis/share/gdal
 Environment=PROJ_NETWORK=OFF
