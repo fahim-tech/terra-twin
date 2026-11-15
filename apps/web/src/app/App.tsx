@@ -157,7 +157,7 @@ function Workspace() {
         )}
 
         {fullPage && (
-          <div className="absolute inset-0 z-20 overflow-y-auto scroll-thin bg-space/85">
+          <div className="absolute inset-0 z-20 overflow-y-auto scroll-thin bg-space/95">
             <Suspense fallback={<div className="p-10"><Spinner label="Loading" /></div>}>
               {stage === "evidence" ? <EvidenceView /> : <ReportView />}
             </Suspense>
