@@ -52,11 +52,12 @@ export function CompareGlobeSync() {
     };
   }, [bus, active, targets]);
 
-  // Only the compared footprints may be drawn: the explorer's AOI and research-zone outline (Mars)
-  // and the results' candidate footprint (Earth, a filled cell for tier 1) are hidden while comparing.
-  // Local workaround until the globe protocol can hide a group by stage: clear those groups here,
-  // after the owning syncs have run, and put the Mars AOI back on the way out (the Earth results
-  // sync re-sends its footprint itself when the stage changes).
+  // Only the compared footprints may be drawn: the explorer's AOI and the research-zone outlines (Mars,
+  // unlabelled orange lines that cross the half whenever the camera sits high enough to reach a zone
+  // edge) and the results' candidate footprint (Earth, a filled cell for tier 1) are hidden while
+  // comparing. Local workaround until the globe protocol can hide a group by stage: clear those groups
+  // here, after the owning syncs have run, and put the Mars AOI and zone outlines back on the way out
+  // (the Earth results sync re-sends its footprint itself when the stage changes).
   const sites = useSites();
   const sitesRef = useRef(sites.data);
   sitesRef.current = sites.data;
@@ -65,16 +66,25 @@ export function CompareGlobeSync() {
     if (!active) return;
     const t = setTimeout(() => {
       bus.send("mars", { t: "setFootprints", group: "aoi", footprints: [] });
+      bus.send("mars", { t: "setFootprints", group: "zones", footprints: [] });
       bus.send("earth", { t: "setFootprints", group: "cand", footprints: [] });
     }, 0);
     return () => clearTimeout(t);
-  }, [bus, active, targets, selection]);
+  }, [bus, active, targets, selection, sites.data]);
   useEffect(() => {
     if (!active) return;
     return () => {
+      const all = sitesRef.current;
+      // The zones layer exactly as the explorer draws it (MarsGlobeSync: every zone's bbox, faint).
+      if (all) {
+        bus.send("mars", {
+          t: "setFootprints", group: "zones",
+          footprints: all.map((x) => ({ id: x.id, kind: "research_bbox" as const, lat: x.lat, lon: x.lon, bbox: [x.bbox.lon_min, x.bbox.lat_min, x.bbox.lon_max, x.bbox.lat_max] as [number, number, number, number] })),
+        });
+      }
       const { selection: sel, footprintKm } = useApp.getState();
       if (!sel) return;
-      const site = sitesRef.current?.find((x) => x.id === sel.siteId);
+      const site = all?.find((x) => x.id === sel.siteId);
       bus.send("mars", {
         t: "setFootprints", group: "aoi", footprints: [
           { id: "aoi", kind: "aoi", lat: sel.lat, lon: sel.lon, km: footprintKm },
