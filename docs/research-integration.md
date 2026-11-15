@@ -39,18 +39,32 @@ the latter for `exclude` gate mode.
 - **Evidence:** benchmark, falsification matrix, interpolator selection, abstention, controls, robustness and
   observation support, all read from package tables.
 
-## Pending or blocked (needs the GIS workstream)
+## GIS-backed capabilities (connected on the production host)
 
-| Capability | Blocked by |
+The GIS workstream's library (`terratwin_gis`, repo `fahim-tech/terratwin-dataset`) runs in-process with the API on
+the production host (`/srv/terratwin`, see `docs/deployment.md`). There the following are **connected**; a local
+checkout without the GIS library and its data reports each one as unavailable, with the reason:
+
+| Capability | Production | Local checkout without GIS |
+|---|---|---|
+| Mars features at arbitrary coordinates (`/api/gis/mars/features`) | connected (MOLA 463 m mosaic + MEGDR counts) | 503 with the missing inputs |
+| Mars relief grids for the 39 zones (`/api/mars/relief`) | connected | 503 |
+| Live OOM discovery for any Mars point (`/api/gis/discovery`, GIS worker queue, 1–6 min) | connected; cached runs reopen instantly | unavailable |
+| Global tier-1 screen for any Mars point (`/api/gis/tier1`) | connected | unavailable |
+| Copernicus GLO-90 windows for new shortlist cells, live WorldCover gate | connected (inside discovery runs) | unavailable |
+| Six Mars planetary-context factors: thermal inertia, geologic unit, rock abundance, surface temperature, water-ice potential, solar energy (`/api/gis/mars/factors`, `mars-factors-1.0`) | connected, verified at Jezero, 75° N and Gusev (`docs/gis-handoff-status.md`) | `not_integrated` |
+| ~1 km descriptor grids and context layers (`/api/gis/grid`, `/api/gis/context`) | connected | unavailable |
+
+The six factors are Mars characterization: they never enter OOM similarity, rankings or a suitability score.
+
+## Still not available anywhere
+
+| Capability | Why |
 |---|---|
-| Mars features at arbitrary coordinates | USGS MOLA 463 m mosaic + `aoi.mars_aoi` extraction service |
-| Live OOM for any target | MEGDR counts tiles (`megc*hb.img`, 16 for global bands), `obsop.TargetGeometry` |
-| Mars 50 km window descriptors / Earth "as MOLA would see" per-descriptor values | Stored only in the research pickles (not loaded); need the rasters above |
-| Per-rotation S range | Same (pickles) |
-| Refining new tier-1 shortlist cells (outside the 230 pool) | On-demand Copernicus GLO-90 + WBM window extraction |
-| Live WorldCover gate for new windows | `landcover.cover_fractions` (needs GDAL + network) |
-| 25 km window tier-2 results | No published record; returned as unavailable |
-| Thermal inertia, geology, ice, temperature, rock abundance | No dataset ingested; shown as unavailable |
+| Mars 50 km window descriptors and per-rotation S for the *research records* | stored only in the research pickles, which are never loaded (live discovery runs do report them) |
+| 25 km window tier-2 results | no published record; returned as unavailable |
+| Polar targets beyond ±88° | MEGDR counts tiles stop at ±88°: operator unavailable there |
+| Earth-side counterparts of the six Mars factors | not compared (context only) |
 
 The API never falls back silently: missing inputs give `operator.status = "unavailable"` with a
 `decision.type = "insufficient_evidence"` and a list of what is missing.
