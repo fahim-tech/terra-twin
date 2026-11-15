@@ -201,7 +201,8 @@ export function ProcessFigure({ m }: { m: EvidenceModel }) {
         under each is a measured value from the research package and, in mono, the documented chain step.
       </p>
 
-      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-label="Step through the stages">
+      {/* All four stages are visible side by side from lg up, so the stepper is only for narrower layouts. */}
+      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 lg:hidden" role="group" aria-label="Step through the stages">
         <button type="button" onClick={() => step(-1)} aria-label="Previous stage"
           className="hit inline-grid h-8 w-8 place-items-center rounded-control text-muted hover:bg-elevated hover:text-ink">←</button>
         <button type="button" onClick={() => step(1)} aria-label="Next stage"
