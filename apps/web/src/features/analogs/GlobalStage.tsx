@@ -154,7 +154,7 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
         </span>
         <span className="flex items-center gap-1">
           <Button variant="ghost" onClick={rankInView} disabled={!!loading || !box || !search.mars.site}
-            title={box ? "List the screened cells inside the current globe view" : "Zoom in so the view centre is on the planet"}>
+            title={box ? "List the screened cells inside the current globe view" : "Zoom in to a region to rank the cells in view"}>
             {loading === "view" ? "Ranking…" : "Rank cells in view"}
           </Button>
           {!view && contiguous < t1.total && (

@@ -1,5 +1,6 @@
 import { ArrowRight, Sparkles } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
+import { useLayout } from "../../app/useLayout";
 import { Disclosure, PanelBody, PanelFooter, PanelHeader, Tabs, Term } from "../../components/primitives";
 import { Button, cx, Spinner } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
@@ -13,6 +14,7 @@ import { GlobalStage } from "./GlobalStage";
 import { NoResult } from "./NoResult";
 import { ResearchStage } from "./ResearchStage";
 import { switchTier } from "./tierMemory";
+import { useSheetFit } from "./useSheetFit";
 
 export { DECISION_COPY, DecisionBlock } from "./Verdict";
 
@@ -84,7 +86,7 @@ function Footer({ current, search, target }: { current: CandidateView | null; se
         <span className={cx("truncate text-label text-earth")}>{isT2 ? prettyWindow(current.t2!.id) : `${formatLat(current.lat, 2)} ${formatLon(current.lon, 2)}`}</span>
         <span className="num shrink-0 text-num text-ink">S {current.score === null ? "—" : current.score.toFixed(3)} <span className="text-faint">· {n ?? "—"}/{total}</span></span>
       </div>
-      <p className="mt-0.5 text-caption text-muted">
+      <p className="mt-0.5 truncate text-caption text-muted sm:whitespace-normal">
         {isT2 ? `Research comparison · ${current.t2!.window_km || 50} km window · as MOLA would observe it` : `Global screen · ${search.tier1?.candidate_pool.cell_size_km ?? 25} km cell · as measured`}
         {tieIdx >= 0 && <> · <span className="text-ink">member of a tie ({tieIdx + 1} of {d.members.length})</span></>}
       </p>
@@ -106,8 +108,10 @@ export function AnalogResults() {
   const missions = useMissions();
   const target = useMemo(() => searchTarget(search), [search]);
   const current = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
+  const root = useRef<HTMLDivElement>(null);
+  const fit = useSheetFit(root, useLayout() === "phone");
 
-  if (!search || !target) return <div className="p-6"><Spinner label="No search yet" /></div>;
+  if (!search || !target) return <div ref={root} className="p-6"><Spinner label="No search yet" /></div>;
 
   const mission = missions.data?.find((m) => m.id === target.mission);
   const stale = resultsAreStale(search, selection);
@@ -117,12 +121,12 @@ export function AnalogResults() {
   const activeTier = tier === 1 && t1 ? 1 : 2;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <PanelHeader className="pb-1">
+    <div ref={root} className="flex h-full min-h-0 flex-col" style={fit ? { height: fit } : undefined}>
+      <PanelHeader className="pb-1 max-sm:pt-2">
         {/* Focus lands here after a stage change (screen readers announce it); the heading is not interactive, so no ring. */}
         <h2 data-stage-heading="earth" tabIndex={-1} style={{ outline: "none" }}>
-          <span className="block text-caption text-muted">Results for</span>
-          <span className="toponym mt-0.5 block text-toponym-sm text-ink sm:text-toponym">{targetName(target)}</span>
+          <span className="mr-2 text-caption text-muted sm:mr-0 sm:block">Results for</span>
+          <span className="toponym mt-0.5 text-toponym-sm text-ink sm:block sm:text-toponym">{targetName(target)}</span>
         </h2>
         <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
           <span className="text-mars">{mission?.label ?? target.mission.replace(/_/g, " ")}</span>
