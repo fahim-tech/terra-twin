@@ -191,7 +191,9 @@ function IndexBar({ active }: { active: SectionId | null }) {
   }, [active]);
   return (
     <nav aria-label="Sections" className="no-print sticky top-0 z-20 -mx-4 mt-10 bg-space sm:-mx-8 xl:hidden">
-      <ol ref={list} className="flex list-none overflow-x-auto border-b border-line px-2 [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_calc(100%-32px),transparent)]">
+      {/* Both scroll edges fade, so entries scrolled past either side dissolve instead of showing cut glyphs. The
+          left fade ends before the first entry's text, so nothing is faded at rest. */}
+      <ol ref={list} className="flex list-none overflow-x-auto border-b border-line px-2 [scrollbar-width:none] sm:px-6 [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,transparent,black_16px,black_calc(100%-32px),transparent)]">
         {SECTIONS.map((s) => {
           const on = s.id === active;
           return (
