@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { Block, Disclosure } from "../../components/primitives";
+import { Disclosure } from "../../components/primitives";
 import { Button } from "../../components/ui";
 import { useSites } from "../../services/api";
 import { useApp, type Selection } from "../../store/app";
@@ -9,7 +9,7 @@ import { zoneName } from "../../lib/glossary";
 import { useExplorer } from "./explorerStore";
 import { OutcomeGlyph } from "./MarsSearch";
 import { useSiteOutcomes } from "./outcomes";
-import { KmFigure, Mark, SectionTitle } from "./parts";
+import { KmFigure, Mark, Section } from "./parts";
 import { useScales } from "./useScales";
 import { formatCoord, formatKm, readZone, zoneSelection } from "./zones";
 
@@ -27,7 +27,7 @@ export function OutsideBody({ a }: { a: MarsAnalysis | undefined }) {
       </p>
       {/* The nearby zones come first so they are visible in a half-open phone sheet. */}
       <NearbyZones lat={a?.coordinate.lat ?? selection?.lat} lon={a?.coordinate.lon ?? selection?.lon} />
-      <Block title={<SectionTitle n={2}>Not measured here</SectionTitle>}>
+      <Section n={2} title="Not measured here">
         <p className="text-caption text-muted">
           No terrain values are shown for this point and no Earth comparison can be run from it — nothing here is estimated or borrowed from a nearby zone.
         </p>
@@ -53,7 +53,7 @@ export function OutsideBody({ a }: { a: MarsAnalysis | undefined }) {
             <p className="mt-2 text-caption text-faint">Also not connected anywhere yet: {a.unavailable_factors.map((f) => f.label.toLowerCase()).join(", ")}.</p>
           )}
         </Disclosure>
-      </Block>
+      </Section>
     </div>
   );
 }
@@ -70,7 +70,7 @@ function NearbyZones({ lat, lon }: { lat?: number; lon?: number }) {
     .sort((x, y) => x.km - y.km)
     .slice(0, 3);
   return (
-    <Block title={<SectionTitle n={1}>Nearest research zones</SectionTitle>} aside="to zone centre">
+    <Section n={1} title="Nearest research zones" aside="to zone centre">
       <ul className="border-y border-line">
         {near.map(({ s, km }) => (
           <li key={s.id} className="border-b border-line last:border-b-0">
@@ -84,7 +84,7 @@ function NearbyZones({ lat, lon }: { lat?: number; lon?: number }) {
           </li>
         ))}
       </ul>
-    </Block>
+    </Section>
   );
 }
 

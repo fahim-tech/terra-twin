@@ -2,13 +2,32 @@ import type { ReactNode } from "react";
 import { cx } from "../../components/ui";
 import { formatKm } from "./zones";
 
-/** Numbered section title for a `Block`: "01  TERRAIN" (the Block draws the hairline after it). */
+/** Numbered section title: "01  MISSION" (the index is decorative; the words carry the meaning). */
 export function SectionTitle({ n, children }: { n: number; children: ReactNode }) {
   return (
     <span className="inline-flex min-w-0 items-baseline">
       <span aria-hidden className="num mr-3 text-[10.5px] font-medium tracking-[0.04em] text-faint">{String(n).padStart(2, "0")}</span>
       {children}
     </span>
+  );
+}
+
+/**
+ * A numbered panel section, "02  TERRAIN ─────── aside". Like the shared Block, but its rule is a
+ * line-strong hairline: plain `line` all but vanishes on the panel glass over bright Mars imagery (the
+ * Earth results panel draws its section rules the same way).
+ */
+export function Section({ n, title, aside, children, className }: { n: number; title: ReactNode; aside?: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <section className={cx("py-3.5", className)}>
+      <div className="mb-2.5 flex items-center gap-3">
+        <h3 className="kicker flex min-w-0 flex-1 items-center gap-3 !text-ink/80 after:h-px after:min-w-4 after:flex-1 after:bg-line-strong after:content-['']">
+          <SectionTitle n={n}>{title}</SectionTitle>
+        </h3>
+        {aside && <span className="shrink-0 text-caption text-faint">{aside}</span>}
+      </div>
+      {children}
+    </section>
   );
 }
 

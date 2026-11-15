@@ -1,6 +1,6 @@
 import { ArrowRight, ChevronDown, CornerUpLeft } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Block, Kicker, PanelBody, PanelFooter, PanelHeader, Term, Toponym } from "../../components/primitives";
+import { Kicker, PanelBody, PanelFooter, PanelHeader, Term, Toponym } from "../../components/primitives";
 import { Button, cx, Note, Segmented } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { zoneName } from "../../lib/glossary";
@@ -11,7 +11,7 @@ import { Availability } from "./Availability";
 import { Locator } from "./Locator";
 import { useExplorer } from "./explorerStore";
 import { OutsideActions, OutsideBody } from "./OutsideZone";
-import { Mark, Readout, SectionTitle } from "./parts";
+import { Mark, Readout, Section, SectionTitle } from "./parts";
 import type { Scales } from "./readouts";
 import { Terrain, TerrainSkeleton } from "./Terrain";
 import { useRunSearch } from "./useRunSearch";
@@ -97,13 +97,13 @@ export function MarsInspector() {
         {outside ? <OutsideBody a={a} /> : (
           <>
             <MissionRow compact={inSheet} />
-            <Block title={<SectionTitle n={2}>Terrain</SectionTitle>} className={inSheet ? "py-2.5!" : undefined}>
+            <Section n={2} title="Terrain" className={inSheet ? "py-2.5!" : undefined}>
               <div aria-busy={q.isLoading}>
                 {a ? <Terrain tier1={a.tier1_features} zone={a.ez_features} flags={a.quality_flags} cellKm={scales.cellKm} />
                   : q.isLoading ? <TerrainSkeleton /> : <p className="text-caption text-faint">Not loaded.</p>}
               </div>
-            </Block>
-            <Block title={<SectionTitle n={3}>Footprint</SectionTitle>}>
+            </Section>
+            <Section n={3} title="Footprint">
               {/* The selector spans the panel like the grid above it: equal cells, one per footprint. */}
               <div className="[&>[role=radiogroup]]:flex [&>[role=radiogroup]]:w-full [&_[role=radio]]:flex-1">
                 <Segmented ariaLabel="Requested footprint" accent="mars" value={footprintKm}
@@ -111,10 +111,10 @@ export function MarsInspector() {
                   options={FOOTPRINTS.map((k) => ({ value: k, label: <span className="num">{k} km</span> }))} />
               </div>
               <p className="mt-2.5 text-caption text-faint"><FootprintNote scales={scales} /></p>
-            </Block>
-            <Block title={<SectionTitle n={4}>Evidence availability</SectionTitle>}>
+            </Section>
+            <Section n={4} title="Evidence availability">
               {a ? <Availability a={a} /> : q.isLoading ? <div aria-hidden className="h-4 w-56 animate-pulse rounded-control bg-elevated motion-reduce:animate-none" /> : <p className="text-caption text-faint">Not loaded.</p>}
-            </Block>
+            </Section>
           </>
         )}
       </PanelBody>
