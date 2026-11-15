@@ -8,7 +8,7 @@ import { G5 } from "../../lib/glossary";
 import type { AnalogSearch } from "../../types/contracts";
 import { type CandidateView, researchWindowKm, screenCellKm } from "../analogs/candidates";
 import { CompareTerm as Term } from "./CompareTerm";
-import { WHY_DRAWER_WIDTH_CSS } from "./layout";
+import { useCompareStage, WHY_DRAWER_WIDTH_CSS, whyDrawerWidth } from "./layout";
 import { NO_RING, PlanetLabel, SectionRule } from "./marks";
 import { basisFor, earthName, notLoadedReasons, verdictFor } from "./model";
 import { VerdictLine } from "./Readout";
@@ -25,6 +25,7 @@ const FOCUSABLE = 'button:not([disabled]), [href], input, select, textarea, [tab
 export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogSearch; c: CandidateView; rows: RatioRow[]; phone: boolean; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const stageW = useCompareStage((s) => s.w);
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     const el = ref.current;
@@ -65,7 +66,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
   return (
     <motion.div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId}
       initial={{ ...off, opacity: 0 }} animate={{ x: 0, y: 0, opacity: 1 }} exit={{ ...off, opacity: 0 }} transition={SPRING}
-      style={phone ? undefined : { width: WHY_DRAWER_WIDTH_CSS }}
+      style={phone ? undefined : { width: stageW > 0 ? whyDrawerWidth(stageW) : WHY_DRAWER_WIDTH_CSS }}
       className={cx("surface-solid frame no-print absolute z-40 flex flex-col overflow-hidden",
         phone ? "inset-0 [padding-bottom:env(safe-area-inset-bottom)]" : "bottom-3 right-3 top-3 rounded-surface")}>
       <header className="relative shrink-0 border-b border-line px-5 pb-4 pt-3.5">

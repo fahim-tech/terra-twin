@@ -26,6 +26,9 @@ import { WhyDrawer } from "./WhyDrawer";
 // Kept for the report package, which imports these from here.
 export { DIMENSIONS } from "./RelevanceMode";
 
+/** Narrowest strip worth reflowing beside the Why brief, px; below it the brief covers the strip. */
+const STRIP_MIN_PX = 440;
+
 export interface CompareRow { key: string; label: string; unit: string; mars: number | null; earth: number | null; s: number | null }
 
 /** Global-screen (tier-1, 25 km, as measured) descriptors for the pair — context, not the research score. */
@@ -116,10 +119,12 @@ export function ComparisonPanel() {
   const basis = basisFor(c, search);
   const onWhy = () => set({ whyOpen: true });
   // With the Why drawer open, the strip reflows into the width the drawer leaves free (so the G5 scope
-  // line is never hidden under it), as long as that leaves a usable strip; otherwise the modal covers it.
+  // line is never hidden under it), as long as that leaves a usable strip; otherwise the modal brief
+  // covers it, and the strip is dimmed and inert behind it rather than shown cut off at the drawer's edge.
   const drawerW = whyDrawerWidth(stageW);
-  const stripRight = whyOpen && !phone && stageW - drawerW - 36 >= 520 ? drawerW + 24 : null;
+  const stripRight = whyOpen && !phone && stageW - drawerW - 36 >= STRIP_MIN_PX ? drawerW + 24 : null;
   const narrow = stripRight !== null;
+  const behindBrief = whyOpen && !narrow;
   const modeIndex = modes.findIndex((m) => m.value === mode) + 1;
   const modeSpec = modes.find((m) => m.value === mode)!;
   const readout = { c, basis, targets, verdict, onWhy };
@@ -171,11 +176,13 @@ export function ComparisonPanel() {
           would stop treating it as a bottom cover and the Earth window would sit lower than the Mars one.
           Mark the full-width band it occupies so both globes keep the same free area and baseline. */}
       {narrow && stripH > 0 && <div aria-hidden data-occludes="both" className="pointer-events-none absolute inset-x-3 bottom-3" style={{ height: stripH }} />}
-      <motion.section ref={stripRef} aria-label="Mars–Earth comparison" data-occludes="both"
+      <motion.section ref={stripRef} aria-label="Mars–Earth comparison" data-occludes="both" {...(behindBrief ? { inert: "" } : null)}
         initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={SPRING}
         style={{ ...(expanded ? { height: phone ? "70%" : "56%" } : null), ...(narrow ? { right: stripRight } : null) }}
         className={cx("surface frame @container no-print absolute z-20 flex flex-col overflow-hidden",
           phone ? "inset-x-0 bottom-0 [padding-bottom:env(safe-area-inset-bottom)]" : "inset-x-3 bottom-3 rounded-surface")}>
+        {/* Behind the modal brief: a dark veil, so a strip the drawer cuts through reads as background. */}
+        {behindBrief && <div aria-hidden className="pointer-events-none absolute inset-0 z-10 bg-[rgb(2_3_4/0.62)]" />}
         {/* The title bar is drawn first but follows the readout in the DOM: the shell focuses the stage heading
             (the pair, in the readout), and Tab then reaches the summary, the controls and the open mode in turn. */}
         {phone ? (

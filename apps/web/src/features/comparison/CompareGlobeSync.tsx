@@ -5,26 +5,11 @@ import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
 import { selectedCandidate } from "../analogs/candidates";
 import { normLon, R_EARTH_MEAN_M } from "../../lib/geodesy";
-import { useCompareStage, whyDrawerWidth } from "./layout";
+import { FOVY, matchedHeightKm } from "./framing";
+import { useCompareStage, WHY_SLIVER_MARGIN_PX, whyLayout } from "./layout";
 import { compareTargets } from "./model";
 
-/** Fallback altitude when the stage has not been measured yet. */
-export const COMPARE_HEIGHT_KM = 420;
-
-/** Share of the smaller free-area side the compared footprint should span on screen. */
-const FILL = 0.3;
-const FOVY = Math.PI / 3; // Cesium default frustum (60°), vertical for these landscape/portrait frames
-
-/**
- * The camera height (same on both planets, so ground scale matches) that makes a `km` footprint span
- * FILL of the smaller free-area side. mpp = 2·h·tan(fovy/2) / canvasHeight (see globe-entry mppAtHeight).
- */
-export function matchedHeightKm(km: number, canvasH: number, freePx: number): number {
-  if (!(canvasH > 0) || !(freePx > 40)) return COMPARE_HEIGHT_KM;
-  const targetPx = Math.max(60, freePx * FILL);
-  const mpp = (km * 1000) / targetPx;
-  return Math.round((mpp * canvasH) / (2 * Math.tan(FOVY / 2)) / 1000);
-}
+export { COMPARE_HEIGHT_KM, matchedHeightKm } from "./framing";
 
 /**
  * In the comparison stage: draw the compared footprint (the 50 km research window, or the 25 km
@@ -110,27 +95,32 @@ export function CompareGlobeSync() {
   const [height, setHeight] = useState<number | null>(null);
   const stageW = useCompareStage((s) => s.w);
   const stageH = useCompareStage((s) => s.h);
+  const whyOpen = useApp((s) => s.whyOpen);
   useEffect(() => {
     if (!active || !targets || !stageW || !stageH) return;
     const t = setTimeout(() => {
       const W = stageW, H = stageH;
       const frameW = W < 768 ? W : W / 2;
-      // Side drawers (Why this analog?) re-centre the globe but must not change the shared altitude.
+      // Side drawers (Why this analog?) re-centre the globe but do not change the shared altitude, except
+      // that the Earth window must fit the room the brief leaves beside it (tall stages, where FILL of the
+      // half would be wider than that room); then both planets go up together, so the scales still match.
       const free = (["mars", "earth"] as const).map((p) => Math.min(frameW, H - insets[p].top - insets[p].bottom));
-      setHeight(matchedHeightKm(Math.max(targets.mars.km, targets.earth.km), H, Math.min(...free)));
+      const why = whyOpen && W >= 768 ? whyLayout(W) : null;
+      const cap = why?.beside ? why.sliverPx - 2 * WHY_SLIVER_MARGIN_PX : Infinity;
+      setHeight(matchedHeightKm(Math.max(targets.mars.km, targets.earth.km), H, Math.min(...free), cap));
     }, 220);
     return () => clearTimeout(t);
-  }, [active, targets, insets, stageW, stageH]);
+  }, [active, targets, insets, stageW, stageH, whyOpen]);
 
   const flown = useRef<string>("");
-  const whyOpen = useApp((s) => s.whyOpen);
   useEffect(() => {
     if (!active || !targets || height === null) return;
     const { w: W, h: H } = useCompareStage.getState();
     // The Why drawer covers the right of the Earth half on desktop. The shell's inset model would read
     // a drawer that wide as a top/bottom cover, so the drawer does not mark itself as an occluder;
-    // instead the Earth window is shifted left into the uncovered part by aiming east of it.
-    const shiftPx = whyOpen && W >= 768 ? (whyDrawerWidth(W) + 12) / 2 : 0;
+    // instead the Earth window is shifted left into the uncovered part by aiming east of it. When there
+    // is too little room for that, the brief takes the whole Earth half and the window stays centred.
+    const shiftPx = whyOpen && W >= 768 ? whyLayout(W).earthShiftPx : 0;
     const key = `${targets.mars.lat},${targets.mars.lon},${targets.earth.lat},${targets.earth.lon},${shiftPx}`;
     const prev = flown.current.split("|");
     // Re-fly on a new pair or drawer state, or when the needed altitude changes by more than 12 %.
