@@ -5,6 +5,11 @@ import { cx } from "../../components/ui";
 
 const W = 300;
 const GAP = 8;
+/**
+ * Coarse pointers: an invisible 44 px hit area centred on the text-height trigger, so the layout is
+ * unchanged while touch targets meet the 44 px minimum (spec §14).
+ */
+const HIT = "[@media(pointer:coarse)]:before:absolute [@media(pointer:coarse)]:before:left-1/2 [@media(pointer:coarse)]:before:top-1/2 [@media(pointer:coarse)]:before:h-11 [@media(pointer:coarse)]:before:w-[max(100%,44px)] [@media(pointer:coarse)]:before:-translate-x-1/2 [@media(pointer:coarse)]:before:-translate-y-1/2 [@media(pointer:coarse)]:before:content-['']";
 
 /**
  * A trigger with a definition popover (hover, focus or tap), like the shared `Term` but with arbitrary
@@ -54,7 +59,7 @@ export function InfoPopover({ trigger, children, label, className }: { trigger: 
       <button ref={btn} type="button" aria-label={label} aria-expanded={open} aria-describedby={open ? id : undefined}
         onPointerDown={(e) => { ptr.current = e.pointerType; }} onClick={() => { if (ptr.current === "mouse") setOpen(true); else setOpen((o) => !o); ptr.current = ""; }} onFocus={(e) => { if (e.currentTarget.matches(":focus-visible")) setOpen(true); }} onBlur={() => setOpen(false)}
         onPointerEnter={(e) => { if (e.pointerType === "mouse") setOpen(true); }} onPointerLeave={(e) => { if (e.pointerType === "mouse") setOpen(false); }}
-        className={cx("cursor-help rounded-control text-left", className)}>
+        className={cx("relative cursor-help rounded-control text-left", HIT, className)}>
         {trigger}
       </button>
       {createPortal(

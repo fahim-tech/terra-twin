@@ -64,7 +64,7 @@ export function MarsInspector() {
           {fromOrigin && (
             <button type="button" onClick={() => { useExplorer.getState().set({ origin: null }); select(fromOrigin); }}
               aria-label={`Back to your point, ${formatCoord(fromOrigin.lat, fromOrigin.lon)}`}
-              className="hit -mx-1 inline-flex items-center gap-1.5 rounded-control px-1 py-0.5 text-caption text-muted hover:text-ink">
+              className="hit -mx-1 inline-flex items-center gap-1.5 rounded-control px-1 py-0.5 text-caption text-muted hover:text-ink [@media(pointer:coarse)]:-my-3">
               <CornerUpLeft className="h-3.5 w-3.5" aria-hidden /> Back to your point
             </button>
           )}
@@ -83,7 +83,7 @@ export function MarsInspector() {
             <MissionRow />
             <Block title="Terrain" className="pt-2">
               <div aria-busy={q.isLoading}>
-                {a ? <Terrain tier1={a.tier1_features} zone={a.ez_features} flags={a.quality_flags} /> : q.isLoading ? <TerrainSkeleton /> : null}
+                {a ? <Terrain tier1={a.tier1_features} zone={a.ez_features} flags={a.quality_flags} /> : q.isLoading ? <TerrainSkeleton /> : <p className="text-caption text-faint">Not loaded.</p>}
               </div>
             </Block>
             <Block title="Footprint">

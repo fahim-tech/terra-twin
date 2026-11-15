@@ -8,15 +8,14 @@ const KEY: { key: string; label: string }[] = [
   { key: "mean_slope_deg", label: "Mean slope" },
   { key: "slope_p90_deg", label: "90th-pct slope" },
   { key: "relative_relief_m", label: "Relief" },
-  { key: "rmsdev_short", label: "RMS height · 1.85 km" },
+  // Height change between points ~1.85 km apart (N-S, directional) — not the spread of elevations,
+  // which is the separate "Elevation std. dev." measure.
+  { key: "rmsdev_short", label: "RMS deviation · 1.85 km" },
 ];
 
-/** Fixed precision per descriptor: slope 1 dp, relief/RMS 0 dp, Hurst 2 dp. */
-export function digitsFor(f: Pick<FeatureValue, "key" | "unit">): number {
-  if (f.unit === "deg") return 1;
-  if (f.unit === "m") return 0;
-  if (f.key.startsWith("hurst")) return 2;
-  return 2;
+/** Fixed precision per descriptor: slopes 1 dp, lengths 0 dp, unitless (Hurst) 2 dp. */
+function digitsFor(f: Pick<FeatureValue, "unit">): number {
+  return f.unit === "deg" ? 1 : f.unit === "m" ? 0 : 2;
 }
 
 const STATE_WORD: Record<FeatureValue["state"], string> = {
@@ -28,7 +27,7 @@ function gridLabel(m: number | null | undefined) {
 }
 
 /** Definition card for one measure: what it is, where it comes from, on what grid, in what state. */
-export function MeasureCard({ f }: { f: FeatureValue }) {
+function MeasureCard({ f }: { f: FeatureValue }) {
   const grid = gridLabel(f.native_resolution_m);
   const base = gridLabel(f.baseline_m);
   return (
@@ -50,7 +49,7 @@ export function MeasureCard({ f }: { f: FeatureValue }) {
 /** One measure row for the disclosures: label left, value right, definition on demand. */
 function MeasureRow({ f }: { f: FeatureValue }) {
   return (
-    <li className="flex items-baseline justify-between gap-3 border-b border-line py-2 last:border-b-0">
+    <li className="flex items-baseline justify-between gap-3 border-b border-line py-2 last:border-b-0 [@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:items-center [@media(pointer:coarse)]:py-0">
       <InfoPopover label={`${f.label}: definition and source`} trigger={<span className={cx("text-label underline decoration-faint/50 decoration-dotted underline-offset-[3px]", f.value === null ? "text-faint" : "text-ink")}>{f.label}</span>}>
         <MeasureCard f={f} />
       </InfoPopover>
