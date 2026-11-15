@@ -133,6 +133,30 @@ describe("Orbit", () => {
     o.movePinch(200, 0.3);
     expect(Math.exp(o.zoom.x)).toBeCloseTo(HOME.zoom / 2, 9);
     expect(o.az.x).toBeCloseTo(HOME.az - 0.3, 9);
+    expect(o.el.x).toBe(HOME.el); // no mid-point given: no tilt
+  });
+
+  it("tilts when two fingers move down together, at the one-finger ratio, within the tilt limits", () => {
+    const o = new Orbit(HOME, false);
+    o.beginPinch(100, 0, 200);
+    o.movePinch(100, 0, 260, 960);
+    expect(o.el.x - HOME.el).toBeCloseTo((60 * Math.PI) / 960, 9);
+    expect(Math.exp(o.zoom.x)).toBeCloseTo(HOME.zoom, 9);
+    o.movePinch(100, 0, 260 + 4000, 960); // far past overhead: rubber-banded, then settles on the limit
+    expect(o.el.x).toBeGreaterThan(LIMITS.elMax);
+    expect(o.el.x).toBeLessThanOrEqual(LIMITS.elMax + LIMITS.elBand);
+    o.endPinch();
+    run(o, 2);
+    expect(o.el.x).toBeCloseTo(LIMITS.elMax, 4);
+  });
+
+  it("stops without a glide when the browser takes a gesture over", () => {
+    const o = new Orbit(HOME, false);
+    o.beginDrag(100, 100, 0);
+    for (let i = 1; i <= 10; i++) o.moveDrag(100 + i * 12, 100, i * 8, 960);
+    o.endDrag(82, false);
+    expect(o.az.v).toBe(0);
+    expect(o.el.v).toBe(0);
   });
 
   it("accumulates keyboard steps and resets along the shortest turn", () => {

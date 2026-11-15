@@ -79,6 +79,8 @@ const axis = (x: number, min = -Infinity, max = Infinity, band = Infinity): Axis
   ({ x, v: 0, target: null, w: UI, min, max, hardMin: min - band, hardMax: max + band });
 const clamp = (x: number, a: Axis) => Math.min(a.max, Math.max(a.min, x));
 const MAX_V = 9; // rad/s: a flick never spins the block faster than this
+/** Drag ratio, radians per CSS px: half a turn per drag across the view (clamped for very small and very large views). */
+const dragK = (widthPx: number) => Math.PI / Math.min(1200, Math.max(480, widthPx));
 
 /**
  * Tilt and zoom limits. Tilt gives way by at most `elBand` past its limits (rubber band while held,
@@ -105,7 +107,7 @@ export class Orbit {
   reduced: boolean;
   private home: Pose;
   private drag: { x0: number; y0: number; az0: number; el0: number; az: Sample[]; el: Sample[] } | null = null;
-  private pinch: { span0: number; angle0: number; zoom0: number; az0: number } | null = null;
+  private pinch: { span0: number; angle0: number; zoom0: number; az0: number; cy0: number; el0: number } | null = null;
   private wheelRaw = 0;
   private lastWheel = -Infinity;
 
@@ -152,7 +154,7 @@ export class Orbit {
   moveDrag(px: number, py: number, t: number, widthPx: number): void {
     const d = this.drag;
     if (!d) return;
-    const k = Math.PI / Math.min(1200, Math.max(480, widthPx));
+    const k = dragK(widthPx);
     this.az.x = d.az0 + (px - d.x0) * k; // drag right: the camera walks left round the block, the terrain follows the pointer
     this.el.x = rubberClamp(d.el0 + (py - d.y0) * k, this.el.min, this.el.max, LIMITS.elBand); // drag down: the camera rises
     d.az.push({ t, x: this.az.x });
@@ -160,34 +162,46 @@ export class Orbit {
     if (d.az.length > 8) { d.az.shift(); d.el.shift(); }
   }
 
-  endDrag(t: number): void {
+  /**
+   * Release. `momentum` false (a gesture the browser took over, e.g. to scroll the page) stops where it is
+   * instead of handing the last pointer velocity to a glide.
+   */
+  endDrag(t: number, momentum = true): void {
     const d = this.drag;
     if (!d) return;
     this.drag = null;
     const cap = (v: number) => Math.max(-MAX_V, Math.min(MAX_V, v));
-    this.az.v = this.reduced ? 0 : cap(releaseVelocity(d.az, t));
-    this.el.v = this.reduced ? 0 : cap(releaseVelocity(d.el, t));
+    const glides = momentum && !this.reduced;
+    this.az.v = glides ? cap(releaseVelocity(d.az, t)) : 0;
+    this.el.v = glides ? cap(releaseVelocity(d.el, t)) : 0;
     this.settleLimits(this.el);
   }
 
-  beginPinch(span: number, angle: number): void {
+  /** `cy`: the fingers' mid-point (CSS px, y down), so moving both fingers up or down tilts. */
+  beginPinch(span: number, angle: number, cy = 0): void {
     this.stopAll();
     this.drag = null;
-    this.pinch = { span0: Math.max(1, span), angle0: angle, zoom0: this.zoom.x, az0: this.az.x };
+    this.pinch = { span0: Math.max(1, span), angle0: angle, zoom0: this.zoom.x, az0: this.az.x, cy0: cy, el0: this.el.x };
   }
 
-  /** Two fingers: spread zooms 1:1 with the finger distance; a twist turns the block with the fingers. */
-  movePinch(span: number, angle: number): void {
+  /**
+   * Two fingers: spread zooms 1:1 with the finger distance; a twist turns the block with the fingers; moving
+   * both fingers down raises the camera at the one-finger drag ratio (the tilt gesture of map apps, which a
+   * view inside a scrolling panel needs: there one finger moving up or down scrolls the panel).
+   */
+  movePinch(span: number, angle: number, cy?: number, widthPx = 0): void {
     const p = this.pinch;
     if (!p) return;
     this.zoom.x = rubberClamp(p.zoom0 + Math.log(p.span0 / Math.max(1, span)), this.zoom.min, this.zoom.max, 0.8);
     this.az.x = p.az0 - (angle - p.angle0);
+    if (cy !== undefined) this.el.x = rubberClamp(p.el0 + (cy - p.cy0) * dragK(widthPx), this.el.min, this.el.max, LIMITS.elBand);
   }
 
   endPinch(): void {
     if (!this.pinch) return;
     this.pinch = null;
     this.settleLimits(this.zoom);
+    this.settleLimits(this.el);
   }
 
   /** Wheel / trackpad zoom, rubber-banded at the limits; springs back once the wheel rests. */
