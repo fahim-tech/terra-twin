@@ -24,17 +24,19 @@ export function dossierPrintCss(analysisId: string): string {
     @bottom-left { content: "Candidate identification — not validation of a new analog"; ${head} letter-spacing: 0.04em; text-transform: none; font-weight: 500; }
     @bottom-right { content: "Page " counter(page) " of " counter(pages); ${mono} }
   }
+  :root { color-scheme: light; }
+  html, body { background: #fff !important; }
   .dossier {
     --color-line: #000;
     --color-line-strong: #000;
     --color-surface: #fff;
     --color-elevated: #fff;
     color: #111;
+    zoom: 0.86;
   }
   .dossier .frame { --frame-c: #000; }
   .dossier .print-keep { break-inside: avoid; }
-  .dossier h1, .dossier h2, .dossier h3 { break-after: avoid; }
+  .dossier .section-head, .dossier h1, .dossier h2, .dossier h3 { break-after: avoid; }
   .dossier tr, .dossier li, .dossier img, .dossier figure { break-inside: avoid; }
-  .dossier [data-stage-heading="report"] { font-size: 30pt !important; }
 }`;
 }

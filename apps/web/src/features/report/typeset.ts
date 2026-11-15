@@ -26,6 +26,15 @@ export function splitNumerals(text: string): Segment[] {
   return out;
 }
 
+/**
+ * A designation for display: the name before the first " · " and the qualifier after it
+ * ("Window 217 · roughness decile 8" → "Window 217" + "roughness decile 8"). Names without one stay whole.
+ */
+export function splitDesignation(label: string): { name: string; detail: string | null } {
+  const i = label.indexOf(" · ");
+  return i > 0 ? { name: label.slice(0, i), detail: label.slice(i + 3) } : { name: label, detail: null };
+}
+
 /** Two-digit index for numbered dossier items: 1 → "01". */
 export function indexLabel(i: number): string {
   return String(i).padStart(2, "0");

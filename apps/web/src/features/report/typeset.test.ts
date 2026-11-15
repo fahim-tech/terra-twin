@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PLANETARY_DIFFERENCES } from "../comparison/science";
 import { cssSafeId, dossierPrintCss } from "./print";
-import { indexLabel, splitNumerals } from "./typeset";
+import { indexLabel, splitDesignation, splitNumerals } from "./typeset";
 
 const nums = (t: string) => splitNumerals(t).filter((s) => s.num).map((s) => s.text);
 
@@ -28,6 +28,12 @@ describe("splitNumerals", () => {
     expect(splitNumerals("")).toEqual([]);
   });
 
+  it("splits a window designation from its qualifier for display", () => {
+    expect(splitDesignation("Window 217 · roughness decile 8")).toEqual({ name: "Window 217", detail: "roughness decile 8" });
+    expect(splitDesignation("Atacama Yungay")).toEqual({ name: "Atacama Yungay", detail: null });
+    expect(splitDesignation("Cell near Holuhraun")).toEqual({ name: "Cell near Holuhraun", detail: null });
+  });
+
   it("pads dossier indices to two digits", () => {
     expect(indexLabel(1)).toBe("01");
     expect(indexLabel(11)).toBe("11");
@@ -46,6 +52,8 @@ describe("dossier print stylesheet", () => {
     const css = dossierPrintCss("938f93c71036");
     expect(css).toContain("--color-line: #000");
     expect(css).toContain("--color-surface: #fff");
+    // The app runs in a dark colour scheme; paper is light, including the page margins.
+    expect(css).toContain("color-scheme: light");
     expect(css).toContain("counter(page)");
     expect(css).toContain("counter(pages)");
   });
