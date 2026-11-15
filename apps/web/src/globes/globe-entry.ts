@@ -694,14 +694,15 @@ function orbitLabelSpot(o: OrbitDraw): Cartesian3 | null {
 function updateOrbits() {
   if (!viewer) return;
   const k = orbitFade(viewer.camera.positionCartographic.height / 1000);
-  // On a narrow screen the intro's copy sits over the planet: the rings stay, their labels stand down.
-  const labels = !(attract && viewer.scene.canvas.clientWidth < 640);
+  // On a narrow screen the intro's copy sits over the planet, so the labels cannot be placed; an orbit is
+  // not drawn without its label there (an unnamed ring through the title reads as decoration).
+  const narrowIntro = attract && viewer.scene.canvas.clientWidth < 640;
   for (const o of orbitDraws) {
-    o.line.show = k > 0.005;
+    o.line.show = !narrowIntro && k > 0.005;
     o.label.show = false;
     if (!o.line.show) continue;
     o.line.material.uniforms.color = INK.withAlpha(0.34 * k);
-    const spot = labels ? orbitLabelSpot(o) : null;
+    const spot = orbitLabelSpot(o);
     if (spot) {
       o.label.position = spot;
       o.label.fillColor = INK.withAlpha(0.74 * k);
