@@ -147,6 +147,19 @@ let lastTarget: { lat: number; lon: number; heightKm: number } | null = null;
 
 let occluder: EllipsoidalOccluder | null = null;
 
+/**
+ * Data credits as a quiet strip at the bottom centre of the free area, clear of the shell's scale,
+ * altitude and centre readouts (bottom-left) and navigation (bottom-right).
+ */
+function placeCredits() {
+  const el = viewer?.cesiumWidget.creditContainer as HTMLElement | undefined;
+  if (!el) return;
+  const left = `calc(${insets.left}px + (100% - ${insets.left + insets.right}px) / 2)`;
+  el.style.cssText = "position:absolute;z-index:1;transform:translateX(-50%) scale(.8);transform-origin:50% 100%;" +
+    `left:${left};bottom:${insets.bottom + 2}px;white-space:nowrap;` +
+    "font:10px 'Instrument Sans',system-ui;opacity:.5;filter:grayscale(1) invert(1);";
+}
+
 // Latitude conversion between the API convention (planetocentric) and the rendering ellipsoid.
 function toRender(lat: number) {
   return planet === "mars" ? centricToGraphic(lat, ellipsoid.maximumRadius, ellipsoid.minimumRadius) : lat;
@@ -651,8 +664,7 @@ async function init(ionToken: string | null) {
   occluder = new EllipsoidalOccluder(ellipsoid, viewer.camera.positionWC);
   scene.preUpdate.addEventListener(() => { if (occluder && viewer) occluder.cameraPosition = viewer.camera.positionWC; });
   scene.postRender.addEventListener(() => { emitTelemetry(); emitAnchors(); });
-  (viewer.cesiumWidget.creditContainer as HTMLElement).style.cssText =
-    "font:10px 'Instrument Sans',system-ui;opacity:.5;filter:grayscale(1) invert(1);";
+  placeCredits();
   scene.screenSpaceCameraController.minimumZoomDistance = 20_000;
   scene.screenSpaceCameraController.maximumZoomDistance = planet === "mars" ? 40_000_000 : 80_000_000;
   viewer.camera.moveStart.addEventListener(() => { moving = true; emitTelemetry(true); });
@@ -788,6 +800,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
       case "fitBounds": fitBounds(m.west, m.south, m.east, m.north, m.padding, m.minHeightKm, m.maxHeightKm, m.durationS); break;
       case "setInsets":
         insets = { top: m.top, right: m.right, bottom: m.bottom, left: m.left };
+        placeCredits();
         lastTelemetry = "";
         if (lastTarget) flyTo(lastTarget.lat, lastTarget.lon, lastTarget.heightKm, reducedMotion ? 0 : 0.6);
 

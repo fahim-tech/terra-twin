@@ -203,8 +203,9 @@ function Instruments({ planet, phone }: { planet: Planet; phone: boolean }) {
   }
   return (
     <>
-      <div className="no-print on-imagery pointer-events-none absolute z-10 flex items-end gap-6 transition-[left,bottom] duration-300"
-        style={{ left: ins.left + 16, bottom: ins.bottom + 34 }}>
+      {/* A small dark backing keeps the readouts legible over bright terrain without becoming a surface. */}
+      <div className="no-print on-imagery pointer-events-none absolute z-10 flex items-end gap-6 rounded-[10px] bg-[rgb(5_7_10/0.5)] px-3 py-2 transition-[left,bottom] duration-300"
+        style={{ left: ins.left + 12, bottom: ins.bottom + 24 }}>
         <ScaleBar planet={planet} />
         <AltitudeReadout planet={planet} />
         <CenterReadout planet={planet} className="hidden lg:flex" />
