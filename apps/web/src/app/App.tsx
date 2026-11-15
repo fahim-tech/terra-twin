@@ -29,8 +29,25 @@ import { ComparisonPanel } from "../features/comparison/ComparisonPanel";
 import { CompareGlobeSync } from "../features/comparison/CompareGlobeSync";
 import { DataLayerLegend } from "../components/datalayers/DataLayersControl";
 
-const EvidenceView = lazy(() => import("../features/evidence/EvidenceView"));
-const ReportView = lazy(() => import("../features/report/ReportView"));
+/**
+ * A page that was open across a deploy asks for a chunk that no longer exists. Reload once to pick up the
+ * new build (the URL hash keeps the stage and selection); a second failure surfaces as a normal error.
+ */
+function fresh<T>(load: () => Promise<T>): () => Promise<T> {
+  return () => load().catch((e) => {
+    const key = "terratwin-chunk-reload";
+    let last = 0;
+    try { last = Number(sessionStorage.getItem(key) ?? 0); } catch { /* storage blocked: reload at most once anyway */ }
+    if (Date.now() - last > 30_000) {
+      try { sessionStorage.setItem(key, String(Date.now())); } catch { /* ignore */ }
+      window.location.reload();
+      return new Promise<T>(() => {}); // the reload replaces this page
+    }
+    throw e;
+  });
+}
+const EvidenceView = lazy(fresh(() => import("../features/evidence/EvidenceView")));
+const ReportView = lazy(fresh(() => import("../features/report/ReportView")));
 
 /**
  * Where the Mars frame sits while the intro is open: right of the copy in landscape from 768 px, raised
