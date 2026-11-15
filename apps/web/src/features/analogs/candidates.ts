@@ -34,8 +34,9 @@ export function prettyWindow(id: string) {
   return w ? `Window ${w.n} · roughness decile ${w.decile}` : id;
 }
 
-/** Coordinates in the row format of the design spec: `17.68° N 77.01° E`. */
-export function coord(lat: number, lon: number, digits = 2) {
+/** Coordinates in the row format of the design spec: `17.68° N 77.01° E`. Missing coordinates are said, never formatted. */
+export function coord(lat: number | null, lon: number | null, digits = 2) {
+  if (lat === null || lon === null || !Number.isFinite(lat) || !Number.isFinite(lon)) return "location not in record";
   return `${formatLat(lat, digits)} ${formatLon(lon, digits)}`;
 }
 

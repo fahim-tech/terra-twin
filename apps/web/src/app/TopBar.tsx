@@ -10,7 +10,7 @@ import { searchTarget } from "../store/searchTarget";
 export function Wordmark({ compact }: { compact?: boolean }) {
   return (
     <button type="button" onClick={() => useApp.getState().set({ stage: "mars", introOpen: true, whyOpen: false })}
-      aria-label="TerraTwin — back to the start" className="flex shrink-0 items-center gap-2.5 rounded-control">
+      aria-label="TerraTwin — back to the start" className="hit flex shrink-0 items-center justify-center gap-2.5 rounded-control">
       <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden>
         <circle cx="12.5" cy="16" r="7.5" fill="none" stroke="var(--color-mars)" strokeWidth="1.6" />
         <circle cx="19.5" cy="16" r="7.5" fill="none" stroke="var(--color-earth)" strokeWidth="1.6" />
@@ -22,17 +22,19 @@ export function Wordmark({ compact }: { compact?: boolean }) {
 
 const DECISION_SHORT: Record<string, string> = {
   named_leader: "stable leader", tied_set: "tie", no_convincing_analog: "no convincing analog", insufficient_evidence: "not enough evidence",
+  // No research record for this point: a missing-data state, not the insufficient_evidence decision.
+  unavailable: "no research data here",
 };
 /** Phone tokens: the full outcome stays in the accessible name; these never cut a G5-derived word mid-way. */
 const DECISION_TINY: Record<string, string> = {
-  named_leader: "leader", tied_set: "tie", no_convincing_analog: "none", insufficient_evidence: "n/a",
+  named_leader: "leader", tied_set: "tie", no_convincing_analog: "none", insufficient_evidence: "n/a", unavailable: "no data",
 };
 
 /** The investigation trail: Mars · target › Earth · outcome › Compare. Locked steps say what unlocks them. */
 function Trail({ compact }: { compact: boolean }) {
   const { stage, selection, search, candidateId, go } = useApp();
   const t = searchTarget(search);
-  const outcome = search ? (search.status === "available" ? search.tier2.decision.type : "insufficient_evidence") : null;
+  const outcome = search ? (search.status === "available" ? search.tier2.decision.type : "unavailable") : null;
   const steps: { id: Stage; planet: string; detail: string | null; tiny: string | null; locked: string | null }[] = [
     { id: "mars", planet: "Mars", detail: selection?.label ?? null, tiny: selection ? (selection.siteId ? selection.label : "point") : null, locked: null },
     { id: "earth", planet: "Earth", detail: outcome ? DECISION_SHORT[outcome] : null, tiny: outcome ? DECISION_TINY[outcome] : null, locked: search ? null : "Run Find Earth Analogs first" },

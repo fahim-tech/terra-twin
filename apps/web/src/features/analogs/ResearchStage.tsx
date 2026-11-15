@@ -52,7 +52,7 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
             className={cx("group -mx-2 mt-1.5 block w-[calc(100%+16px)] rounded-control px-2 py-1.5 text-left transition-colors hover:bg-elevated", isOn(members[0]) && "bg-elevated")}>
             <Toponym as="span" size="sm" className={cx("block", isOn(members[0]) && "!text-earth")}>{windowName(members[0]).name}</Toponym>
             <span className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
-              <span className="num text-num-sm">{coord(members[0].lat!, members[0].lon!)}</span>
+              <span className="num text-num-sm">{coord(members[0].lat, members[0].lon)}</span>
               {windowName(members[0]).sub && <span>· {windowName(members[0]).sub}</span>}
             </span>
           </button>
@@ -90,7 +90,7 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
                       <span aria-hidden className={cx("h-2 w-2 shrink-0 rounded-full", on ? "bg-earth" : "ring-1 ring-inset ring-earth")} />
                       <span className="min-w-0 flex-1">
                         <span className={cx("block text-label", on ? "text-earth" : "text-ink")}>{w.name}</span>
-                        <span className={cx("num block text-num-sm text-muted", phone && "sr-only")}>{coord(c.lat!, c.lon!)}</span>
+                        <span className={cx("num block text-num-sm text-muted", phone && "sr-only")}>{coord(c.lat, c.lon)}</span>
                       </span>
                       <span className={cx("text-right", phone && "flex items-baseline gap-2")}>
                         <span className="num block text-num text-ink">S {c.S === null ? "—" : c.S.toFixed(3)}</span>
