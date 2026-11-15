@@ -496,6 +496,21 @@ def window_relief(lat: float, lon: float) -> dict | None:
     }
 
 
+def _with_as_measured_coverage(c: dict) -> dict:
+    """G5: never S without coverage. The as-measured comparator's coverage is the share of the candidate's
+    as-measured descriptors that are finite (stated in coverage_basis)."""
+    am = c.get("as_measured_comparison")
+    if isinstance(am, dict) and am.get("S") is not None and am.get("coverage") is None:
+        feats = ((c.get("features") or {}).get("earth_as_measured") or {})
+        if feats:
+            n = sum(v is not None and isinstance(v, (int, float)) and math.isfinite(v) for v in feats.values())
+            c = {**c, "as_measured_comparison": {**am, "coverage": n / len(feats),
+                                                  "coverage_basis": "fraction of the as-measured descriptors that are finite"}}
+        else:
+            c = {**c, "as_measured_comparison": {**am, "S": None, "reason": "no as-measured descriptors to state coverage"}}
+    return c
+
+
 def compare_provider(*, lat: float, lon: float, mission: str, window_km: int, representation: str) -> dict:
     """TERRATWIN_GIS_PROVIDER for /v1/compare at points outside the research zones: the newest cached discovery
     run at this point for the mission (G5 shape plus scope), or a typed unavailable record pointing to discovery."""
@@ -527,9 +542,14 @@ def compare_provider(*, lat: float, lon: float, mission: str, window_km: int, re
     dec = dict(rec["decision"])
     dec.setdefault("rotations_checked", 4)
     dec.setdefault("label", None)
+    cov = {c.get("id"): c.get("coverage") for c in rec.get("candidates", [])}
+    # G5: never S without coverage; member details carry the member's own coverage from the candidate list.
+    dec["member_details"] = [{**m, "coverage": m.get("coverage", cov.get(m.get("id")))} if m.get("S") is not None else m
+                             for m in dec.get("member_details", [])]
     return {
         **rec, "tier": 2, "source": "gis_discovery_run", "run_id": best["run_id"], "decision": dec,
-        "candidates": [{**c, "window_km": rec.get("window_km", window_km)} for c in rec["candidates"]],
+        "candidates": [_with_as_measured_coverage({**c, "window_km": rec.get("window_km", window_km)})
+                       for c in rec["candidates"]],
         "as_measured_baseline": None,
         "candidate_pool": {"scope": rec.get("candidate_pool_scope"), "n_windows": rec.get("number_of_windows_refined"),
                            "window_km": rec.get("window_km"), "note": "GIS discovery run: global tier-1 shortlist, "

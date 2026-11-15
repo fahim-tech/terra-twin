@@ -430,11 +430,14 @@ def test_compare_provider_serves_a_cached_run_or_points_to_discovery(fake):
     rec = {"run_id": rid, "status": "ok", "refinement": {
         "target": {"site": None, "lat": 4.502, "lon": 135.623, "window_km": 50}, "mission": "rover_mobility", "window_km": 50,
         "representation": "mars_observation_space", "operator": {"status": "ok"}, "candidate_pool_scope": "global_tier1_shortlist",
-        "number_of_windows_refined": 40, "decision": {"type": "tied_set", "members": ["a"]},
-        "candidates": [{"id": "a", "lat": 1.0, "lon": 2.0, "S": 0.7, "coverage": 1.0}], "disclaimers": [], "shortlist_selection": {"n_requested": 40}}}
+        "number_of_windows_refined": 40, "decision": {"type": "tied_set", "members": ["a"], "member_details": [{"id": "a", "S": 0.7}]},
+        "candidates": [{"id": "a", "lat": 1.0, "lon": 2.0, "S": 0.7, "coverage": 1.0, "as_measured_comparison": {"S": 0.8, "rank": 1}, "features": {"earth_as_measured": {"x": 1.0, "y": None}}}], "disclaimers": [], "shortlist_selection": {"n_requested": 40}}}
     (Path(fake.C.DERIVED) / "runs" / f"{rid}.json").write_text(json.dumps(rec))
     out = GIS.compare_provider(lat=4.502, lon=135.623, mission="rover_mobility", window_km=50, representation="mars_observation_space")
     assert out["source"] == "gis_discovery_run" and out["decision"]["rotations_checked"] == 4 and out["candidates"][0]["window_km"] == 50
+    from terratwin_api.schemas.requests import assert_score_contract
+    assert_score_contract(out)
+    assert out["candidates"][0]["as_measured_comparison"]["coverage"] == 0.5
     none = GIS.compare_provider(lat=1.0, lon=1.0, mission="rover_mobility", window_km=50, representation="mars_observation_space")
     assert none["decision"]["type"] == "insufficient_evidence" and "POST /api/gis/discovery" in none["operator"]["reason"]
 
