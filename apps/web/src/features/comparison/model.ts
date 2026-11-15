@@ -3,7 +3,7 @@
  * search target (searchTarget(search)), never the live Mars selection, and introduces no new
  * thresholds or values.
  */
-import { G5, GLOSSARY, zoneName } from "../../lib/glossary";
+import { decisionG5Label, GLOSSARY, zoneName } from "../../lib/glossary";
 import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
 import { type CandidateView, memberOrder } from "../analogs/candidates";
@@ -33,13 +33,13 @@ export function verdictFor(search: AnalogSearch, c: CandidateView): Verdict {
   const k = memberOrder(search.tier2).indexOf(id);
   if (d.type === "named_leader") {
     return k >= 0
-      ? { kind: "leader", glyph: "◉", headline: "Stable leader", detail: d.label ?? G5.leader }
+      ? { kind: "leader", glyph: "◉", headline: "Stable leader", detail: decisionG5Label(d)! }
       : { kind: "not_member", glyph: "—", headline: "Research window — not the stable leader", detail: `The stable leader for this zone is ${d.members[0] ? windowName(d.members[0]) : "another window"}.` };
   }
   if (d.type === "tied_set") {
     return k >= 0
-      ? { kind: "tie_member", glyph: "◎", headline: `Member of a tie (${k + 1} of ${d.members.length})`, detail: d.label ?? G5.tied }
-      : { kind: "not_member", glyph: "—", headline: "Research window — outside the tied set", detail: d.label ?? G5.tied };
+      ? { kind: "tie_member", glyph: "◎", headline: `Member of a tie (${k + 1} of ${d.members.length})`, detail: decisionG5Label(d)! }
+      : { kind: "not_member", glyph: "—", headline: "Research window — outside the tied set", detail: decisionG5Label(d)! };
   }
   if (d.type === "no_convincing_analog") {
     return { kind: "no_convincing", glyph: "—", headline: "No convincing analog", detail: d.label ?? "The research record does not name an Earth window for this zone." };

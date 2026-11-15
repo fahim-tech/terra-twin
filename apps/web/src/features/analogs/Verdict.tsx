@@ -1,6 +1,6 @@
 import { Term } from "../../components/primitives";
 import { cx } from "../../components/ui";
-import { G5 } from "../../lib/glossary";
+import { decisionG5Label } from "../../lib/glossary";
 import type { Tier2Result } from "../../types/contracts";
 
 /** Plain decision names (glossary §13); the research term stays on demand via <Term>. */
@@ -11,12 +11,9 @@ export const DECISION_COPY: Record<Tier2Result["decision"]["type"], { title: str
   insufficient_evidence: { title: "Not enough evidence", tone: "bad", glyph: "⊘" },
 };
 
-/** The research label for a decision, verbatim (API first, G5 constant as the fallback). */
+/** The research label for a decision: G5 verbatim for leader and tie (shared helper). */
 export function decisionLabel(t2: Tier2Result): string | null {
-  if (t2.decision.label) return t2.decision.label;
-  if (t2.decision.type === "named_leader") return G5.leader;
-  if (t2.decision.type === "tied_set") return G5.tied;
-  return null;
+  return decisionG5Label(t2.decision);
 }
 
 /**

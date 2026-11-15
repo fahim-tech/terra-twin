@@ -80,3 +80,13 @@ export function zoneName(id: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+/**
+ * The one decision label every view shows. Stable leader and tie always read the G5 strings verbatim,
+ * whatever the API sends; other decision types use the API's own label.
+ */
+export function decisionG5Label(d: { type: string; label?: string | null }): string | null {
+  if (d.type === "named_leader") return G5.leader;
+  if (d.type === "tied_set") return G5.tied;
+  return d.label ?? null;
+}

@@ -3,7 +3,7 @@
  * the stored analog search (bound to its own target via searchTarget) and the chosen candidate.
  * Pure functions, no React — tested in model.test.ts.
  */
-import { G5 } from "../../lib/glossary";
+import { decisionG5Label, G5 } from "../../lib/glossary";
 import { searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, MissionProfile, Tier1Candidate, Tier2Candidate } from "../../types/contracts";
 import { memberOrder } from "../analogs/candidates";
@@ -97,8 +97,7 @@ export function decisionHeadline(search: AnalogSearch): string {
 
 /** The decision's verbatim label: G5 for leader/tie, otherwise the API's own label. */
 export function decisionLabel(search: AnalogSearch): string | null {
-  const d = search.tier2.decision;
-  return DECISION[d.type].g5 ?? d.label ?? null;
+  return decisionG5Label(search.tier2.decision);
 }
 
 /** Tie members as an unordered group (west to east, the order every view uses, so list order never reads as a ranking). */
@@ -140,7 +139,7 @@ export function dimensions(c: ReportCandidate): { name: string; status: Dimensio
   const lc = c.t2?.landcover;
   const pc = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)} %`);
   return [
-    { name: "Terrain and geomorphology", status: "evaluated", detail: c.tier === 2 ? "Eight multiscale terrain descriptors, compared with Earth as MOLA would observe it (50 km window)." : "Seven screening descriptors on 25 km cells, Earth as measured." },
+    { name: "Terrain and geomorphology", status: "evaluated", detail: c.tier === 2 ? `Eight multiscale terrain descriptors, compared with Earth as MOLA would observe it${c.t2 ? ` (${c.t2.window_km} km window)` : ""}.` : "Seven screening descriptors on 25 km cells, Earth as measured." },
     { name: "Engineering and operations", status: lc?.available ? "partial" : "not_evaluated", detail: lc?.available ? `Exposed-ground check only: ${pc(lc.frac_bare_like)} bare-like, ${pc(lc.frac_vegetated)} vegetated (ESA WorldCover 2021). Trafficability, access and permits not assessed.` : "No surface-cover or access data for this candidate." },
     { name: "Geological materials", status: "not_evaluated", detail: "No lithology or mineralogy dataset is connected for either planet." },
     { name: "Surface processes", status: "not_evaluated", detail: "Process relationships need geological evidence; terrain geometry alone cannot establish them." },
