@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from ..config import API_VERSION, CONTRACT_VERSION, OOM_METHOD_VERSION, RESEARCH_ENGINE_VERSION, TIER1_METHOD_VERSION
 from ..schemas.common import EARTH_CONVENTION, MARS_CONVENTION
 from ..schemas.requests import AnalogSearchRequest, CompareRequest, MarsAnalysisRequest, assert_score_contract
-from ..services import analysis_store, evidence, mars, research_store as RS, tier1, tier2
+from ..services import analysis_store, evidence, mars, research_store as RS, tier1, tier2, visualization as VIS
 from ..services.catalog import DATASETS, MISSION_BY_ID, MISSIONS
 
 router = APIRouter()
@@ -168,3 +168,44 @@ def v1_compare(req: CompareRequest):
                                                     "default gate mode; choose a mission with that mode instead")
     assert_score_contract(res)
     return res
+
+
+# ---------------------------------------------------------------- read-only visualization products
+_PNG_HEADERS = {"Cache-Control": "public, max-age=3600"}
+
+
+@router.get("/api/research/summary")
+def research_summary():
+    """Tier-2 research outcome per Exploration Zone in both land-cover gate modes."""
+    return {"sites": _data_or_503(VIS.research_summary),
+            "note": "Research records over the fixed 230-window pool (50 km windows). exclude = gate-then-rank "
+                    "(field-test missions); report = terrain geometry only."}
+
+
+@router.get("/api/earth/pool")
+def earth_pool():
+    """The 230 Earth windows that tier-2 OOM refinement actually examined."""
+    return {"windows": _data_or_503(VIS.pool_windows), "window_km": 50,
+            "note": "Fixed stratified research sample (213 random + 17 named controls). Not a global high-resolution search."}
+
+
+@router.get("/api/visualization/legend")
+def visualization_legend():
+    return VIS.LEGEND
+
+
+@router.get("/api/visualization/tier1-similarity.png")
+def tier1_similarity_png(site: str, mission: str = "landing_site"):
+    """Equirectangular 0.25° raster of tier-1 similarity for one Mars EZ (display product)."""
+    m = _mission(mission)
+    if not m.available:
+        raise HTTPException(422, detail={"status": "unsupported", "reason": m.reason_unavailable})
+    if site not in _data_or_503(RS.mars_tier1).index:
+        raise HTTPException(404, detail=f"no tier-1 fingerprint for {site!r}")
+    return Response(_data_or_503(VIS.similarity_png, site, mission), media_type="image/png", headers=_PNG_HEADERS)
+
+
+@router.get("/api/visualization/tier1-coverage.png")
+def tier1_coverage_png():
+    """Equirectangular 0.25° raster of the land cells screened in tier 1 (display product)."""
+    return Response(_data_or_503(VIS.coverage_png), media_type="image/png", headers=_PNG_HEADERS)
