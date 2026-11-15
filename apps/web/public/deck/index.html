@@ -1,387 +1,326 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>TerraTwin · Demo deck · NASA Space Apps 2026</title>
-<meta name="description" content="TerraTwin: finding Earth's terrain twins of Mars, compared the way Mars was actually measured. Seven-slide demo deck, team AstroSUST, NASA Space Apps 2026.">
-<link rel="icon" href="../favicon.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<meta name="description" content="TerraTwin: Earth terrain analogs of Mars sites, compared the way NASA's MOLA altimeter actually measured Mars. Seven-slide demo deck, team AstroSUST, NASA Space Apps Challenge 2026." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
 <style>
-:root{--bg:#020304;--panel:#06080a;--ink:#f2f4f5;--muted:#a6aeb6;--faint:#7f8891;--mars:#ec7f53;--earth:#4fc9bb;--amber:#e6c15a;--line:#2f363e;--s:1}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{background:var(--bg)}
-body{color:var(--ink);font-family:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;font-style:normal;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
-em,i,cite,dfn{font-style:normal}
-.m{font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace}
-.deck{display:flex;flex-direction:column;align-items:center;gap:12px}
-.slide{position:relative;flex:none;width:min(100vw,calc(100vh * 16 / 9));aspect-ratio:16/9;overflow:hidden;background:var(--bg);box-shadow:0 0 0 1px var(--line)}
-.stage{position:absolute;left:0;top:0;width:1280px;height:720px;transform-origin:0 0;transform:scale(var(--s))}
-/* corner brackets (solid 1px strokes) */
-.brk,.stage::after{--b:var(--faint);--l:12px;background:
- linear-gradient(var(--b),var(--b)) left top/var(--l) 1px no-repeat,linear-gradient(var(--b),var(--b)) left top/1px var(--l) no-repeat,
- linear-gradient(var(--b),var(--b)) right top/var(--l) 1px no-repeat,linear-gradient(var(--b),var(--b)) right top/1px var(--l) no-repeat,
- linear-gradient(var(--b),var(--b)) left bottom/var(--l) 1px no-repeat,linear-gradient(var(--b),var(--b)) left bottom/1px var(--l) no-repeat,
- linear-gradient(var(--b),var(--b)) right bottom/var(--l) 1px no-repeat,linear-gradient(var(--b),var(--b)) right bottom/1px var(--l) no-repeat}
-.stage::after{content:"";position:absolute;inset:14px;pointer-events:none;--b:var(--line);--l:16px}
-.abs{position:absolute}
-.top{position:absolute;left:56px;right:56px;top:36px;display:flex;justify-content:space-between;align-items:center}
-.kicker{display:flex;align-items:center;gap:10px;font:500 13px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
-.kicker.mars{color:var(--mars)}.kicker.earth{color:var(--earth)}.kicker.amber{color:var(--amber)}
-.sq{display:inline-block;width:7px;height:7px;background:var(--muted);flex:none}
-.sq.mars{background:var(--mars)}.sq.earth{background:var(--earth)}.sq.amber{background:var(--amber)}
-.pg{font:500 14px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;color:var(--muted)}
-.foot{position:absolute;left:56px;right:56px;bottom:24px;padding-top:11px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:24px;font:400 12px/1.3 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.04em;color:var(--faint);white-space:nowrap}
-h1.title{position:absolute;left:56px;right:56px;top:74px;font:600 46px/1.06 "Barlow Semi Condensed","Barlow",sans-serif;letter-spacing:.02em;text-transform:uppercase}
-p.body{font-size:20px;line-height:1.42;color:var(--ink)}
-.mars-c{color:var(--mars)}.earth-c{color:var(--earth)}.amber-c{color:var(--amber)}.muted-c{color:var(--muted)}
-.arr{display:inline-block;width:.9em;height:.4em;fill:none;stroke:currentColor;stroke-width:1.5;vertical-align:middle;margin:0 .22em;overflow:visible}
-sup{font-size:.66em;line-height:0;vertical-align:.55em}
-/* screenshots */
-.shot{position:absolute;padding:7px}
-.shot .crop{position:relative;overflow:hidden;width:100%;border:1px solid var(--line);border-radius:2px;background:#000}
-.shot .crop img{display:block;width:100%;height:100%;object-fit:cover;max-width:none}
-.shot figcaption{margin-top:9px;font:400 12px/1.35 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
-/* slide 1 */
-.brand{font:600 100px/.95 "Barlow Semi Condensed","Barlow",sans-serif;letter-spacing:.045em;text-transform:uppercase;margin-left:-3px}
-.tag{margin-top:20px;font-size:26px;line-height:1.3;font-weight:500}
-.finding{margin-top:28px;padding:2px 0 2px 18px;border-left:2px solid var(--mars)}
-.finding p{margin-top:10px;font-size:21px;line-height:1.4;color:var(--ink)}
-.meta{margin-top:28px;display:grid;grid-template-columns:112px 1fr;row-gap:9px;align-items:baseline}
-.meta dt{font:500 12.5px/1.3 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
-.meta dd{font-size:18px;line-height:1.35;color:var(--muted)}
-.meta dd.m{font-size:17px;color:var(--ink)}
-/* slide 2 */
-.big{display:flex;align-items:flex-end;gap:22px}
-.big .num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-weight:500;font-size:150px;line-height:.84;letter-spacing:-.03em;white-space:nowrap}
-.big .num small{font-size:.44em;margin-left:.12em;letter-spacing:0}
-.big .lbl{font-size:21px;line-height:1.32;color:var(--muted);padding-bottom:8px;max-width:236px}
-.big.sm{margin-top:26px}.big.sm .num{font-size:72px;color:var(--muted)}.big.sm .lbl{padding-bottom:2px}
-.legend{display:flex;gap:22px;align-items:center;margin-top:12px;white-space:nowrap;font:400 12px/1.3 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
-.legend span{display:flex;align-items:center;gap:9px}
-.legend .k{width:13px;height:13px;border:1px solid var(--line);background:transparent;flex:none}
-.legend .k.on{background:var(--mars);border-color:var(--mars)}
-.legend .note{margin-left:auto;color:var(--faint)}
-/* slide 3 */
-.sub{position:absolute;left:56px;top:132px;font-size:22px;line-height:1.3;color:var(--muted)}
-.pipe{position:absolute;left:56px;top:186px;width:1168px;height:334px;display:grid;grid-template-columns:repeat(5,1fr);gap:22px;list-style:none}
-.step{position:relative;display:flex;flex-direction:column;padding:16px 16px 14px;border:1px solid var(--line);border-radius:2px;background:var(--panel)}
-.step .n{font:500 14px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;color:var(--faint)}
-.step h3{margin-top:13px;font:600 27px/1.05 "Barlow Semi Condensed","Barlow",sans-serif;letter-spacing:.03em;text-transform:uppercase}
-.step p{margin-top:10px;font-size:20px;line-height:1.3;color:var(--ink)}
-.step .d{margin-top:auto;padding-top:10px;border-top:1px solid var(--line);font:400 11.5px/1.45 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--earth)}
-.step .d.mars-c{color:var(--mars)}.step .d.muted-c{color:var(--muted)}
-.step.key{border-color:var(--mars)}.step.key .n{color:var(--mars)}
-.step:not(:last-child)::after{content:"";position:absolute;right:-17px;top:50%;width:11px;height:1px;background:var(--muted)}
-.step:not(:last-child)::before{content:"";position:absolute;right:-17px;top:50%;width:6px;height:6px;border-top:1px solid var(--muted);border-right:1px solid var(--muted);transform:translate(0,-3px) rotate(45deg)}
-.datarow{position:absolute;left:56px;top:546px;width:1168px;padding:16px 20px;display:grid;grid-template-columns:86px 1fr;row-gap:10px;align-items:baseline}
-.datarow dt{font:500 12.5px/1.3 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase}
-.datarow dd{font:400 16px/1.35 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink)}
-/* slide 4 */
-.tline{font:400 13px/1.3 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-.rk{display:grid;grid-template-columns:74px 1fr 150px;column-gap:14px;align-items:center;padding:13px 0 0;border-top:1px solid var(--line)}
-.rk .rank{font:500 15px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--earth)}
-.rk .rank small{display:block;margin-top:3px;font-size:11px;letter-spacing:.12em;color:var(--faint)}
-.rk .co{font:500 21px/1.2 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink)}
-.rk .pl{margin-top:4px;font-size:17px;line-height:1.3;color:var(--muted)}
-.rk .sv{text-align:right;font:500 34px/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink);white-space:nowrap}
-.rk .sv b{font-weight:400;font-size:15px;color:var(--faint);margin-right:8px}
-.rk .bar{grid-column:1 / -1;margin-top:12px;height:4px;background:#12161a;position:relative}
-.rk .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--earth)}
-.rk.ref .rank{color:var(--muted)}.rk.ref .bar i{background:var(--faint)}.rk.ref .sv{color:var(--muted)}
-.note{font:400 13px/1.45 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.04em;color:var(--faint)}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--line)}
-.stats div{padding:12px 14px 0 0}
-.stats b{display:block;font:500 30px/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink)}
-.stats span{display:block;margin-top:7px;font:400 11.5px/1.4 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
-/* slide 5 */
-.ctx{position:absolute;left:56px;top:150px;width:676px;display:grid;grid-template-columns:252px 212px 212px}
-.ctx .col{border-left:1px solid var(--line);padding:0 12px 0 14px}
-.ctx .col:first-child{border-left:0;padding-left:0}
-.ctx h4{height:46px;font:500 12.5px/1.35 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-.ctx h4 b{display:block;font-weight:500}
-.ctx .pair{height:43px}
-.ctx .pair span{display:block;font:400 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
-.ctx .pair b{display:block;margin-top:3px;font:500 17px/1.2 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink);white-space:nowrap}
-.ctx .pair b small{font:400 13px/1 "Barlow",sans-serif;color:var(--muted);margin-left:6px}
-.ctx .pair b.amber-c{color:var(--amber)}
-.hb{position:absolute;top:512px;height:138px;padding:15px 18px;border:1px solid var(--line);border-radius:2px;background:var(--panel)}
-.hb p{margin-top:9px;font-size:20px;line-height:1.36}
-/* slide 6 */
-.hero{position:absolute;left:56px;top:146px}
-.hero .f{font:500 124px/.9 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:-.03em;white-space:nowrap;display:flex;align-items:center}
-.hero .f small{font-size:.44em;margin-left:.1em;letter-spacing:0}
-.hero .f .arr{width:.62em;height:.3em;margin:0 .2em;stroke-width:1.1;color:var(--faint)}
-.hero .cap{margin-top:14px;font:400 13px/1.45 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-.colh{padding-bottom:11px;border-bottom:1px solid var(--line)}
-.ev{list-style:none}
-.ev li{display:grid;grid-template-columns:176px 1fr;column-gap:14px;align-items:baseline;padding:8px 0 7px;border-bottom:1px solid #161b20}
-.ev li b{font:500 21px/1.2 "IBM Plex Mono",ui-monospace,monospace;color:var(--earth);white-space:nowrap}
-.ev li span{font-size:19px;line-height:1.25;color:var(--ink)}
-.ev li.adv b{color:var(--amber)}
-.ny{list-style:none}
-.ny li{position:relative;padding:11px 0 10px 20px;border-bottom:1px solid #161b20;font-size:20px;line-height:1.3}
-.ny li::before{content:"";position:absolute;left:0;top:20px;width:7px;height:7px;border:1px solid var(--amber)}
-/* slide 7 */
-.blk{margin-bottom:20px}
-.blk p{margin-top:9px;font-size:20px;line-height:1.36}
-.blk p + p{margin-top:6px}
-.trio{display:grid;grid-template-columns:repeat(3,auto);justify-content:start;column-gap:34px;margin-top:9px}
-.trio b{display:block;font:500 40px/1 "IBM Plex Mono",ui-monospace,monospace}
-.trio span{display:block;margin-top:6px;font:400 11.5px/1.35 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
-.url{position:absolute;left:56px;top:548px;font:500 44px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:-.01em;color:var(--mars);text-decoration:none;white-space:nowrap}
-.credits{position:absolute;left:56px;right:56px;top:606px;font:400 11.5px/1.5 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.05em;color:var(--faint)}
-.credits b{font-weight:500;letter-spacing:.16em;color:var(--muted);margin-right:8px}
-/* print: one slide per page */
-@page{size:1280px 720px;margin:0}
-@media print{
- html,body{background:var(--bg);-webkit-print-color-adjust:exact;print-color-adjust:exact}
- .deck{display:block}
- .slide{width:1280px;height:720px;aspect-ratio:auto;box-shadow:none;break-after:page;page-break-after:always;break-inside:avoid;page-break-inside:avoid}
- .slide:last-child{break-after:auto;page-break-after:auto}
- .stage{transform:none!important}
-}
+  :root { --space:#020304; --surface:#07090c; --line:#1d2227; --line2:#2f363e; --ink:#f2f4f5; --muted:#a6aeb6; --faint:#7f8891; --mars:#ec7f53; --earth:#4fc9bb; --warn:#e6c15a; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--space); color: var(--ink); font-family: "Barlow", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  body { overflow: hidden; }
+  .deck { position: relative; width: 100vw; height: 100vh; }
+  .slide { position: absolute; top: 50%; left: 50%; width: 1920px; height: 1080px; transform: translate(-50%, -50%) scale(var(--s, 1)); transform-origin: center; background: var(--space); overflow: hidden; display: none; }
+  .slide.active { display: block; }
+  .display { font-family: "Barlow Semi Condensed", "Barlow", sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: .035em; line-height: .95; }
+  .mono { font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .kicker { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: var(--faint); display: flex; align-items: center; gap: 10px; }
+  .sq { display: inline-block; width: 7px; height: 7px; background: var(--faint); flex: none; }
+  .sq.m { background: var(--mars); } .sq.e { background: var(--earth); } .sq.w { background: var(--warn); }
+  .mars { color: var(--mars); } .earth { color: var(--earth); } .warn { color: var(--warn); } .muted { color: var(--muted); } .faint { color: var(--faint); } .ink { color: var(--ink); }
+  .top { position: absolute; left: 80px; right: 80px; top: 48px; display: flex; justify-content: space-between; align-items: center; }
+  .foot { position: absolute; left: 80px; right: 80px; bottom: 36px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; gap: 24px; font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .05em; color: var(--faint); white-space: nowrap; }
+  .frame::before, .frame::after, .frame > i::before, .frame > i::after { content: ""; position: absolute; width: 18px; height: 18px; border-color: rgba(242,244,245,.38); border-style: solid; z-index: 3; }
+  .frame::before { top: 22px; left: 22px; border-width: 1px 0 0 1px; } .frame::after { top: 22px; right: 22px; border-width: 1px 1px 0 0; }
+  .frame > i::before { bottom: 22px; left: 22px; border-width: 0 0 1px 1px; } .frame > i::after { bottom: 22px; right: 22px; border-width: 0 1px 1px 0; }
+  .body { position: absolute; left: 80px; right: 80px; top: 112px; bottom: 100px; }
+  h2 { font-family: "Barlow Semi Condensed", sans-serif; font-weight: 600; text-transform: uppercase; letter-spacing: .025em; font-size: 60px; line-height: .98; }
+  .sub { font-size: 24px; line-height: 1.4; color: var(--muted); margin-top: 16px; max-width: 1100px; }
+  p, li { font-size: 21px; line-height: 1.45; color: var(--muted); }
+  ul { list-style: none; }
+  li { margin: 0 0 12px 0; padding-left: 22px; position: relative; }
+  li::before { content: ""; position: absolute; left: 0; top: 12px; width: 7px; height: 7px; background: var(--line2); }
+  li.m::before { background: var(--mars); } li.e::before { background: var(--earth); } li.w::before { background: var(--warn); }
+  strong { color: var(--ink); font-weight: 600; }
+  .n { font-family: "IBM Plex Mono", monospace; color: var(--ink); }
+  .panel { background: var(--surface); border: 1px solid rgba(255,255,255,.09); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
+  .shot { border: 1px solid rgba(255,255,255,.14); display: block; background: #000; }
+  .cap { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); margin-top: 10px; }
+  .stat .v { font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 64px; line-height: 1; color: var(--ink); letter-spacing: -.02em; white-space: nowrap; }
+  .stat .v small { font-family: "Barlow"; font-weight: 400; font-size: 20px; color: var(--muted); margin-left: 8px; letter-spacing: 0; }
+  .stat .l { font-family: "IBM Plex Mono", monospace; font-size: 11.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-top: 10px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); font-size: 18px; color: var(--muted); }
+  th { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); font-weight: 500; }
+  td.n { text-align: right; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+  .step { position: relative; padding: 22px 24px 20px; border: 1px solid var(--line2); background: var(--surface); min-height: 296px; display: flex; flex-direction: column; }
+  .step.key { border-color: var(--mars); }
+  .step .k { font-family: "IBM Plex Mono", monospace; font-size: 12px; letter-spacing: .16em; color: var(--faint); }
+  .step.key .k { color: var(--mars); }
+  .step h3 { font-family: "Barlow Semi Condensed"; font-weight: 600; text-transform: uppercase; font-size: 32px; letter-spacing: .03em; margin-top: 14px; line-height: 1; }
+  .step p { font-size: 19px; line-height: 1.38; margin-top: 12px; color: var(--ink); }
+  .step .d { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); font-family: "IBM Plex Mono", monospace; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--earth); line-height: 1.5; }
+  .step .d.m { color: var(--mars); }
+  .step:not(:last-child)::after { content: "→"; position: absolute; right: -19px; top: 50%; transform: translateY(-50%); color: var(--faint); font-size: 18px; }
+  .row { display: grid; grid-template-columns: 90px 1fr 170px; column-gap: 16px; align-items: center; padding: 16px 0 0; border-top: 1px solid var(--line); }
+  .row .rk { font-family: "IBM Plex Mono", monospace; font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--earth); }
+  .row .rk small { display: block; margin-top: 4px; font-size: 11px; color: var(--faint); }
+  .row .co { font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 24px; color: var(--ink); }
+  .row .pl { margin-top: 5px; font-size: 18px; line-height: 1.3; color: var(--muted); }
+  .row .sv { text-align: right; font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 42px; color: var(--ink); white-space: nowrap; }
+  .row .sv b { font-weight: 400; font-size: 14px; color: var(--faint); margin-right: 8px; }
+  .row .bar { grid-column: 1 / -1; margin-top: 12px; height: 4px; background: #12161a; position: relative; }
+  .row .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--earth); }
+  .row.ref .rk, .row.ref .sv { color: var(--muted); } .row.ref .bar i { background: var(--faint); }
+  .pair { padding: 10px 0; border-bottom: 1px solid #161b20; }
+  .pair span { display: block; font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
+  .pair b { display: block; margin-top: 4px; font-family: "IBM Plex Mono", monospace; font-weight: 500; font-size: 20px; color: var(--ink); white-space: nowrap; }
+  .pair b small { font-family: "Barlow"; font-weight: 400; font-size: 14px; color: var(--muted); margin-left: 6px; }
+  .help { position: fixed; right: 16px; bottom: 12px; font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--faint); letter-spacing: .1em; text-transform: uppercase; z-index: 5; }
+  @media print {
+    body { overflow: visible; }
+    .deck { width: auto; height: auto; }
+    .slide { display: block; position: relative; top: auto; left: auto; transform: none; page-break-after: always; break-after: page; }
+    .help { display: none; }
+    @page { size: 1920px 1080px; margin: 0; }
+  }
 </style>
 </head>
 <body>
-<main class="deck" id="deck">
+<div class="deck" id="deck">
 
 <!-- 1 · TITLE -->
-<section class="slide" id="s1" aria-label="Slide 1 of 7: Title">
-<div class="stage">
-  <div class="top"><span class="kicker"><i class="sq mars"></i>NASA Space Apps 2026 · Team AstroSUST</span><span class="pg">1 / 7</span></div>
-  <div class="abs" style="left:56px;top:104px;width:572px">
-    <h1 class="brand">TerraTwin</h1>
-    <p class="tag">Finding Earth's terrain twins of Mars — compared the way Mars was actually measured.</p>
-    <div class="finding">
-      <div class="kicker mars">Finding</div>
-      <p>For Jezero crater, a whole-Earth search puts two windows in north-west China ahead of the classic Atacama analog.</p>
+<section class="slide frame active" id="s1"><i></i>
+  <img src="assets/mars-jezero.jpg" alt="" style="position:absolute;left:700px;top:-150px;width:1220px;height:1230px;object-fit:cover;object-position:22% 72%" />
+  <div style="position:absolute;inset:0;background:linear-gradient(90deg,#020304 0%,#020304 36%,rgba(2,3,4,.96) 44%,rgba(2,3,4,.72) 54%,rgba(2,3,4,.25) 70%,rgba(2,3,4,0) 86%)"></div>
+  <div style="position:absolute;inset:0;background:linear-gradient(0deg,#020304 0%,rgba(2,3,4,.6) 12%,rgba(2,3,4,0) 30%)"></div>
+  <div class="top"><div class="kicker"><span class="sq m"></span>NASA Space Apps Challenge 2026 · Team AstroSUST</div><div class="kicker">1 / 7</div></div>
+  <div class="body">
+    <div style="position:absolute;left:0;top:92px;width:980px">
+      <div class="display" style="font-size:150px;margin-left:-6px">Terra<span class="mars">Twin</span></div>
+      <div style="margin-top:26px;font-size:34px;line-height:1.25;color:var(--ink);font-weight:500;max-width:900px">Earth's terrain twins of Mars sites, compared the way NASA's MOLA altimeter actually measured Mars.</div>
+      <div style="margin-top:40px;padding-left:22px;border-left:2px solid var(--mars);max-width:880px">
+        <div class="kicker" style="color:var(--mars)">Finding</div>
+        <p style="margin-top:10px;font-size:23px;line-height:1.4;color:var(--ink)">Searching the whole Earth for Jezero crater, TerraTwin returns a tie of two windows in north-west China — the Kunlun–Altun belt on the Tarim Basin's south rim and the north-eastern Qaidam Basin — each scoring above the classic Atacama analog.</p>
+      </div>
+      <div style="display:flex;gap:64px;margin-top:52px">
+        <div class="stat"><div class="v">39</div><div class="l">NASA Exploration Zones</div></div>
+        <div class="stat"><div class="v">249,165</div><div class="l">Earth cells screened</div></div>
+        <div class="stat"><div class="v">18<small>%</small><span class="faint" style="font-size:40px;margin:0 10px">→</span>95<small>%</small></div><div class="l">True twin found first · benchmark</div></div>
+      </div>
     </div>
-    <dl class="meta">
-      <dt>Challenge</dt><dd>Identify Earth Locations that Analog the Permanent Moon Base Locations and Mars</dd>
-      <dt>Team</dt><dd>AstroSUST</dd>
-      <dt>Live app</dt><dd class="m">https://terratwin-five.vercel.app</dd>
-    </dl>
   </div>
-  <figure class="shot brk" style="left:664px;top:80px;width:560px;height:566px">
-    <div class="crop" style="height:524px"><img src="img/mars-jezero.jpg" alt="TerraTwin live app: Jezero crater selected on the Mars globe" style="position:absolute;width:1314.8px;height:auto;left:-310.4px;top:-164.4px"></div>
-    <figcaption>Live app · Jezero on the Mars globe</figcaption>
-  </figure>
-  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span></div>
-</div>
+  <div class="foot"><div>Challenge · Identify Earth Locations that Analog the Permanent Moon Base Locations and Mars</div><div class="ink">terratwin-five.vercel.app</div></div>
 </section>
 
 <!-- 2 · PROBLEM -->
-<section class="slide" id="s2" aria-label="Slide 2 of 7: Problem">
-<div class="stage">
-  <div class="top"><span class="kicker"><i class="sq mars"></i>01 · Problem</span><span class="pg">2 / 7</span></div>
-  <h1 class="title">At Jezero, 69 % of the Mars grid is interpolated</h1>
-  <div class="abs" style="left:56px;top:166px;width:500px">
-    <div class="big"><span class="num mars-c">31<small>%</small></span><span class="lbl">of the 463 m grid cells at Jezero contain a MOLA laser return</span></div>
-    <div class="big sm"><span class="num">69<small>%</small></span><span class="lbl">are interpolated</span></div>
-    <p class="body" style="margin-top:34px">Mars analog sites on Earth are mostly chosen by eye and reputation. NASA's MOLA altimeter mapped Mars along laser tracks. Comparing that grid with raw Earth elevation compares two different measurements.</p>
+<section class="slide frame" id="s2"><i></i>
+  <div class="top"><div class="kicker"><span class="sq m"></span>01 · Problem</div><div class="kicker">2 / 7</div></div>
+  <div class="body">
+    <div style="position:absolute;left:0;top:0;width:900px">
+      <h2>At Jezero, 69 % of the Mars elevation grid is interpolated</h2>
+      <div style="display:flex;align-items:flex-end;gap:28px;margin-top:56px">
+        <div class="mono" style="font-size:190px;line-height:.85;font-weight:500;letter-spacing:-.04em;color:var(--mars)">31<span style="font-size:.4em;letter-spacing:0">%</span></div>
+        <div style="font-size:23px;line-height:1.35;color:var(--muted);padding-bottom:12px;max-width:380px">of 463 m MOLA grid cells at Jezero contain a laser return. The rest are filled in.</div>
+      </div>
+      <ul style="margin-top:56px;max-width:860px">
+        <li class="m">Earth analog sites are mostly chosen by eye and by reputation.</li>
+        <li class="m">NASA's MOLA altimeter mapped Mars along laser tracks; Earth is measured densely by radar. Comparing the two grids directly compares a smoothed surface with an unsmoothed one.</li>
+        <li class="m">Passed through the MOLA chain, Earth roughness at 0.93 km drops to <span class="n">×0.69</span> and the Hurst exponent rises by <span class="n">+0.12</span>. About half of the apparent Mars–Earth roughness-scaling gap is the data, not the planets.</li>
+      </ul>
+    </div>
+    <div class="panel" style="position:absolute;right:0;top:10px;width:880px;height:448px;overflow:hidden;background:#fff">
+      <img src="assets/fig_mola_support.png" alt="Fraction of MOLA cells observed vs analysis cell size" style="position:absolute;left:-12px;top:8px;width:900px" />
+    </div>
+    <div class="cap" style="position:absolute;right:0;top:474px;width:880px">Measured from the NASA PDS MEGDR 128 ppd shot-count tiles across all 39 Exploration Zones · 95 % of cells are observed only at 3.7 km</div>
+    <div style="position:absolute;right:0;top:560px;width:880px;display:flex;gap:56px">
+      <div class="stat"><div class="v">463<small>m</small></div><div class="l">Grid spacing, not resolution</div></div>
+      <div class="stat"><div class="v">3.7<small>km</small></div><div class="l">Cell size for 95 % observed</div></div>
+      <div class="stat"><div class="v">×0.69</div><div class="l">Earth roughness after the chain</div></div>
+    </div>
   </div>
-  <figure class="abs brk" style="left:610px;top:156px;width:614px;padding:7px">
-    <div id="grid" role="img" aria-label="Schematic grid: 31 percent of cells lie on laser tracks, 69 percent are interpolated" style="width:600px;height:440px"></div>
-    <div class="legend"><span><i class="k on"></i>Laser return · 31 %</span><span><i class="k"></i>Interpolated · 69 %</span><span class="note">Schematic, not to scale</span></div>
-  </figure>
-  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span></div>
-</div>
+  <div class="foot"><div>NASA PDS MGS MOLA MEGDR (MGS-M-MOLA-5-MEGDR-L3-V1.0) · USGS MOLA 463 m mosaic · research package G3 §2</div><div>TerraTwin · AstroSUST</div></div>
 </section>
 
 <!-- 3 · METHOD -->
-<section class="slide" id="s3" aria-label="Slide 3 of 7: Method">
-<div class="stage">
-  <div class="top"><span class="kicker"><i class="sq earth"></i>02 · Method</span><span class="pg">3 / 7</span></div>
-  <h1 class="title">Observe Earth the way MOLA observed Mars</h1>
-  <p class="sub">Observation-Operator Matching (OOM), in five steps.</p>
-  <ol class="pipe">
-    <li class="step"><span class="n">01</span><h3>Screen</h3><p>249,165 Earth land cells, 25 km, against the Mars target</p><div class="d">GMTED2010</div></li>
-    <li class="step"><span class="n">02</span><h3>Refine</h3><p>50 km windows for the shortlist; vegetated ground removed</p><div class="d">Copernicus GLO-90 · ESA WorldCover</div></li>
-    <li class="step key"><span class="n">03</span><h3>Re-observe</h3><p>Earth seen through the site's own MOLA sampling, interpolation, registration</p><div class="d mars-c">NASA MOLA MEGDR counts · USGS MOLA mosaic</div></li>
-    <li class="step"><span class="n">04</span><h3>Score</h3><p>8 multiscale descriptors: slope, relief, roughness, Hurst exponent</p><div class="d muted-c">Roughness at 926 m / 2.3 km / 9.3 km</div></li>
-    <li class="step"><span class="n">05</span><h3>Decide</h3><p>A leader only if stable in all four orientations; otherwise a tie</p><div class="d muted-c">4 window orientations</div></li>
-  </ol>
-  <dl class="datarow brk">
-    <dt class="mars-c">Mars</dt><dd>NASA MOLA MEGDR 128 ppd counts (PDS) · USGS MOLA 463 m mosaic</dd>
-    <dt class="earth-c">Earth</dt><dd>GMTED2010 · ESA Copernicus DEM GLO-90 · ESA WorldCover 2021</dd>
-  </dl>
-  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span></div>
-</div>
+<section class="slide frame" id="s3"><i></i>
+  <div class="top"><div class="kicker"><span class="sq m"></span>02 · Method · Observation-Operator Matching</div><div class="kicker">3 / 7</div></div>
+  <div class="body">
+    <h2>Observe Earth the way MOLA observed Mars</h2>
+    <div class="sub">Do not invert the Mars data chain (ill-posed). Apply the same chain to every Earth candidate, then compare in Mars observation space. No machine learning, no fitted weights.</div>
+    <div class="steps" style="margin-top:40px">
+      <div class="step"><div class="k">01 · SCREEN</div><h3>All of Earth's land</h3><p>249,165 cells of 25 km scored against the Mars target with one shared descriptor function, on local equal-distance grids built with each planet's own radius.</p><div class="d">GMTED2010 · USGS MOLA 463 m mosaic</div></div>
+      <div class="step"><div class="k">02 · REFINE</div><h3>50 km windows</h3><p>Shortlisted windows at the MOLA grid spacing of 463 m. For field-test missions, vegetated or water-covered ground is removed before ranking.</p><div class="d">Copernicus DEM GLO-90 · ESA WorldCover 2021</div></div>
+      <div class="step key"><div class="k">03 · RE-OBSERVE</div><h3>Through the site's own MOLA chain</h3><p>Measured shot-count mask → interpolation chosen from statistics observable on Mars → measured ½-pixel registration → warp. Then 8 terrain descriptors, log-ratio kernel.</p><div class="d m">NASA PDS MEGDR 128 ppd counts · USGS MOLA mosaic</div></div>
+      <div class="step"><div class="k">04 · DECIDE</div><h3>Leader, tie, or none</h3><p>A single leader is named only if it is identical under all four orientations of the Earth window relative to MOLA tracks. Otherwise a tied set, or "no convincing analog". Never a score without coverage.</p><div class="d">Reject option · Chow 1970</div></div>
+    </div>
+    <div class="mono" style="margin-top:34px;font-size:22px;color:var(--muted)">z<sub>Mars</sub> = W ∘ B ∘ I ∘ S ( z<sub>true</sub> )<span class="faint" style="margin:0 26px">→</span>compare D( z<sub>Mars</sub> ) with D( W ∘ B ∘ I ∘ S<sub>site</sub> ( z<sub>Earth</sub> ) )<span class="faint" style="margin-left:26px;font-size:16px">S sampling · I interpolation · B registration · W warp</span></div>
+    <div class="cap" style="margin-top:16px">Descriptors · mean slope · 90th-percentile slope · relief · detrended RMS · RMS deviation at 0.93 / 2.3 / 9.3 km · Hurst exponent — the forward-operator principle of satellite simulators and data assimilation, adapted to analog search</div>
+    <div style="display:flex;gap:16px;margin-top:22px">
+      <div><img class="shot" src="assets/mars-jezero.jpg" style="width:398px" alt="Mars inspector" /><div class="cap" style="margin-top:7px">01 · Mars target · measured terrain</div></div>
+      <div><img class="shot" src="assets/earth-screen.jpg" style="width:398px" alt="Global screen" /><div class="cap" style="margin-top:7px">02 · Global screen · similarity field</div></div>
+      <div><img class="shot" src="assets/compare-measurements.jpg" style="width:398px" alt="Measurements" /><div class="cap" style="margin-top:7px">03 · Descriptors against tolerance bands</div></div>
+      <div><img class="shot" src="assets/compare-relief.jpg" style="width:398px" alt="3D relief" /><div class="cap" style="margin-top:7px">04 · Decision · 3D relief at equal exaggeration</div></div>
+    </div>
+  </div>
+  <div class="foot"><div>Bodas-Salcedo et al. 2011 · Janjić et al. 2017 · Gotway &amp; Young 2002 · Kreslavsky &amp; Head 2000 · research package G2</div><div>TerraTwin · AstroSUST</div></div>
 </section>
 
 <!-- 4 · FINDING -->
-<section class="slide" id="s4" aria-label="Slide 4 of 7: Finding">
-<div class="stage">
-  <div class="top"><span class="kicker"><i class="sq mars"></i>03 · Finding</span><span class="pg">4 / 7</span></div>
-  <h1 class="title">Jezero: a tie in north-west China, ahead of Atacama</h1>
-  <div class="abs" style="left:56px;top:150px;width:600px">
-    <div class="tline" style="margin-bottom:12px;letter-spacing:.08em;white-space:nowrap">Jezero · 17.68° N 77.01° E · whole Earth, as MOLA would see it</div>
-    <div class="rk"><div class="rank">Tie<small>member</small></div><div><div class="co">37.06° N 86.21° E</div><div class="pl">Kunlun–Altun mountain belt, southern rim of the Tarim Basin, Xinjiang</div></div><div class="sv"><b>S</b>0.781</div><div class="bar"><i style="width:78.1%"></i></div></div>
-    <div class="rk" style="margin-top:12px"><div class="rank">Tie<small>member</small></div><div><div class="co">37.29° N 97.51° E</div><div class="pl">North-eastern Qaidam Basin near Delingha, Qinghai</div></div><div class="sv"><b>S</b>0.693</div><div class="bar"><i style="width:69.3%"></i></div></div>
-    <div class="rk ref" style="margin-top:12px"><div class="rank">9 / 90<small>rank</small></div><div><div class="co">Atacama Yungay</div><div class="pl">24.09° S 69.99° W · the classic analog</div></div><div class="sv"><b>S</b>0.613</div><div class="bar"><i style="width:61.3%"></i></div></div>
-    <p class="note" style="margin-top:14px">Research pool alone (fixed 230 windows): Atacama Yungay is the stable leader, S 0.614, 4/4 orientations.</p>
-    <p class="body" style="margin-top:10px;font-size:17px;line-height:1.32">Place names are approximate, read from the coordinates by the team. The Qaidam Basin is independently proposed as a Mars analog (Xiao et al. 2017, Earth-Science Reviews 164). TerraTwin makes no novelty claim.</p>
+<section class="slide frame" id="s4"><i></i>
+  <div class="top"><div class="kicker"><span class="sq e"></span>03 · Finding · live from the deployed app</div><div class="kicker">4 / 7</div></div>
+  <div class="body">
+    <div style="position:absolute;left:0;top:0;width:820px">
+      <h2>Jezero: a tie in north-west China, ahead of Atacama</h2>
+      <div class="cap" style="margin-top:18px">Jezero crater · 17.68° N 77.01° E · landing-site profile · 40 windows refined from the whole Earth in 41 s</div>
+      <div style="margin-top:30px">
+        <div class="row"><div class="rk">Tie<small>member</small></div><div><div class="co">37.06° N 86.21° E</div><div class="pl">Kunlun–Altun mountain belt, south rim of the Tarim Basin, Xinjiang</div></div><div class="sv"><b>S</b>0.781</div><div class="bar"><i style="width:78.1%"></i></div></div>
+        <div class="row"><div class="rk">Tie<small>member</small></div><div><div class="co">37.29° N 97.51° E</div><div class="pl">North-eastern Qaidam Basin near Delingha, Qinghai</div></div><div class="sv"><b>S</b>0.693</div><div class="bar"><i style="width:69.3%"></i></div></div>
+        <div class="row ref"><div class="rk">Pool<small>leader</small></div><div><div class="co">24.09° S 69.99° W</div><div class="pl">Atacama Yungay, Chile · the classic analog · stable leader of the fixed 230-window research pool</div></div><div class="sv"><b>S</b>0.614</div><div class="bar"><i style="width:61.4%"></i></div></div>
+      </div>
+      <p style="margin-top:26px;font-size:17px;line-height:1.45">A tie means the leader is not determined by the MOLA observation geometry: the two windows are equivalent at this resolution and are shown unordered. Place names are approximate, read from the coordinates by the team. The Qaidam Basin is independently proposed as a Mars analog in the literature; TerraTwin itself makes no novelty claim.</p>
+    </div>
+    <div style="position:absolute;right:0;top:0;width:900px">
+      <img class="shot" src="assets/earth-discovery.jpg" style="width:900px" alt="Live discovery results on the Earth globe" />
+      <div class="cap">Live app · Earth stage · discovery run 533a52bdf72b · refined windows drawn where they are</div>
+      <table style="margin-top:22px">
+        <tr><th>50 km window descriptor</th><th style="text-align:right">Mars · Jezero</th><th style="text-align:right">Earth · 37.06° N 86.21° E, as MOLA would see it</th></tr>
+        <tr><td>Mean slope · 90th-percentile slope</td><td class="n">2.82° · 6.11°</td><td class="n">2.67° · 5.30°</td></tr>
+        <tr><td>Relative relief · RMS deviation at 0.93 km</td><td class="n">1,763 m · 49.6 m</td><td class="n">1,711 m · 49.7 m</td></tr>
+        <tr><td>Hurst exponent</td><td class="n">0.678</td><td class="n">0.663</td></tr>
+      </table>
+    </div>
   </div>
-  <figure class="shot brk" style="left:692px;top:150px;width:532px">
-    <div class="crop" style="height:324px"><img src="img/earth-discovery.jpg" alt="TerraTwin live app: Discovery tab for Jezero showing a tie of two windows in north-west China on the Earth globe" style="position:absolute;width:803.8px;height:auto;left:-279.1px;top:-33.5px"></div>
-    <figcaption id="cap4">Live app · Discovery: tie of two windows for Jezero</figcaption>
-  </figure>
-  <div class="abs stats" style="left:699px;top:548px;width:518px">
-    <div><b>90</b><span>windows refined in the same run</span></div>
-    <div><b>40 + 50</b><span>global + research-pool windows</span></div>
-    <div><b>122</b><span>vegetated cells excluded before extraction</span></div>
-  </div>
-  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span></div>
-</div>
+  <div class="foot"><div>terratwin-five.vercel.app/#/earth?site=Jezero&amp;mission=landing_site · /api/gis/runs/533a52bdf72b · 104 vegetated shortlist cells excluded before extraction</div><div>TerraTwin · AstroSUST</div></div>
 </section>
 
 <!-- 5 · CHARACTERISATION -->
-<section class="slide" id="s5" aria-label="Slide 5 of 7: Characterisation">
-<div class="stage">
-  <div class="top"><span class="kicker"><i class="sq amber"></i>04 · Characterisation · context, never in the score</span><span class="pg">5 / 7</span></div>
-  <h1 class="title">Where the analogy holds, and where it breaks</h1>
-  <div class="ctx">
-    <div class="col">
-      <h4><b class="mars-c">Mars · Jezero</b>17.68° N 77.01° E</h4>
-      <div class="pair"><span>Thermal inertia · TES</span><b>296 J m<sup>−2</sup> K<sup>−1</sup> s<sup>−½</sup></b></div>
-      <div class="pair"><span>Rock abundance · TES</span><b>32 %</b></div>
-      <div class="pair"><span>Surface temperature · modelled</span><b>217 K</b></div>
-      <div class="pair"><span>Water-ice consistency · SWIM</span><b>−0.34<small>ice not indicated</small></b></div>
-      <div class="pair"><span>Geologic unit · USGS SIM 3292</span><b>mNhm</b></div>
-      <div class="pair"><span>Solar-energy potential</span><b>171 W m<sup>−2</sup></b></div>
-    </div>
-    <div class="col">
-      <h4><b class="earth-c">Earth · S 0.781</b>37.06° N 86.21° E</h4>
-      <div class="pair"><span>Aridity index</span><b>0.15<small>arid</small></b></div>
-      <div class="pair"><span>Köppen class</span><b>ET<small>polar tundra</small></b></div>
-      <div class="pair"><span>Permafrost probability</span><b class="amber-c">1.00</b></div>
-      <div class="pair"><span>Bare ground</span><b>99.7 %</b></div>
-    </div>
-    <div class="col">
-      <h4><b class="earth-c">Earth · S 0.693</b>37.29° N 97.51° E</h4>
-      <div class="pair"><span>Aridity index</span><b>0.14<small>arid</small></b></div>
-      <div class="pair"><span>Köppen class</span><b>BSk<small>cold arid steppe</small></b></div>
-      <div class="pair"><span>Permafrost probability</span><b>0.00</b></div>
+<section class="slide frame" id="s5"><i></i>
+  <div class="top"><div class="kicker"><span class="sq w"></span>04 · Characterisation · context, never in the score</div><div class="kicker">5 / 7</div></div>
+  <div class="body">
+    <h2>Where the analogy holds, and where it breaks</h2>
+    <div style="display:grid;grid-template-columns:560px 1fr;gap:40px;margin-top:34px">
+      <div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;column-gap:28px">
+          <div>
+            <div class="kicker" style="color:var(--mars);white-space:nowrap;letter-spacing:.12em"><span class="sq m"></span>Mars · Jezero</div>
+            <div class="pair"><span>Thermal inertia · TES</span><b>296<small>J m⁻² K⁻¹ s⁻½</small></b></div>
+            <div class="pair"><span>Rock abundance · TES</span><b>32<small>%</small></b></div>
+            <div class="pair"><span>Surface temperature · KRC</span><b>217<small>K</small></b></div>
+            <div class="pair"><span>Water-ice consistency · SWIM</span><b>−0.34<small>not indicated</small></b></div>
+            <div class="pair"><span>Geologic unit · USGS SIM 3292</span><b>mNhm</b></div>
+            <div class="pair"><span>Solar-energy potential</span><b>171<small>W m⁻²</small></b></div>
+          </div>
+          <div>
+            <div class="kicker" style="color:var(--earth);white-space:nowrap;letter-spacing:.12em"><span class="sq e"></span>Earth · 37.06° N 86.21° E</div>
+            <div class="pair"><span>Aridity index</span><b>0.15<small>arid</small></b></div>
+            <div class="pair"><span>Köppen class</span><b>ET<small>polar tundra</small></b></div>
+            <div class="pair"><span>Permafrost probability</span><b>1.00</b></div>
+            <div class="pair"><span>Bare ground · WorldCover</span><b>99.7<small>%</small></b></div>
+            <div class="pair"><span>Mean slope · as MOLA would see</span><b>2.67°</b></div>
+            <div class="pair"><span>Relief · 50 km window</span><b>1,711<small>m</small></b></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:28px">
+          <div class="panel" style="padding:18px 20px"><div class="kicker" style="color:var(--earth)">Holds</div><p style="margin-top:8px;font-size:18px;line-height:1.4">Terrain geometry as MOLA observes it, at stated baselines. Cold, arid, bare ground that a rover or lander would actually see.</p></div>
+          <div class="panel" style="padding:18px 20px"><div class="kicker" style="color:var(--warn)">Breaks</div><p style="margin-top:8px;font-size:18px;line-height:1.4">The Xinjiang window is permafrost terrain; Jezero shows no shallow-ice signal. Gravity (3.71 vs 9.81 m s⁻²), pressure, atmosphere and radiation differ at any Earth site. Geology and process are not evaluated.</p></div>
+        </div>
+      </div>
+      <div>
+        <img class="shot" src="assets/compare-relief.jpg" style="width:100%" alt="Compare view with 3D relief of both 50 km windows" />
+        <div class="cap">Live app · Compare · Jezero and Atacama Yungay, 50 km windows at one ground scale, 3D relief at equal exaggeration · Relevance tab lists what was evaluated, partial or not evaluated</div>
+      </div>
     </div>
   </div>
-  <p class="note abs" style="left:56px;top:470px;width:676px">Atacama Yungay: aridity index &lt; 0.0001 (hyper-arid) · Köppen BWh (hot desert)</p>
-  <figure class="shot brk" style="left:764px;top:146px;width:460px">
-    <div class="crop" style="height:279px"><img src="img/compare-3d.jpg" alt="TerraTwin live app: compare view with 3D relief of the Mars and Earth windows"></div>
-    <figcaption>Live app · compare view · 3D relief, 50 km windows</figcaption>
-  </figure>
-  <div class="hb" style="left:56px;width:420px">
-    <div class="kicker earth"><i class="sq earth"></i>Holds</div>
-    <p>Terrain geometry as MOLA observes it. Cold, arid, bare ground.</p>
-  </div>
-  <div class="hb" style="left:496px;width:728px">
-    <div class="kicker amber"><i class="sq amber"></i>Breaks</div>
-    <p>The Xinjiang window is permafrost terrain; Jezero shows no shallow-ice signal. Gravity, pressure, atmosphere and radiation differ on any Earth site. Geology and process are not evaluated.</p>
-  </div>
-  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span></div>
-</div>
+  <div class="foot"><div>Mars context: TES (Putzig &amp; Mellon 2007; Nowicki &amp; Christensen 2007) · SWIM (Morgan et al. 2021) · JMARS KRC · USGS SIM 3292 — Earth context: aridity index, Köppen–Geiger (Beck 2023), permafrost (Obu 2019), ESA WorldCover</div><div>TerraTwin · AstroSUST</div></div>
 </section>
 
 <!-- 6 · EVIDENCE -->
-<section class="slide" id="s6" aria-label="Slide 6 of 7: Evidence">
-<div class="stage">
-  <div class="top"><span class="kicker"><i class="sq amber"></i>05 · Evidence · synthetic validation only</span><span class="pg">6 / 7</span></div>
-  <h1 class="title">What is established, and what is not yet</h1>
-  <div class="hero">
-    <div class="f"><span class="muted-c">18<small>%</small></span><svg class="arr" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6h25M20 1l6 5-6 5"/></svg><span class="earth-c">95<small>%</small></span></div>
-    <p class="cap">True twin found first · uncorrected, then with OOM<br>Benchmark on 213 synthetic terrain twins</p>
+<section class="slide frame" id="s6"><i></i>
+  <div class="top"><div class="kicker"><span class="sq"></span>05 · Evidence · synthetic validation, pre-registered falsification</div><div class="kicker">6 / 7</div></div>
+  <div class="body">
+    <div style="position:absolute;left:0;top:0;width:860px">
+      <h2>What is established, and what is not yet</h2>
+      <div style="display:flex;align-items:flex-end;gap:22px;margin-top:40px" class="mono">
+        <span style="font-size:150px;line-height:.85;font-weight:500;letter-spacing:-.04em;color:var(--faint)">18<span style="font-size:.4em">%</span></span>
+        <span style="font-size:60px;line-height:1;color:var(--faint);padding-bottom:14px">→</span>
+        <span style="font-size:150px;line-height:.85;font-weight:500;letter-spacing:-.04em;color:var(--earth)">95<span style="font-size:.4em">%</span></span>
+      </div>
+      <div class="cap" style="margin-top:18px">True twin ranked first · direct comparison, then Observation-Operator Matching · 213 synthetic terrain twins, 230 candidates each</div>
+      <div style="margin-top:36px;border-top:1px solid var(--line)">
+        <div style="display:grid;grid-template-columns:200px 1fr;column-gap:16px;padding:12px 0;border-bottom:1px solid #161b20;align-items:baseline"><b class="mono earth" style="font-size:22px;font-weight:500">0.30 → 0.97</b><span style="font-size:19px">mean reciprocal rank · ΔMRR +0.67 (95 % CI 0.62–0.72) · beats constant bias correction (0.89) and coverage weighting (0.30)</span></div>
+        <div style="display:grid;grid-template-columns:200px 1fr;column-gap:16px;padding:12px 0;border-bottom:1px solid #161b20;align-items:baseline"><b class="mono earth" style="font-size:22px;font-weight:500">175 / 0</b><span style="font-size:19px">twins improved / ranked worse · gain positive in 200/200 weight perturbations and all 10 roughness deciles</span></div>
+        <div style="display:grid;grid-template-columns:200px 1fr;column-gap:16px;padding:12px 0;border-bottom:1px solid #161b20;align-items:baseline"><b class="mono earth" style="font-size:22px;font-weight:500">98.9 % · 35/35</b><span style="font-size:19px">named leader correct · every tied set held the true twin</span></div>
+        <div style="display:grid;grid-template-columns:200px 1fr;column-gap:16px;padding:12px 0;border-bottom:1px solid #161b20;align-items:baseline"><b class="mono earth" style="font-size:22px;font-weight:500">0 of 6</b><span style="font-size:19px">vegetated negative controls (Amazon, Congo, PNG, W Siberia, Bangladesh, Netherlands) pass the land-cover gate</span></div>
+        <div style="display:grid;grid-template-columns:200px 1fr;column-gap:16px;padding:12px 0;border-bottom:1px solid #161b20;align-items:baseline"><b class="mono warn" style="font-size:22px;font-weight:500">0.54 &lt; 0.65</b><span style="font-size:19px">adverse test, kept visible: were MOLA's gridding cubic, OOM would do worse than no correction — the interpolator must be selected from Mars-observable statistics first</span></div>
+      </div>
+    </div>
+    <div style="position:absolute;right:0;top:0;width:880px">
+      <div class="panel" style="width:880px;height:360px;overflow:hidden;position:relative;background:#fff">
+        <img src="assets/fig_oom_main.png" alt="Twin recovery and misspecification matrix" style="position:absolute;left:-6px;top:-346px;width:890px" />
+      </div>
+      <div class="cap">Research package fig_oom_main (c, d): twin recovery by method, and recovery when the assumed MOLA chain is wrong</div>
+      <div class="panel" style="margin-top:24px;padding:22px 26px">
+        <div class="kicker" style="color:var(--warn)"><span class="sq w"></span>Not yet established</div>
+        <ul style="margin-top:12px">
+          <li class="w">Validation against field data or expert review — the benchmark is synthetic, generated with our own operator model</li>
+          <li class="w">Similarity is terrain geometry only; the verified volcanic analog Holuhraun is not recovered for Elysium Planitia at 50 km</li>
+          <li class="w" style="margin-bottom:0">Verdict and land-cover thresholds are working hypotheses; leaders change with window size</li>
+        </ul>
+      </div>
+    </div>
   </div>
-  <figure class="shot brk" style="left:884px;top:140px;width:340px">
-    <div class="crop" style="height:203px"><img src="img/evidence.jpg" alt="TerraTwin live app: evidence page with the benchmark key figures"></div>
-    <figcaption>Live app · evidence page</figcaption>
-  </figure>
-  <div class="abs" style="left:56px;top:384px;width:716px">
-    <div class="kicker earth colh"><i class="sq earth"></i>Established · on synthetic twins</div>
-    <ul class="ev">
-      <li><b>0.30<svg class="arr" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6h25M20 1l6 5-6 5"/></svg>0.97</b><span>mean reciprocal rank</span></li>
-      <li><b>175 / 0</b><span>twins improved / ranked worse</span></li>
-      <li><b>98.9 %</b><span>named leader correct; ties hold the twin 35/35</span></li>
-      <li><b>0 of 6</b><span>vegetated controls pass the land-cover gate</span></li>
-      <li class="adv"><b>0.54 &lt; 0.65</b><span>adverse test, kept visible: were MOLA's gridding cubic, OOM would do worse than no correction</span></li>
-    </ul>
-  </div>
-  <div class="abs" style="left:812px;top:384px;width:412px">
-    <div class="kicker amber colh"><i class="sq amber"></i>Not yet established</div>
-    <ul class="ny">
-      <li>Validation against field data or expert review</li>
-      <li>Benefit is shown on synthetic twins only</li>
-      <li>Similarity is terrain geometry only</li>
-    </ul>
-  </div>
-  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span></div>
-</div>
+  <div class="foot"><div>Research package G3 · oom_key_numbers.json · all tables reproduced by the live Evidence page at terratwin-five.vercel.app/#/evidence</div><div>TerraTwin · AstroSUST</div></div>
 </section>
 
-<!-- 7 · USE AND NEXT STEPS -->
-<section class="slide" id="s7" aria-label="Slide 7 of 7: Use and next steps">
-<div class="stage">
-  <div class="top"><span class="kicker"><i class="sq earth"></i>06 · Use and next steps</span><span class="pg">7 / 7</span></div>
-  <h1 class="title">Analyse any Mars coordinate, export the dossier</h1>
-  <div class="abs" style="left:56px;top:152px;width:640px">
-    <div class="blk">
-      <div class="kicker"><i class="sq"></i>Who uses it</div>
-      <p>Analog-site selection teams, terrain and hazard algorithm testers, field-campaign planners, students.</p>
-    </div>
-    <div class="blk">
-      <div class="kicker"><i class="sq earth"></i>What you get</div>
-      <p>Terrain record, six planetary-context factors, global screen, and an on-demand discovery run (1–6 min).</p>
-      <p>Exportable characterization dossier (JSON / CSV / print) with provenance and limitations.</p>
-    </div>
-    <div class="blk" style="margin-bottom:0">
-      <div class="kicker"><i class="sq mars"></i>Real Mars results</div>
-      <div class="trio"><div><b>39</b><span>NASA Exploration Zones analysed</span></div><div><b class="earth-c">29</b><span>stable leaders</span></div><div><b>10</b><span>ties</span></div></div>
+<!-- 7 · USE · DATA · LINKS -->
+<section class="slide frame" id="s7"><i></i>
+  <div class="top"><div class="kicker"><span class="sq m"></span>06 · Use · data · links</div><div class="kicker">7 / 7</div></div>
+  <div class="body">
+    <div style="display:grid;grid-template-columns:1fr 1fr 760px;gap:40px">
+      <div>
+        <h2 style="font-size:48px">Analyse any Mars coordinate, export the dossier</h2>
+        <div class="kicker" style="margin-top:34px">Who uses it</div>
+        <p style="margin-top:8px;font-size:19px">Analog-site selection teams, rover-mobility and landing-hazard algorithm testers, field-campaign planners, students.</p>
+        <div class="kicker" style="margin-top:24px">What you get</div>
+        <p style="margin-top:8px;font-size:19px">Measured terrain record and six planetary-context factors for any Mars point; a global Earth screen; an on-demand discovery run (1–6 min); Compare with 3D relief; an exportable dossier (JSON / CSV / print) with provenance and verbatim limitations.</p>
+        <div style="display:flex;gap:40px;margin-top:30px">
+          <div class="stat"><div class="v" style="font-size:48px">39</div><div class="l">Zones analysed</div></div>
+          <div class="stat"><div class="v" style="font-size:48px">29</div><div class="l">Stable leaders</div></div>
+          <div class="stat"><div class="v" style="font-size:48px">10</div><div class="l">Ties</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="kicker"><span class="sq m"></span>NASA data</div>
+        <ul style="margin-top:12px">
+          <li class="m" style="font-size:17px;margin-bottom:8px"><strong>MGS MOLA MEGDR 128 ppd shot counts</strong> (PDS) — the observation mask</li>
+          <li class="m" style="font-size:17px;margin-bottom:8px"><strong>USGS MOLA DEM 463 m mosaic</strong> — all Mars terrain</li>
+          <li class="m" style="font-size:17px;margin-bottom:8px"><strong>MGS TES</strong> thermal inertia, rock abundance · <strong>Odyssey GRS</strong> · <strong>SWIM</strong> · <strong>JMARS KRC</strong> — context</li>
+          <li class="m" style="font-size:17px;margin-bottom:8px"><strong>NASA Mars Trek</strong> &amp; <strong>GIBS</strong> imagery — visualization only</li>
+          <li class="m" style="font-size:17px;margin-bottom:8px"><strong>GMTED2010</strong> (data.nasa.gov) · Exploration Zone footprints (NTRS 20160001040) · NSSDCA fact sheets</li>
+        </ul>
+        <div class="kicker" style="margin-top:18px"><span class="sq e"></span>Partner data</div>
+        <p style="margin-top:8px;font-size:17px">ESA Copernicus DEM GLO-90 · ESA WorldCover 2021 v200 · USGS SIM 3292 geologic map of Mars</p>
+        <div class="kicker" style="margin-top:18px"><span class="sq w"></span>AI assistance, disclosed</div>
+        <p style="margin-top:8px;font-size:17px">Research package produced in AI-assisted research sessions (Claude Science); app, GIS pipeline and these materials written with Claude Code, directed and verified by the team. No measurement was generated by AI; no trained model anywhere.</p>
+      </div>
+      <div>
+        <img class="shot" src="assets/report.jpg" style="width:760px" alt="Exported mission dossier" />
+        <div class="cap">Live app · mission dossier · JSON / CSV / print · 12 sections with provenance, limitations and references</div>
+        <div class="mono" style="margin-top:34px;font-size:46px;font-weight:500;letter-spacing:-.01em;color:var(--mars)">terratwin-five.vercel.app</div>
+        <div class="mono" style="margin-top:10px;font-size:18px;color:var(--muted)">github.com/fahim-tech/terra-twin · public app, no login · 82 API tests · 493 web tests · research package SHA-256 verified at every start</div>
+      </div>
     </div>
   </div>
-  <figure class="shot brk" style="left:736px;top:146px;width:488px">
-    <div class="crop" style="height:226px"><img src="img/report.jpg" alt="TerraTwin live app: mission dossier with JSON, CSV and print export" style="position:absolute;width:644px;height:auto;left:-136px;top:-38px"></div>
-    <figcaption>Live app · mission dossier, JSON / CSV / print</figcaption>
-  </figure>
-  <div class="abs blk" style="left:743px;top:432px;width:474px">
-    <div class="kicker amber"><i class="sq amber"></i>Next</div>
-    <p>Validation against field data and expert review: not yet done.</p>
-  </div>
-  <a class="url" href="https://terratwin-five.vercel.app">terratwin-five.vercel.app</a>
-  <p class="credits"><b>DATA</b>NASA MOLA MEGDR 128 ppd counts (PDS) · USGS MOLA 463 m mosaic · MGS TES thermal inertia and rock abundance · Mars Odyssey GRS · SWIM · USGS SIM 3292 · NASA Mars Trek and GIBS imagery · GMTED2010 · ESA Copernicus DEM GLO-90 · ESA WorldCover 2021</p>
-  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span><span>Deck and code prepared with AI assistance (disclosed in the README)</span></div>
-</div>
+  <div class="foot"><div>Team AstroSUST · Shahjalal University of Science and Technology, Sylhet · NASA Space Apps Challenge 2026</div><div>TerraTwin · AstroSUST</div></div>
 </section>
 
-</main>
+</div>
+<div class="help">← → to navigate · 7 slides</div>
 <script>
-(function(){
-  var slides=[].slice.call(document.querySelectorAll('.slide'));
-  function fit(){var w=slides[0].getBoundingClientRect().width;if(w>0)document.documentElement.style.setProperty('--s',(w/1280).toFixed(5));}
-  fit();window.addEventListener('resize',fit);window.addEventListener('load',fit);
-  function cur(){var mid=window.innerHeight/2,b=0,bd=1e9;slides.forEach(function(s,i){var r=s.getBoundingClientRect(),d=Math.abs((r.top+r.bottom)/2-mid);if(d<bd){bd=d;b=i;}});return b;}
-  function go(i){i=Math.max(0,Math.min(slides.length-1,i));slides[i].scrollIntoView({behavior:'auto',block:'center'});}
-  window.addEventListener('keydown',function(e){
-    if(e.metaKey||e.ctrlKey||e.altKey)return;var k=e.key;
-    if(k==='ArrowRight'||k==='PageDown'||k===' '||k==='Spacebar'){e.preventDefault();go(cur()+((k===' '||k==='Spacebar')&&e.shiftKey?-1:1));}
-    else if(k==='ArrowLeft'||k==='PageUp'){e.preventDefault();go(cur()-1);}
-    else if(k==='Home'){e.preventDefault();go(0);}
-    else if(k==='End'){e.preventDefault();go(slides.length-1);}
-  });
-  /* Slide 2 schematic: 20 x 15 cells, 93 of 300 on laser tracks = 31 % */
-  var el=document.getElementById('grid');
-  if(el){
-    var C=20,R=15,cw=30,ch=440/15,on={},tracks=[0,4,7,11,14,17],n=0,s='';
-    function col(c0,r){return Math.floor(c0+0.5+(r+0.5)/6);}
-    tracks.forEach(function(c0){for(var r=0;r<R;r++){on[col(c0,r)+','+r]=1;}});
-    for(var r0=0;r0<3;r0++){on['2,'+r0]=1;}
-    s+='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 440" width="600" height="440">';
-    for(var r=0;r<R;r++){for(var c=0;c<C;c++){var k=on[c+','+r];if(k)n++;
-      s+='<rect x="'+(c*cw+1.5)+'" y="'+(r*ch+1.5).toFixed(2)+'" width="'+(cw-3)+'" height="'+(ch-3).toFixed(2)+'" rx="1" fill="'+(k?'#ec7f53':'none')+'" fill-opacity="'+(k?'0.9':'1')+'" stroke="'+(k?'#ec7f53':'#2f363e')+'" stroke-width="1"/>';}}
-    tracks.forEach(function(c0){s+='<line x1="'+((c0+0.5)*cw)+'" y1="0" x2="'+((c0+0.5+R/6)*cw)+'" y2="440" stroke="#f2f4f5" stroke-opacity="0.55" stroke-width="1" stroke-dasharray="2 5"/>';});
-    s+='</svg>';el.innerHTML=s;el.setAttribute('data-observed',n+'/'+(C*R));
-  }
-})();
+  const slides = [...document.querySelectorAll(".slide")];
+  let i = Math.max(0, Math.min(slides.length - 1, (parseInt(location.hash.slice(1), 10) || 1) - 1));
+  function show(k) { i = (k + slides.length) % slides.length; slides.forEach((s, j) => s.classList.toggle("active", j === i)); history.replaceState(null, "", "#" + (i + 1)); }
+  function fit() { const s = Math.min(innerWidth / 1920, innerHeight / 1080); document.documentElement.style.setProperty("--s", s); }
+  addEventListener("resize", fit); fit(); show(i);
+  addEventListener("keydown", (e) => { if (["ArrowRight", " ", "PageDown"].includes(e.key)) show(i + 1); if (["ArrowLeft", "PageUp"].includes(e.key)) show(i - 1); if (e.key === "Home") show(0); if (e.key === "End") show(6); });
+  addEventListener("click", (e) => { if (e.clientX > innerWidth / 2) show(i + 1); else show(i - 1); });
+  addEventListener("beforeprint", () => slides.forEach((s) => s.classList.add("active")));
 </script>
 </body>
 </html>
