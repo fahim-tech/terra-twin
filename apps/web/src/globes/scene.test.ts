@@ -6,7 +6,7 @@ import { daysSinceJ2000, icrfToMarsFixed, marsOrientation } from "./sky";
 
 describe("moon orbits", () => {
   it("labels each orbit with its semi-major axis", () => {
-    expect(MARS_MOONS.map(orbitLabel)).toEqual(["PHOBOS · a 9,376 km", "DEIMOS · a 23,463.2 km"]);
+    expect(MARS_MOONS.map(orbitLabel)).toEqual(["PHOBOS · a 9,376 km", "DEIMOS · a 23,463 km"]);
   });
 
   it("draws true-scale circles in Mars's equatorial plane", () => {

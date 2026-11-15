@@ -23,9 +23,9 @@ export const MARS_MOONS: readonly MoonOrbit[] = [
   { id: "deimos", name: "Deimos", aKm: 23_463.2 },
 ];
 
-/** Uppercase mono label, e.g. "PHOBOS · a 9,376 km" (a = semi-major axis). */
+/** Uppercase mono label, e.g. "PHOBOS · a 9,376 km" (a = semi-major axis); both orbits to the whole km, one precision. */
 export function orbitLabel(m: MoonOrbit): string {
-  return `${m.name.toUpperCase()} · a ${m.aKm.toLocaleString("en-US", { maximumFractionDigits: 1 })} km`;
+  return `${m.name.toUpperCase()} · a ${m.aKm.toLocaleString("en-US", { maximumFractionDigits: 0 })} km`;
 }
 
 /** Closed ring of `n` segments in Mars's equatorial plane (planet-fixed metres; first point repeated). */
