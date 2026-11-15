@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "../../components/ui";
+import { useTermTriggers } from "../../components/primitives";
 import { GLOSSARY, type GlossaryKey } from "../../lib/glossary";
 
 const GAP = 8;
@@ -17,6 +18,7 @@ const MARGIN = 8;
 export function CompareTerm({ k, children, className }: { k: GlossaryKey; children?: ReactNode; className?: string }) {
   const g = GLOSSARY[k];
   const [open, setOpen] = useState(false);
+  const triggers = useTermTriggers(setOpen);
   const [pos, setPos] = useState<{ left: number; top: number; below: boolean } | null>(null);
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
@@ -59,9 +61,9 @@ export function CompareTerm({ k, children, className }: { k: GlossaryKey; childr
   }, [open, place]);
 
   return (
-    <span className={cx("relative inline", className)} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+    <span className={cx("relative inline", className)} {...triggers.wrapper}>
       <button ref={trigger} type="button" aria-describedby={open ? id : undefined} aria-expanded={open}
-        onClick={() => setOpen((o) => !o)} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}
+        {...triggers.button}
         className="cursor-help underline decoration-faint/60 decoration-dotted underline-offset-[3px] hover:decoration-ink">
         {children ?? g.label}
       </button>

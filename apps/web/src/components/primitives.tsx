@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown, X } from "lucide-react";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { GLOSSARY, type GlossaryKey } from "../lib/glossary";
 import { cx } from "./ui";
 
@@ -55,9 +55,31 @@ export function Figure({ label, value, unit, digits, basis, tone, className }: {
  * Plain label with the technical term and definition on demand (hover, focus or tap).
  * Keeps jargon out of primary text without deleting it.
  */
+/**
+ * Open/close handlers for a term popover: hover opens only for a mouse, keyboard focus opens, and a tap
+ * or click toggles. (On touch, the compat mouseenter/focus that precede the click would otherwise open
+ * the popover and the click would close it again.)
+ */
+export function useTermTriggers(setOpen: (v: boolean | ((o: boolean) => boolean)) => void) {
+  const pointer = useRef<string | null>(null);
+  return {
+    wrapper: {
+      onPointerEnter: (e: ReactPointerEvent) => { if (e.pointerType === "mouse") setOpen(true); },
+      onPointerLeave: (e: ReactPointerEvent) => { if (e.pointerType === "mouse") setOpen(false); },
+    },
+    button: {
+      onPointerDown: (e: ReactPointerEvent) => { pointer.current = e.pointerType; },
+      onClick: () => { if (pointer.current === "mouse") setOpen(true); else setOpen((o) => !o); pointer.current = null; },
+      onFocus: () => { if (!pointer.current) setOpen(true); },
+      onBlur: () => { pointer.current = null; setOpen(false); },
+    },
+  };
+}
+
 export function Term({ k, children, className }: { k: GlossaryKey; children?: ReactNode; className?: string }) {
   const g = GLOSSARY[k];
   const [open, setOpen] = useState(false);
+  const triggers = useTermTriggers(setOpen);
   const id = useId();
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -69,8 +91,8 @@ export function Term({ k, children, className }: { k: GlossaryKey; children?: Re
     return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", esc, true); };
   }, [open]);
   return (
-    <span ref={ref} className={cx("relative inline", className)} onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <button type="button" aria-describedby={open ? id : undefined} aria-expanded={open} onClick={() => setOpen((o) => !o)} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}
+    <span ref={ref} className={cx("relative inline", className)} {...triggers.wrapper}>
+      <button type="button" aria-describedby={open ? id : undefined} aria-expanded={open} {...triggers.button}
         className="cursor-help underline decoration-faint/60 decoration-dotted underline-offset-[3px] hover:decoration-ink">
         {children ?? g.label}
       </button>
