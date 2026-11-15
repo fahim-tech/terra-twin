@@ -157,7 +157,7 @@ function placeCredits() {
   const left = `calc(${insets.left}px + (100% - ${insets.left + insets.right}px) / 2)`;
   el.style.cssText = "position:absolute;z-index:1;transform:translateX(-50%) scale(.8);transform-origin:50% 100%;" +
     `left:${left};bottom:${insets.bottom + 2}px;white-space:nowrap;` +
-    "font:10px 'Instrument Sans',system-ui;opacity:.5;filter:grayscale(1) invert(1);";
+    "font:10px 'Barlow',system-ui;opacity:.5;filter:grayscale(1) invert(1);";
 }
 
 // Latitude conversion between the API convention (planetocentric) and the rendering ellipsoid.
@@ -259,7 +259,7 @@ function setMarkers(group: string, markers: GlobeMarker[], opts: MarkerGroupOpti
       },
       label: m.label && labels !== "none" ? {
         text: m.rank ? `${m.rank}  ${m.label}` : m.label,
-        font: "500 12px 'Instrument Sans', system-ui, sans-serif",
+        font: "600 12px 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif",
         fillColor: css("#F2EEE8"),
         outlineColor: css("#07090C").withAlpha(0.9),
         outlineWidth: 3,

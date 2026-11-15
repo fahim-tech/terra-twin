@@ -6,12 +6,12 @@ import { cx } from "./ui";
 
 export const SPRING = { type: "spring" as const, bounce: 0, duration: 0.35 };
 
-/** Uppercase section kicker — the only all-caps tier in the system. */
+/** Uppercase section kicker. */
 export function Kicker({ children, className, tone }: { children: ReactNode; className?: string; tone?: "mars" | "earth" | "faint" }) {
   return <div className={cx("kicker", tone === "mars" && "!text-mars", tone === "earth" && "!text-earth", className)}>{children}</div>;
 }
 
-/** Place names, set like a map plate. */
+/** Place names: condensed grotesk caps, like a mission designation. */
 export function Toponym({ children, size = "md", className, as: As = "h2", ...rest }: {
   children: ReactNode; size?: "sm" | "md" | "lg"; className?: string; as?: "h1" | "h2" | "h3" | "div" | "span";
 } & Record<string, unknown>) {
@@ -44,8 +44,8 @@ export function Figure({ label, value, unit, digits, basis, tone, className }: {
 }) {
   return (
     <div className={className}>
-      <div className="text-caption text-muted">{label}</div>
-      <Measure value={value} unit={unit} digits={digits} className={cx("mt-0.5 block text-figure", tone === "mars" && "text-mars", tone === "earth" && "text-earth")} />
+      <div className="kicker !text-muted">{label}</div>
+      <Measure value={value} unit={unit} digits={digits} className={cx("mt-1 block text-figure", tone === "mars" && "text-mars", tone === "earth" && "text-earth")} />
       {basis && <div className="mt-1 text-caption text-faint">{basis}</div>}
     </div>
   );
@@ -111,14 +111,14 @@ export function Term({ k, children, className }: { k: GlossaryKey; children?: Re
   return (
     <span ref={ref} className={cx("relative inline", className)} {...triggers.wrapper}>
       <button type="button" aria-describedby={open ? id : undefined} aria-expanded={open} {...triggers.button}
-        className="term-hit cursor-help underline decoration-faint/60 decoration-dotted underline-offset-[3px] hover:decoration-ink">
+        className="term-hit cursor-help underline decoration-faint/70 decoration-dotted underline-offset-[3px] hover:decoration-ink">
         {children ?? g.label}
       </button>
       <AnimatePresence>
         {open && (
           <motion.span id={id} role="tooltip" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.14 }}
-            className="surface-solid absolute bottom-[calc(100%+8px)] left-0 z-50 block w-[min(320px,80vw)] rounded-[10px] p-3 text-left text-caption font-normal normal-case tracking-normal text-muted">
-            <span className="mb-1 block text-label text-ink">{g.term}</span>
+            className="surface-solid frame absolute bottom-[calc(100%+8px)] left-0 z-50 block w-[min(320px,80vw)] rounded-control p-3 text-left text-caption font-normal normal-case tracking-normal text-muted">
+            <span className="label-caps mb-1.5 block text-ink">{g.term}</span>
             {g.definition}
             {"source" in g && g.source ? <span className="mt-1.5 block font-mono text-[11px] text-faint">{g.source}</span> : null}
           </motion.span>
@@ -134,7 +134,7 @@ export function Disclosure({ summary, children, defaultOpen = false, className }
   return (
     <div className={className}>
       <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}
-        className="hit -mx-1 inline-flex items-center gap-1.5 rounded-control px-1 py-1 text-label text-muted hover:text-ink">
+        className="hit label-caps -mx-1 inline-flex items-center gap-1.5 rounded-control px-1 py-1 text-muted hover:text-ink">
         <ChevronDown className={cx("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-180")} aria-hidden />
         {summary}
       </button>
@@ -149,12 +149,12 @@ export function Disclosure({ summary, children, defaultOpen = false, className }
   );
 }
 
-/** Small neutral tag. One per object at most; status uses glyph + word, never colour alone. */
+/** Small square status tag: hairline border, mono caps. One per object at most; status uses glyph + word, never colour alone. */
 export function Tag({ children, tone = "neutral", className, title }: { children: ReactNode; tone?: "neutral" | "mars" | "earth" | "warn" | "bad"; className?: string; title?: string }) {
   return (
-    <span title={title} className={cx("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[3px] text-caption leading-none",
-      tone === "neutral" && "bg-elevated text-muted", tone === "mars" && "bg-mars/12 text-mars", tone === "earth" && "bg-earth/12 text-earth",
-      tone === "warn" && "bg-warn/12 text-warn", tone === "bad" && "bg-bad/12 text-bad", className)}>
+    <span title={title} className={cx("inline-flex items-center gap-1 whitespace-nowrap rounded-control border px-1.5 py-[3px] font-mono text-[10.5px] uppercase leading-none tracking-[0.06em]",
+      tone === "neutral" && "border-line-strong text-muted", tone === "mars" && "border-mars/45 text-mars", tone === "earth" && "border-earth/45 text-earth",
+      tone === "warn" && "border-warn/45 text-warn", tone === "bad" && "border-bad/45 text-bad", className)}>
       {children}
     </span>
   );
@@ -163,13 +163,13 @@ export function Tag({ children, tone = "neutral", className, title }: { children
 export function IconButton({ label, children, onClick, className, disabled, pressed }: { label: string; children: ReactNode; onClick?: () => void; className?: string; disabled?: boolean; pressed?: boolean }) {
   return (
     <button type="button" aria-label={label} title={label} onClick={onClick} disabled={disabled} aria-pressed={pressed}
-      className={cx("hit inline-grid h-9 w-9 place-items-center rounded-control text-muted transition-[color,background,transform] duration-150 hover:bg-elevated hover:text-ink active:scale-[0.97] active:duration-75 disabled:opacity-40", className)}>
+      className={cx("hit inline-grid h-9 w-9 place-items-center rounded-control text-muted transition-[color,background] duration-150 hover:bg-white/[0.06] hover:text-ink active:bg-white/[0.12] active:duration-0 disabled:opacity-40", className)}>
       {children}
     </button>
   );
 }
 
-/** Underline tabs for switching views inside a surface. */
+/** Underline tabs for switching views inside a surface: uppercase labels, 1 px ink rule under the selected one. */
 export function Tabs<T extends string>({ value, options, onChange, ariaLabel, className }: { value: T; options: { value: T; label: ReactNode; disabled?: boolean }[]; onChange: (v: T) => void; ariaLabel: string; className?: string }) {
   return (
     <div role="tablist" aria-label={ariaLabel} className={cx("flex gap-5", className)}>
@@ -177,9 +177,9 @@ export function Tabs<T extends string>({ value, options, onChange, ariaLabel, cl
         const on = o.value === value;
         return (
           <button key={o.value} role="tab" aria-selected={on} disabled={o.disabled} onClick={() => onChange(o.value)}
-            className={cx("hit relative py-2 text-label transition-colors disabled:opacity-40", on ? "text-ink" : "text-muted hover:text-ink")}>
+            className={cx("hit label-caps relative py-2 transition-colors disabled:opacity-40", on ? "text-ink" : "text-faint hover:text-ink")}>
             {o.label}
-            {on && <motion.span layoutId={`tab-${ariaLabel}`} transition={SPRING} className="absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-ink" />}
+            {on && <motion.span layoutId={`tab-${ariaLabel}`} transition={SPRING} className="absolute inset-x-0 -bottom-px h-px bg-ink" />}
           </button>
         );
       })}
@@ -187,13 +187,13 @@ export function Tabs<T extends string>({ value, options, onChange, ariaLabel, cl
   );
 }
 
-/** Availability dots: filled = available, hollow = not connected. Always paired with words. */
+/** Availability marks: filled square = available, outlined square = not connected. Always paired with words. */
 export function Dots({ items, className }: { items: { label: string; on: boolean; note?: string }[]; className?: string }) {
   return (
     <ul className={cx("flex flex-wrap gap-x-4 gap-y-2", className)}>
       {items.map((i) => (
         <li key={i.label} className="flex items-center gap-1.5 text-caption">
-          <span aria-hidden className={cx("h-2 w-2 rounded-full", i.on ? "bg-ink" : "ring-1 ring-inset ring-faint")} />
+          <span aria-hidden className={cx("h-1.5 w-1.5", i.on ? "bg-ink" : "ring-1 ring-inset ring-faint")} />
           <span className={i.on ? "text-ink" : "text-faint"}>{i.label}</span>
           {i.note && <span className="num text-num-sm text-muted">{i.note}</span>}
           <span className="sr-only">{i.on ? "available" : "not connected"}</span>
@@ -219,13 +219,13 @@ export function PanelFooter({ children, className }: { children: ReactNode; clas
   return <div className={cx("shrink-0 px-5 pb-5 pt-3 [padding-bottom:max(20px,env(safe-area-inset-bottom))]", className)}>{children}</div>;
 }
 
-/** Grouping by space, not borders: a titled block inside a panel body. */
+/** A titled block inside a panel body: caps title followed by a hairline rule. */
 export function Block({ title, aside, children, className }: { title?: ReactNode; aside?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section className={cx("py-3.5", className)}>
       {(title || aside) && (
         <div className="mb-2.5 flex items-baseline justify-between gap-3">
-          {title && <h3 className="text-label text-ink">{title}</h3>}
+          {title && <h3 className="kicker rule-after min-w-0 flex-1 !text-ink/80">{title}</h3>}
           {aside && <div className="text-caption text-faint">{aside}</div>}
         </div>
       )}

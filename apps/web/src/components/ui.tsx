@@ -27,16 +27,16 @@ export function Segmented<T extends string | number>({ value, options, onChange,
   accent?: "mars" | "earth" | "ink"; size?: "sm" | "md"; ariaLabel: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className="inline-flex rounded-[8px] bg-space/80 p-[3px] shadow-[inset_0_0_0_1px_rgb(255_255_255/0.06)]">
+    <div role="radiogroup" aria-label={ariaLabel} className="inline-flex divide-x divide-line-strong rounded-control border border-line-strong bg-space/70">
       {options.map((o) => {
         const on = o.value === value;
         return (
           <button key={String(o.value)} role="radio" aria-checked={on} disabled={o.disabled} title={o.title}
             onClick={() => onChange(o.value)}
             className={cx(
-              "hit whitespace-nowrap rounded-[6px] font-medium transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-40 active:scale-[0.97]",
-              size === "sm" ? "px-2.5 py-1 text-caption" : "px-3 py-1.5 text-label",
-              on ? cx("bg-elevated text-ink shadow-sm", accent === "mars" && "text-mars", accent === "earth" && "text-earth") : "text-muted hover:text-ink",
+              "hit whitespace-nowrap font-semibold uppercase tracking-[0.1em] transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40",
+              size === "sm" ? "px-2.5 py-1 text-[10.5px]" : "px-3 py-1.5 text-[11.5px]",
+              on ? cx("bg-ink text-space", accent === "mars" && "shadow-[inset_0_-2px_0_var(--color-mars)]", accent === "earth" && "shadow-[inset_0_-2px_0_var(--color-earth)]") : "text-muted hover:bg-white/[0.05] hover:text-ink",
             )}>
             {o.label}
           </button>
@@ -48,19 +48,19 @@ export function Segmented<T extends string | number>({ value, options, onChange,
 
 export function Chip({ children, tone = "neutral", className, title }: { children: ReactNode; tone?: "neutral" | "mars" | "earth" | "warn" | "ok" | "bad"; className?: string; title?: string }) {
   const tones = {
-    neutral: "bg-elevated text-muted ring-line",
-    mars: "bg-mars/10 text-mars ring-mars/25",
-    earth: "bg-earth/10 text-earth ring-earth/25",
-    warn: "bg-warn/10 text-warn ring-warn/25",
-    ok: "bg-ok/10 text-ok ring-ok/25",
-    bad: "bg-bad/10 text-bad ring-bad/25",
+    neutral: "text-muted ring-line-strong",
+    mars: "text-mars ring-mars/45",
+    earth: "text-earth ring-earth/45",
+    warn: "text-warn ring-warn/45",
+    ok: "text-ok ring-ok/45",
+    bad: "text-bad ring-bad/45",
   };
-  return <span title={title} className={cx("inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-caption leading-none ring-1 ring-inset whitespace-nowrap", tones[tone], className)}>{children}</span>;
+  return <span title={title} className={cx("inline-flex items-center gap-1 whitespace-nowrap rounded-control px-1.5 py-[3px] font-mono text-[10.5px] uppercase leading-none tracking-[0.06em] ring-1 ring-inset", tones[tone], className)}>{children}</span>;
 }
 
 export function Dot({ tone }: { tone: "ok" | "warn" | "bad" | "muted" | "mars" | "earth" }) {
   const c = { ok: "bg-ok", warn: "bg-warn", bad: "bg-bad", muted: "bg-faint", mars: "bg-mars", earth: "bg-earth" }[tone];
-  return <span className={cx("inline-block h-1.5 w-1.5 shrink-0 rounded-full", c)} aria-hidden />;
+  return <span className={cx("inline-block h-1.5 w-1.5 shrink-0", c)} aria-hidden />;
 }
 
 export function Note({ children, tone = "info", className }: { children: ReactNode; tone?: "info" | "warning" | "critical"; className?: string }) {
@@ -82,27 +82,32 @@ export function Flags({ flags }: { flags: QualityFlag[] }) {
 export function Spinner({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-2.5 text-caption text-muted" role="status">
-      <span className="relative flex h-3 w-3">
-        <span className="absolute inset-0 animate-ping rounded-full bg-earth/40" />
-        <span className="relative m-auto h-1.5 w-1.5 rounded-full bg-earth" />
+      <span className="relative flex h-3 w-3 border border-line-strong">
+        <span className="absolute inset-[2px] animate-pulse bg-ink/80" />
       </span>
       {label}
     </div>
   );
 }
 
+/**
+ * Rectangular command button, uppercase. Primary = solid ink; the planet variants add a small square
+ * marker in the planet colour (colour as signal, not as fill). Press feedback is instant.
+ */
 export function Button({ children, onClick, variant = "ghost", disabled, className, title, type = "button" }: {
-  children: ReactNode; onClick?: () => void; variant?: "primary-mars" | "primary-earth" | "ghost" | "outline"; disabled?: boolean; className?: string; title?: string; type?: "button" | "submit";
+  children: ReactNode; onClick?: () => void; variant?: "primary" | "primary-mars" | "primary-earth" | "ghost" | "outline"; disabled?: boolean; className?: string; title?: string; type?: "button" | "submit";
 }) {
-  const v = {
-    "primary-mars": "bg-mars text-space hover:brightness-110 font-semibold",
-    "primary-earth": "bg-earth text-space hover:brightness-110 font-semibold",
-    ghost: "text-muted hover:text-ink hover:bg-elevated",
-    outline: "text-ink ring-1 ring-inset ring-line hover:bg-elevated",
-  }[variant];
+  const solid = variant === "primary" || variant === "primary-mars" || variant === "primary-earth";
+  const v = solid
+    ? "bg-ink text-space hover:bg-white active:bg-ink/80"
+    : variant === "outline"
+      ? "text-ink ring-1 ring-inset ring-line-strong hover:bg-white/[0.06] hover:ring-ink/60 active:bg-white/[0.12]"
+      : "text-muted hover:text-ink hover:bg-white/[0.05] active:bg-white/[0.1]";
   return (
     <button type={type} title={title} onClick={onClick} disabled={disabled}
-      className={cx("hit inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[8px] px-3.5 py-2 text-label transition-[color,background,filter,transform] duration-150 active:scale-[0.97] active:duration-75 disabled:cursor-not-allowed disabled:opacity-40", v, className)}>
+      className={cx("hit inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-control px-4 py-2.5 text-[12px] font-semibold uppercase leading-none tracking-[0.12em] transition-[color,background,box-shadow] duration-150 active:duration-0 disabled:cursor-not-allowed disabled:opacity-40", v, className)}>
+      {variant === "primary-mars" && <span aria-hidden className="h-1.5 w-1.5 shrink-0 bg-mars" />}
+      {variant === "primary-earth" && <span aria-hidden className="h-1.5 w-1.5 shrink-0 bg-earth" />}
       {children}
     </button>
   );
@@ -124,8 +129,8 @@ export function pct(v: number | null | undefined, digits = 0) {
 export function Bar({ value, tone = "earth", className }: { value: number | null | undefined; tone?: "earth" | "mars" | "muted"; className?: string }) {
   const c = tone === "earth" ? "bg-earth" : tone === "mars" ? "bg-mars" : "bg-faint";
   return (
-    <div className={cx("h-1 w-full overflow-hidden rounded-full bg-line/60", className)}>
-      {value !== null && value !== undefined && <div className={cx("h-full rounded-full transition-[width] duration-500", c)} style={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }} />}
+    <div className={cx("h-1 w-full overflow-hidden bg-line", className)}>
+      {value !== null && value !== undefined && <div className={cx("h-full transition-[width] duration-500", c)} style={{ width: `${Math.max(0, Math.min(1, value)) * 100}%` }} />}
     </div>
   );
 }
