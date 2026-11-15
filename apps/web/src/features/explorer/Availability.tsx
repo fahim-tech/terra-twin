@@ -33,7 +33,7 @@ export function Availability({ a }: { a: MarsAnalysis }) {
         <li className="flex items-center gap-1.5 text-caption">
           <Dot on={!!os} />
           {os ? (
-            <InfoPopover label={`Observation support ${Math.round((os.observed_fraction ?? 0) * 100)} percent: what it means`}
+            <InfoPopover label={`Observation support ${os.observed_fraction === null ? "not available" : `${Math.round(os.observed_fraction * 100)} percent`}: what it means`}
               trigger={<span className="flex items-baseline gap-1.5"><span className="text-ink underline decoration-faint/50 decoration-dotted underline-offset-[3px]">Observation support</span>
                 <span className="num text-num-sm text-ink">{os.observed_fraction === null ? "—" : `${Math.round(os.observed_fraction * 100)}%`}</span></span>}>
               <span className="mb-1 block text-label text-ink">MOLA observation support</span>

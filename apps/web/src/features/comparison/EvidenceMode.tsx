@@ -119,7 +119,7 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
           {rob ? (
             <ul className="space-y-1 text-caption text-muted">
               {rob.leaderSame50vs25 !== null && (
-                <li className="text-ink">{rob.leaderSame50vs25 ? "Leader is the same at 25 km windows" : "⚠ Leader differs at 25 km windows (all 39 zones)"}
+                <li className="text-ink">{rob.leaderSame50vs25 ? "Leader is the same at 25 km windows" : "⚠ Leader differs at 25 km windows"}
                   {rob.spearman50vs25 !== null && <span className="text-muted"> · rank agreement <span className="num">ρ {rob.spearman50vs25.toFixed(2)}</span></span>}
                 </li>
               )}
