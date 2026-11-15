@@ -201,11 +201,37 @@ export function exactNadir(
 }
 
 /**
- * Height in metres of a marker stem that projects to about `px` CSS pixels for a camera `distanceM` away,
- * scaled by how oblique the view is (0 when looking straight down, so a stem never displaces its glyph
- * in a top-down view). Visual only: never a measurement.
+ * On-screen length of a marker stem in the 3D view, CSS px. The shell's reticle is a 48 px box around the
+ * stem's foot and a selected glyph's brackets reach 11 px from its centre: at 46 px the glyph stands clear
+ * of the reticle instead of overlapping its brackets.
  */
-export function stemHeightM(distanceM: number, canvasH: number, fovy: number, pitchDeg: number, px = 44): number {
-  const k = canvasH / 2 / Math.tan(fovy / 2);
-  return (px * distanceM / k) * tiltWeight(pitchDeg);
+export const STEM_PX = 46;
+
+/**
+ * How many CSS pixels one metre of local vertical spans on screen at a ground point: the derivative of the
+ * projection (the same one `project` uses) along `up`. 0 when looking straight down the vertical, or when
+ * the point is behind the camera.
+ */
+export function verticalPxPerMetre(pose: Pose, ground: Vec3, up: Vec3, v: View): number {
+  const d = sub(ground, pose.position);
+  const z = dot(d, pose.direction);
+  if (!(z > 0)) return 0;
+  const k = v.h / 2 / Math.tan(v.fovy / 2); // px per unit of view-plane tangent (equal on both axes)
+  const uz = dot(up, pose.direction);
+  const dx = (dot(up, pose.right) * z - dot(d, pose.right) * uz) / (z * z);
+  const dy = (dot(up, pose.up) * z - dot(d, pose.up) * uz) / (z * z);
+  return Math.hypot(dx, dy) * k;
+}
+
+/**
+ * Height in metres of a marker stem that stands `px` CSS pixels tall on screen, given how many pixels a
+ * metre of vertical spans there (verticalPxPerMetre), scaled by how oblique the view is: 0 when looking
+ * straight down, so a stem never displaces its glyph in a top-down view. Capped at `maxM` (nearly top-down,
+ * a metre of vertical spans almost nothing and the uncapped height would reach towards the camera).
+ * Visual only: never a measurement.
+ */
+export function stemHeightM(pxPerMetre: number, pitchDeg: number, maxM: number, px = STEM_PX): number {
+  const w = tiltWeight(pitchDeg);
+  if (!(w > 0) || !(pxPerMetre > 0) || !(maxM > 0)) return 0;
+  return Math.min(maxM, (px * w) / pxPerMetre);
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  OBLIQUE_PITCH_DEG, attitudeAt, dot, exactNadir, facesCamera, fitDepth, flightPitchDeg, focusOf, isTilted, nadirFor, nadirPose,
-  poseAt, project, stemHeightM, tiltWeight, type Enu, type Vec3, type View,
+  OBLIQUE_PITCH_DEG, STEM_PX, attitudeAt, dot, exactNadir, facesCamera, fitDepth, flightPitchDeg, focusOf, isTilted, nadirFor, nadirPose,
+  poseAt, project, stemHeightM, tiltWeight, verticalPxPerMetre, type Enu, type Vec3, type View,
 } from "./camera";
 
 const R = 3_396_190;
@@ -99,12 +99,43 @@ describe("flight rules", () => {
     expect(mid).toBeLessThan(0.7);
   });
 
-  it("gives stems no height in a top-down view", () => {
-    expect(stemHeightM(1_000_000, 852, view.fovy, -90)).toBe(0);
-    const h = stemHeightM(1_000_000, 852, view.fovy, -60);
-    // ~44 px at 1,000 km on this frame.
-    expect(h).toBeGreaterThan(30_000);
-    expect(h).toBeLessThan(60_000);
+  it("measures how many pixels a metre of vertical spans on screen", () => {
+    const { X, enu } = site(17.68, 77.01);
+    const pose = poseAt(X, enu, 1_100_000, OBLIQUE_PITCH_DEG, 0, view);
+    const ppm = verticalPxPerMetre(pose, X, enu.up, view);
+    const a = project(pose, X, view)!;
+    const top: Vec3 = [X[0] + enu.up[0] * 500, X[1] + enu.up[1] * 500, X[2] + enu.up[2] * 500];
+    const b = project(pose, top, view)!;
+    expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeCloseTo(500 * ppm, 2);
+    // Looking straight down the vertical (target at the frame centre), a stem has no length on screen.
+    const centred: View = { ...view, focus: { x: view.w / 2, y: view.h / 2 } };
+    const nadir = poseAt(X, enu, 1_100_000, -90, 0, centred);
+    expect(verticalPxPerMetre(nadir, X, enu.up, centred)).toBeCloseTo(0, 9);
+  });
+
+  it("stands a stem STEM_PX tall on screen in the 3D view, clear of the 48 px reticle", () => {
+    const { X, enu } = site(17.68, 77.01);
+    for (const depth of [400_000, 1_100_000, 3_000_000]) {
+      const pose = poseAt(X, enu, depth, OBLIQUE_PITCH_DEG, 0, view);
+      const h = stemHeightM(verticalPxPerMetre(pose, X, enu.up, view), -62, depth);
+      const a = project(pose, X, view)!;
+      const b = project(pose, [X[0] + enu.up[0] * h, X[1] + enu.up[1] * h, X[2] + enu.up[2] * h], view)!;
+      // About STEM_PX: the height comes from the projection's slope at the ground, and the stem's top is
+      // a little nearer the camera than its foot (a few per cent longer close in).
+      const px = Math.hypot(b.x - a.x, b.y - a.y);
+      expect(px).toBeGreaterThan(STEM_PX - 1);
+      expect(px).toBeLessThan(STEM_PX * 1.07);
+      // The glyph's brackets (11 px from its centre) stay above the reticle's top edge (24 px).
+      expect(px - 11).toBeGreaterThan(24);
+    }
+  });
+
+  it("gives stems no height in a top-down view and keeps them below the camera", () => {
+    expect(stemHeightM(0.0005, -90, 1e6)).toBe(0);
+    expect(stemHeightM(0, -60, 1e6)).toBe(0);
+    expect(stemHeightM(0.0005, -60, 1e6)).toBeCloseTo(STEM_PX / 0.0005, 6);
+    // Nearly top-down a metre of vertical spans almost nothing: the cap holds the glyph down.
+    expect(stemHeightM(1e-9, -80, 250_000)).toBe(250_000);
   });
 });
 

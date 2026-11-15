@@ -69,7 +69,7 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 import { MARS_IAU2000, R_EARTH_MEAN_M, R_MARS_M, centricToGraphic, distanceKm, graphicToCentric, normLon } from "../lib/geodesy";
 import {
   OBLIQUE_PITCH_DEG, attitudeAt, exactNadir, fitDepth, flightPitchDeg, focusOf, isTilted, nadirFor, poseAt, stemHeightM, tiltWeight,
-  type Enu, type Vec3, type View,
+  verticalPxPerMetre, type Enu, type Vec3, type View,
 } from "./camera";
 import { footprintCorners, outlineRing, scanHeightM } from "./footprints";
 import { GLYPH_EARTH, GLYPH_INK, GLYPH_KINDS, GLYPH_MARS, GLYPH_SPACE, glyph, wallGradient } from "./glyphs";
@@ -380,23 +380,32 @@ function setMarkers(group: string, markers: GlobeMarker[], opts: MarkerGroupOpti
   rebuildStems();
 }
 
-/** Stem height above a ground point for the current camera (0 when looking straight down). Visual only. */
-function stemHeight(ground: Cartesian3): number {
+/**
+ * Stem height above a ground point for the current camera: the height that stands STEM_PX tall on screen
+ * (0 when looking straight down). Visual only.
+ */
+function stemHeight(m: { ground: Cartesian3; up: Cartesian3 }): number {
   if (!viewer) return 0;
   const cam = viewer.camera;
+  const c = viewer.scene.canvas;
   const fovy = (cam.frustum as PerspectiveFrustum).fovy ?? CMath.toRadians(60);
-  return stemHeightM(Cartesian3.distance(cam.positionWC, ground), viewer.scene.canvas.clientHeight, fovy, CMath.toDegrees(cam.pitch));
+  const pose = { position: toVec(cam.positionWC), direction: toVec(cam.directionWC), up: toVec(cam.upWC), right: toVec(cam.rightWC) };
+  const v: View = { w: c.clientWidth, h: c.clientHeight, fovy, focus: { x: c.clientWidth / 2, y: c.clientHeight / 2 } };
+  const pxPerM = verticalPxPerMetre(pose, toVec(m.ground), toVec(m.up), v);
+  // Keep the glyph well below the camera however oblique the view.
+  return stemHeightM(pxPerM, CMath.toDegrees(cam.pitch), 0.3 * Math.max(0, cam.positionCartographic.height));
 }
 const scratchStem = new Cartesian3();
 function stemTop(m: { ground: Cartesian3; up: Cartesian3 }, result = new Cartesian3()) {
-  return Cartesian3.add(m.ground, Cartesian3.multiplyByScalar(m.up, stemHeight(m.ground), scratchStem), result);
+  return Cartesian3.add(m.ground, Cartesian3.multiplyByScalar(m.up, stemHeight(m), scratchStem), result);
 }
 
 const STEM_COLOR: Partial<Record<MarkerKind, Color>> = { selection: MARS, leader: EARTH, candidate: EARTH };
 
 /**
  * One entity per stemmed marker: a hairline from the ground point up to the glyph. In a top-down view the
- * stem has no height and the glyph sits on its ground point; tilted, it stands about 30 px off the surface.
+ * stem has no height and the glyph sits on its ground point; tilted, it stands STEM_PX (46 px) above it on
+ * screen, clear of the reticle around the ground point.
  */
 function rebuildStems() {
   if (!viewer) return;
@@ -421,7 +430,7 @@ function rebuildStems() {
           width: 1.25,
           arcType: ArcType.NONE,
           material: (STEM_COLOR[m.kind] ?? INK).withAlpha(0.9),
-          show: new CallbackProperty(() => onNearSide(m.ground) && stemHeight(m.ground) > 0, false),
+          show: new CallbackProperty(() => onNearSide(m.ground) && stemHeight(m) > 0, false),
         },
         label: m.label && m.labels !== "none" ? hudLabel(m, near, g.size / 2 + 3) : undefined,
       });
