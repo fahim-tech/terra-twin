@@ -160,7 +160,8 @@ function ZoneActions({ a, pending, error, onRun, compact }: { a: boolean; pendin
   const blocked = m && !m.available;
   return (
     <>
-      {blocked && <Note tone="warning" className="mb-2.5">{m.label}: {m.reason_unavailable ?? "not available yet"}</Note>}
+      {/* The reason is already the mission row's sentence; here only what it means for the command. */}
+      {blocked && <Note tone="warning" className="mb-2.5">{m.label} is not available yet, so no search can run.</Note>}
       {error && <Note tone="critical" className="mb-2.5">Search failed: {error.message}</Note>}
       <Button variant="primary-mars" className="h-11 w-full justify-start! py-0" onClick={onRun} disabled={!a || pending || !!blocked}>
         {pending ? (
