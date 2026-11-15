@@ -52,9 +52,13 @@ export function MarsOverlay() {
   if (selection) {
     items.push({
       // The globe marks the selection itself (a round marker of up to ~11 px radius) and draws the AOI
-      // square around it, so the leader leaves from the outside of whichever is larger.
+      // square around it, so the leader leaves from the outside of whichever is larger — or, in the 3D view,
+      // from the glyph the globe stands on a stem above the point.
       id: "selection", lat: selection.lat, lon: selection.lon, tone: "mars", side: "ne",
       clear: { n: clearFor("n"), s: clearFor("s") }, markerR: 11, boxPx: aoiHalfPx,
+      // The zone outline's north and south edges cross the screen above and below the point: the plate keeps
+      // clear of them, so an edge never runs into it along the leader.
+      edges: zone ? [{ lat: zone.bbox.lat_max, lon: selection.lon }, { lat: zone.bbox.lat_min, lon: selection.lon }] : undefined,
       content: <Plate tone="mars" title={selection.siteId ? zoneName(selection.siteId) : "Selected point"} coord={formatCoord(selection.lat, selection.lon)} />,
     });
   }

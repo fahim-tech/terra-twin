@@ -3,7 +3,7 @@ import { useGlobeBus } from "../../app/globeBus";
 import { leaderDy } from "../../components/map/Annotations";
 import { anchorPoint } from "../../globes/protocol";
 import { useGlobes } from "../../store/globes";
-import { calloutGeometry, placeCallout, reachFromGlyph, underCover, type CalloutSide, type CalloutStart } from "./readouts";
+import { calloutGeometry, dodgeEdges, placeCallout, reachFromGlyph, underCover, type CalloutSide, type CalloutStart } from "./readouts";
 
 export interface Callout {
   id: string;
@@ -23,6 +23,11 @@ export interface Callout {
   markerR?: number;
   /** Half-size in px of the footprint square drawn around the point; when larger than the marker, the leader starts outside it. */
   boxPx?: number;
+  /**
+   * Points on outlines that cross the screen near the point (the zone's north and south edges straight above
+   * and below it). Tracked like the point itself; the label keeps its plate clear of those lines.
+   */
+  edges?: { lat: number; lon: number }[];
 }
 
 /** Edge of the hollow square that marks a point the globe does not mark itself, px. */
@@ -35,6 +40,10 @@ const GLYPH_HALF = 11;
 const STEM_MIN_PX = 2;
 /** Least vertical reach of a leader from the glyph, px (the shared default). */
 const MIN_REACH = leaderDy();
+/** Half the height of a label plate (condensed name over a mono coordinate), and the clearance kept from crossing lines, px. */
+const PLATE_HALF_H = 21;
+const LINE_GAP = 4;
+const edgeId = (id: string, i: number) => `${id}~edge${i}`;
 /** The navigator field covers the top of the frame down to here on every layout (12 px inset + 44 px field). */
 const NAVIGATOR_BOTTOM = 56;
 /** Phones: the nav column (44 px buttons, 12 px inset) runs down the right edge and is not a measured inset. */
@@ -72,9 +81,12 @@ export function Callouts({ items }: { items: Callout[] }) {
   const ins = useGlobes((s) => s.insets.mars);
   const root = useRef<HTMLDivElement>(null);
   const size = useSize(root);
-  const key = items.map((i) => `${i.id}:${i.lat.toFixed(5)}:${i.lon.toFixed(5)}`).join("|");
+  const key = items.map((i) => `${i.id}:${i.lat.toFixed(5)}:${i.lon.toFixed(5)}:${(i.edges ?? []).map((e) => `${e.lat.toFixed(4)},${e.lon.toFixed(4)}`).join(";")}`).join("|");
   useEffect(() => {
-    bus.send("mars", { t: "trackAnchors", anchors: items.map(({ id, lat, lon }) => ({ id, lat, lon })) });
+    bus.send("mars", {
+      t: "trackAnchors",
+      anchors: items.flatMap(({ id, lat, lon, edges }) => [{ id, lat, lon }, ...(edges ?? []).map((e, i) => ({ id: edgeId(id, i), lat: e.lat, lon: e.lon }))]),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bus, key]);
   useEffect(() => () => bus.send("mars", { t: "trackAnchors", anchors: [] }), [bus]);
@@ -102,9 +114,12 @@ export function Callouts({ items }: { items: Callout[] }) {
         // than clearing the footprint square.
         const dy = { n: leaderDy(it.clear?.n), s: leaderDy(it.clear?.s) };
         const box = leaderDy(it.boxPx);
-        const { side, maxW, dy: reach } = stemmed
-          ? placeCallout(p, it.side, bounds, reachFromGlyph(dy, stemPx, MIN_REACH), { minDy: Math.max(MIN_REACH, box - stemPx) })
-          : placeCallout(p, it.side, bounds, dy, { minDy: box });
+        const minDy = stemmed ? Math.max(MIN_REACH, box - stemPx) : box;
+        const placed = placeCallout(p, it.side, bounds, stemmed ? reachFromGlyph(dy, stemPx, MIN_REACH) : dy, { minDy });
+        const { side, maxW } = placed;
+        // Keep the plate off the zone's edges where they cross the screen near the point.
+        const edgeYs = (it.edges ?? []).map((_, i) => anchors[edgeId(it.id, i)]).filter((e) => e?.visible).map((e) => e!.y);
+        const reach = dodgeEdges(p.y, side, placed.dy, edgeYs, { halfH: PLATE_HALF_H, gap: LINE_GAP, minDy, top: bounds.top, bottom: bounds.bottom });
         const from: CalloutStart = stemmed ? { square: GLYPH_HALF + 2 }
           : it.boxPx !== undefined && it.boxPx > (it.markerR ?? 0) ? { square: it.boxPx + 3 }
             : marked ? { circle: it.markerR! + 2 } : { square: MARK / 2 + 1 };

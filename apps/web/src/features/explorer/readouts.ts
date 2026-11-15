@@ -193,6 +193,30 @@ export function placeCallout(a: Pt, preferred: CalloutSide, bounds: Bounds, dy: 
   return { side: `${ns}${ew}` as CalloutSide, maxW, dy: reach };
 }
 
+/**
+ * A label's reach, adjusted so its plate (half height `halfH`) keeps `gap` px clear of lines that cross the
+ * screen near the point — a zone outline's edges, at rows `edgeYs` — instead of a line running into the plate
+ * along its leader shelf, where it reads as part of the leader. The plate moves out past the line while that
+ * stays inside the bounds; else back short of it while that keeps `minDy`; else it stays where it was.
+ */
+export function dodgeEdges(y: number, side: CalloutSide, reach: number, edgeYs: number[],
+  o: { halfH: number; gap: number; minDy: number; top: number; bottom: number }): number {
+  const sy = side.startsWith("n") ? -1 : 1;
+  let r = reach;
+  for (let pass = 0; pass < 3; pass++) {
+    const row = y + sy * r;
+    const hit = edgeYs.find((e) => Number.isFinite(e) && e > row - o.halfH - o.gap && e < row + o.halfH + o.gap);
+    if (hit === undefined) return r;
+    const outRow = hit + sy * (o.halfH + o.gap);
+    const fits = sy < 0 ? outRow - o.halfH >= o.top + CALLOUT_EDGE : outRow + o.halfH <= o.bottom - CALLOUT_EDGE;
+    if (fits && sy * (outRow - y) > r) { r = sy * (outRow - y); continue; }
+    const inRow = hit - sy * (o.halfH + o.gap);
+    if (sy * (inRow - y) >= o.minDy && sy * (inRow - y) < r) { r = sy * (inRow - y); continue; }
+    return reach;
+  }
+  return r;
+}
+
 const D2R = Math.PI / 180;
 
 /**

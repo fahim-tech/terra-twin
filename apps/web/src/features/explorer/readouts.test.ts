@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   availabilityItems, baselineFromExplanation, CALLOUT_MIN_W, calloutGeometry, graticulePaths, gridMetres, LEADER_DX, nextActive, orthographic,
-  placeCallout, reachFromGlyph, revealDelta, scalesFromEvidence, underCover,
+  dodgeEdges, placeCallout, reachFromGlyph, revealDelta, scalesFromEvidence, underCover,
 } from "./readouts";
 
 describe("orthographic", () => {
@@ -195,6 +195,37 @@ describe("placeCallout", () => {
     expect(placeCallout({ x: 195, y: 120 }, "ne", phone, { n: 131, s: 400 }, { minDy: 50 })).toMatchObject({ side: "nw", dy: 50 });
     // …and takes the other shelf when that one overflows less.
     expect(placeCallout({ x: 195, y: 120 }, "ne", phone, { n: 131, s: 300 })).toMatchObject({ side: "sw", dy: 300 - 78 });
+  });
+});
+
+describe("callout plates keep off crossing lines", () => {
+  const o = { halfH: 21, gap: 4, minDy: 38, top: 56, bottom: 848 };
+  it("moves a plate out past a zone edge that would run into it along the leader", () => {
+    // 1440 × 900, 3D view: the glyph at y 424, the label row 38 px above it, the zone's north edge at y 392.
+    const r = dodgeEdges(424, "ne", 38, [392], o);
+    const row = 424 - r;
+    expect(row + 21 + 4).toBeLessThanOrEqual(392);
+    expect(r).toBe(424 - (392 - 25));
+  });
+
+  it("leaves a plate alone when no edge crosses its rows", () => {
+    // 1920 × 1080: the edge passes 5 px above the plate.
+    expect(dodgeEdges(519, "ne", 38, [455], o)).toBe(38);
+    expect(dodgeEdges(519, "ne", 38, [], o)).toBe(38);
+  });
+
+  it("pulls the plate in short of the edge when out past it would leave the frame", () => {
+    // Near the top: out past the edge would put the plate under the navigator.
+    const r = dodgeEdges(170, "ne", 70, [100], o);
+    expect(r).toBe(170 - (100 + 25));
+    expect(r).toBeGreaterThanOrEqual(o.minDy);
+  });
+
+  it("works below the point too, and stays put when neither move is possible", () => {
+    const r = dodgeEdges(400, "se", 40, [445], o);
+    expect(400 + r - 25).toBeGreaterThanOrEqual(445);
+    // Edge right at the minimum reach with no room either way: unchanged.
+    expect(dodgeEdges(820, "se", 38, [858], o)).toBe(38);
   });
 });
 
