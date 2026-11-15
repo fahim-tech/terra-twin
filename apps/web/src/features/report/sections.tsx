@@ -183,10 +183,10 @@ export function Differences() {
       <table className="w-full border-collapse text-left">
         <caption className="sr-only">Planetary differences between Mars and Earth</caption>
         <thead>
-          <tr className="border-b border-line-strong">
+          <tr className="border-b border-line-strong [&>th]:align-baseline">
             <th scope="col" className="kicker w-[30%] py-2 pr-4">Factor</th>
-            <th scope="col" className="py-2 pr-4"><span className="kicker inline-flex items-center gap-2 !text-mars"><span aria-hidden className="h-1.5 w-1.5 bg-mars [print-color-adjust:exact]" />Mars</span></th>
-            <th scope="col" className="py-2"><span className="kicker inline-flex items-center gap-2 !text-earth"><span aria-hidden className="h-1.5 w-1.5 bg-earth [print-color-adjust:exact]" />Earth</span></th>
+            <th scope="col" className="kicker py-2 pr-4 !text-mars"><span aria-hidden className="mr-2 inline-block h-1.5 w-1.5 bg-mars [print-color-adjust:exact]" />Mars</th>
+            <th scope="col" className="kicker py-2 !text-earth"><span aria-hidden className="mr-2 inline-block h-1.5 w-1.5 bg-earth [print-color-adjust:exact]" />Earth</th>
           </tr>
         </thead>
         <tbody>
