@@ -136,12 +136,13 @@ function Half({ planet, name, kind, relief, children }: { planet: "mars" | "eart
           <span aria-hidden className={cx("h-1.5 w-1.5 shrink-0 translate-y-[-1px]", planet === "mars" ? "bg-mars" : "bg-earth")} />
           <span className={cx("kicker shrink-0", planet === "mars" ? "!text-mars" : "!text-earth")}>{planet === "mars" ? "Mars" : "Earth"}</span>
           <span className="toponym truncate text-[15px] leading-none tracking-[0.05em] text-ink">{name}</span>
-          {kind.toLowerCase() !== name.toLowerCase() && <span className="kicker hidden truncate lg:inline">{kind}</span>}
+          {/* The kind and the relief figure only where the half is wide enough to keep the name whole. */}
+          {kind.toLowerCase() !== name.toLowerCase() && <span className="kicker hidden truncate xl:inline">{kind}</span>}
         </span>
         {relief && relief.z_min !== null && relief.z_max !== null && (
           <span className="num shrink-0 text-num-sm text-muted">
             {m(relief.z_min)}–{m(relief.z_max)}<span className="font-sans text-[11px]"> m</span>
-            {range !== null && <span className="max-sm:hidden"> · relief {m(range)}<span className="font-sans text-[11px]"> m</span></span>}
+            {range !== null && <span className="max-xl:hidden"> · relief {m(range)}<span className="font-sans text-[11px]"> m</span></span>}
           </span>
         )}
       </div>
