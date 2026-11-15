@@ -47,7 +47,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
     <motion.div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} data-occludes="earth"
       initial={{ ...off, opacity: 0 }} animate={{ x: 0, y: 0, opacity: 1 }} exit={{ ...off, opacity: 0 }} transition={SPRING}
       className={cx("surface-solid no-print absolute z-40 flex flex-col overflow-hidden",
-        phone ? "inset-x-0 bottom-0 top-12 rounded-t-surface" : "bottom-3 right-3 top-3 w-[min(440px,calc(100%-24px))] rounded-surface")}>
+        phone ? "inset-0 rounded-t-surface" : "bottom-3 right-3 top-3 w-[min(440px,calc(100%-24px))] rounded-surface")}>
       <header className="relative shrink-0 px-6 pb-4 pt-5">
         <Kicker>Why this analog?</Kicker>
         <Toponym as="h2" size="sm" id={titleId} tabIndex={-1} style={{ outline: "none" }} className="mt-1.5 pr-10">{name.name}</Toponym>

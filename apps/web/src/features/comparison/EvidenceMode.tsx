@@ -1,4 +1,4 @@
-import { Kicker, Measure, Term } from "../../components/primitives";
+import { Disclosure, Kicker, Measure, Term } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
 import { useApp } from "../../store/app";
@@ -28,9 +28,11 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
         <p className="text-ink">This is a global-screen cell. It has no research comparison: no 50 km window was re-observed the way MOLA saw the Mars site.</p>
         <p>Refining new screening cells needs on-demand extraction and the target's MOLA observation model, which are not connected.</p>
         {t2.live_refinement.missing_inputs.length > 0 && (
-          <ul className="space-y-1">
-            {t2.live_refinement.missing_inputs.map((m) => <li key={m} className="font-mono text-num-sm text-faint">{m}</li>)}
-          </ul>
+          <Disclosure summary="What is missing">
+            <ul className="space-y-1">
+              {t2.live_refinement.missing_inputs.map((m) => <li key={m} className="font-mono text-num-sm text-muted">{m}</li>)}
+            </ul>
+          </Disclosure>
         )}
         <p className="text-caption text-faint">{G5.scale}</p>
       </div>
@@ -89,7 +91,7 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
               <tr>
                 <th scope="col" className="py-1 font-normal">Descriptor</th>
                 <th scope="col" className="py-1 text-right font-normal">Mars</th>
-                <th scope="col" className="py-1 text-right font-normal">Earth{representation === "as_measured" ? " · as measured" : " · as MOLA would observe it"}</th>
+                <th scope="col" className="py-1 text-right font-normal">Earth<span className="max-sm:sr-only">{representation === "as_measured" ? " · as measured" : " · as MOLA would observe it"}</span></th>
               </tr>
             </thead>
             <tbody>

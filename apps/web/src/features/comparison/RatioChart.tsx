@@ -16,6 +16,7 @@ export function RatioChart({ rows, compact }: { rows: RatioRow[]; compact?: bool
   return (
     <div className="text-caption">
       <AxisHeader />
+      <PhoneAxis />
       <Group title="Similar" hint="inside research tolerance" rows={g.similar} compact={compact} />
       <Group title="Different" hint="outside research tolerance" rows={g.different} compact={compact} />
       {g.missing.length > 0 && <Group title="Not comparable" hint="a value is missing" rows={g.missing} compact={compact} />}
@@ -38,6 +39,17 @@ function AxisHeader() {
         ))}
       </div>
       <span className="text-faint">Earth vs Mars</span>
+    </div>
+  );
+}
+
+/** Phones drop the header grid; keep the tick labels so the log axis can be read. */
+function PhoneAxis() {
+  return (
+    <div aria-hidden className="relative mt-1 h-4 sm:hidden">
+      {TICKS.map((t) => (
+        <span key={t} className={cx("num absolute top-0 text-num-sm text-faint", t === TICKS[0] ? "" : t === TICKS[TICKS.length - 1] ? "-translate-x-full" : "-translate-x-1/2")} style={{ left: `${ratioPos(t) * 100}%` }}>{tickLabel(t)}</span>
+      ))}
     </div>
   );
 }

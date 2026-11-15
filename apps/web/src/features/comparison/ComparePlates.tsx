@@ -28,6 +28,8 @@ function Plate({ planet, targets }: { planet: Planet; targets: CompareTargets })
   const sub = planet === "earth" ? targets.earth.sub : null;
   return (
     <section aria-label={`${planet === "mars" ? "Mars" : "Earth"} location`} className="on-imagery absolute left-5 top-4 max-w-[min(360px,80%)]">
+      {/* Soft scrim so the plate stays legible over clouds and bright terrain (not a surface). */}
+      <span aria-hidden className="absolute -left-5 -top-4 -z-10 h-[calc(100%+48px)] w-[calc(100%+80px)] bg-[radial-gradient(ellipse_at_top_left,rgb(5_7_10/0.55),transparent_70%)]" />
       <div className="flex items-center gap-2 text-kicker font-semibold uppercase tracking-[0.08em] text-ink/85">
         <span aria-hidden className={cx("h-2 w-2 rounded-full ring-1 ring-black/60", planet === "mars" ? "bg-mars" : "bg-earth")} />
         {planet === "mars" ? "Mars" : "Earth"}

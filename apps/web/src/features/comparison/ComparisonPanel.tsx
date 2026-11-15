@@ -1,6 +1,6 @@
 import { ArrowLeft, ChevronDown, MessageCircleQuestion } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { IconButton, Kicker, Measure, Tabs, Term } from "../../components/primitives";
 import { Button, cx } from "../../components/ui";
 import { useLayout } from "../../app/useLayout";
@@ -58,7 +58,13 @@ export function ComparisonPanel() {
   const set = useApp((s) => s.set);
   const layout = useLayout();
   const phone = layout === "phone";
-  const [mode, setMode] = useState<Mode>("spatial");
+  const [mode, setModeState] = useState<Mode>("spatial");
+  const stripRef = useRef<HTMLElement>(null);
+  // The summary re-lays out between collapsed and expanded, so keep keyboard focus on the chosen tab.
+  const setMode = useCallback((m: Mode) => {
+    setModeState(m);
+    requestAnimationFrame(() => stripRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true }));
+  }, []);
   const c = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
   const targets = useMemo(() => (search && c ? compareTargets(search, c) : null), [search, c]);
   const t1 = useMemo(() => (search && c ? tier1Rows(search, c) : null), [search, c]);
@@ -81,14 +87,14 @@ export function ComparisonPanel() {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [expanded]);
+  }, [expanded, setMode]);
 
   if (!search || !c || !targets || !verdict) return <NoCandidate hasSearch={!!search} phone={phone} />;
 
   return (
     <>
       {!phone && <ComparePlates targets={targets} planets={["mars", "earth"]} />}
-      <motion.section aria-label="Mars–Earth comparison" data-occludes="both"
+      <motion.section ref={stripRef} aria-label="Mars–Earth comparison" data-occludes="both"
         initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", bounce: 0, duration: 0.35 }}
         style={expanded ? { height: phone ? "82%" : "56%" } : undefined}
         className={cx("surface no-print absolute z-20 flex flex-col overflow-hidden",
@@ -97,7 +103,7 @@ export function ComparisonPanel() {
         {expanded && (
           <div role="tabpanel" aria-label={MODES.find((m) => m.value === mode)!.label} className="relative flex min-h-0 flex-1 flex-col">
             <div className="mx-6 h-px shrink-0 bg-line/70 max-md:mx-4" aria-hidden />
-            <IconButton label="Collapse to spatial view" onClick={() => setMode("spatial")} className="absolute right-3 top-2 z-10"><ChevronDown className="h-4 w-4" /></IconButton>
+            <IconButton label="Collapse to spatial view" onClick={() => setMode("spatial")} className="absolute right-3 top-1.5 z-10"><ChevronDown className="h-4 w-4" /></IconButton>
             <motion.div key={mode} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
               className="scroll-thin fade-edges min-h-0 flex-1 overflow-y-auto px-6 pb-5 pt-3 max-md:px-4">
               {mode === "measurements" && (
@@ -179,6 +185,26 @@ function Summary({ c, targets, verdict, mode, setMode, phone, onWhy }: {
           <Term k="scope" />{c.tier === 2 && <> · validated on <Term k="synthetic" /></>}
         </p>
         <div className="-mx-4 mt-1 overflow-x-auto px-4 scroll-thin">{tabs}</div>
+      </div>
+    );
+  }
+
+  if (mode !== "spatial") {
+    // Expanded: the same facts on two lines so the mode gets the room; G5 strings stay one click away.
+    return (
+      <div className="shrink-0 px-6 pb-2.5 pt-3">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          {back}
+          <h2 data-stage-heading="compare" tabIndex={-1} style={{ outline: "none" }} className="toponym text-toponym-sm text-ink">
+            <span className="sr-only">Comparing </span>{targets.mars.name}<span className="mx-1.5 text-muted" aria-label="with">↔</span>{targets.earth.name}
+          </h2>
+          {verdictLine}
+          <span className="flex items-baseline gap-1.5"><span className="text-caption text-muted"><Term k="similarity">S</Term></span><Measure value={c.score} digits={3} className="text-title font-normal text-ink" missing="no score" /></span>
+          <div className="ml-auto flex items-center gap-5">{tabs}{why}</div>
+        </div>
+        <p className="mt-0.5 text-caption text-muted">
+          <span className="text-ink/90">{basisFor(c)}</span> · <Term k="scope" />{c.tier === 2 && <> · validated on <Term k="synthetic" /></>} · <span className="text-faint">{verdict.detail}</span>
+        </p>
       </div>
     );
   }
