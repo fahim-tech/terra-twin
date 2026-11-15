@@ -92,7 +92,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
         <Section index={next()} title="Decision" basis="research record">
           <div className="border border-line-strong bg-space/50">
             <div className="flex items-center justify-between gap-4 border-b border-line px-3.5 py-2.5">
-              <VerdictLine verdict={v} />
+              <VerdictLine verdict={v} className="min-w-0" />
               <SFigure value={c.score} missing="no score" className="shrink-0 text-[22px] leading-none text-ink" />
             </div>
             <div className="px-3.5 py-2.5">

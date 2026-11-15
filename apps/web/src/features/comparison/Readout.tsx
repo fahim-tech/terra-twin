@@ -29,14 +29,17 @@ const verdictTermKey = (v: Verdict) => (v.kind === "leader" ? "stableLeader" : v
 /**
  * The decision mark and headline (with its G5 definition on demand): the shared outcome mark, always
  * beside its words. `short` drops the listing note of a tied window, for one-line readouts.
+ * A headline that wraps (the full tie wording in the phone brief) stays left-aligned, and the mark stays
+ * centred on its first line: the term's trigger is a button, which centres its lines and puts its
+ * baseline on the last one.
  */
 export function VerdictLine({ verdict, className, short = false, markSize }: { verdict: Verdict; className?: string; short?: boolean; markSize?: number }) {
   const k = verdictTermKey(verdict);
   const words = short ? verdict.short : verdict.headline;
   return (
-    <span className={cx("inline-flex items-baseline gap-2 text-label text-ink", className)}>
-      <OutcomeMark kind={verdict.mark} size={markSize} />
-      <span>{k ? <Term k={k}>{words}</Term> : words}</span>
+    <span className={cx("inline-flex items-start gap-2 text-label text-ink [&_button]:text-left", className)}>
+      <span aria-hidden className="flex h-[1lh] shrink-0 items-center"><OutcomeMark kind={verdict.mark} size={markSize} /></span>
+      <span className="min-w-0">{k ? <Term k={k}>{words}</Term> : words}</span>
     </span>
   );
 }
