@@ -139,8 +139,8 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
           <Commands onStart={onStart} onJezero={onJezero} jezero={jezero} />
         </motion.div>
         <motion.div {...rise(7)} className="mt-6 max-w-[560px] space-y-1 text-caption text-faint landscape:md:mt-7 short:!mt-3">
-          <p><span className="kicker mr-2 text-[10px]">Imagery</span>{credit ?? "—"}</p>
           <p><span className="kicker mr-2 text-[10px]">Light</span><span className="text-warn/90">{LIGHT_NOTE}</span>: lit for legibility, not by the Sun&rsquo;s position</p>
+          <p><span className="kicker mr-2 text-[10px]">Imagery</span>{credit ?? "—"}</p>
         </motion.div>
       </div>
     </div>
