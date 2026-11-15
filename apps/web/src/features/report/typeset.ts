@@ -6,11 +6,12 @@
 export interface Segment { text: string; num: boolean }
 
 /**
- * A number run: an optional sign or approximation mark directly before a digit, then digits with
- * thousands separators or a decimal point ("~0.6", "249,165", "−0.02", "3.71"). Unicode sub/superscripts
- * (CO₂, m/s²) are not digits and stay with their words.
+ * A standalone number: an optional sign or approximation mark directly before a digit, then digits with
+ * thousands separators or a decimal point ("~0.6", "249,165", "−0.02", "3.71"). Digits inside a name stay
+ * text — "GMTED2010", "GLO-90", "tier-1", "rand_d8_233", "3D" — because a number may not touch a letter,
+ * digit, underscore, point or hyphen on either side. Unicode sub/superscripts (CO₂, m/s²) are not digits.
  */
-const NUMBER = /(?:[~≈±+−-](?=\d))?\d+(?:[.,]\d+)*/g;
+const NUMBER = /(?<![\p{L}\p{N}_.\-−])(?:[~≈±+−-](?=\d))?\d+(?:[.,]\d+)*(?![\p{L}\p{N}_])/gu;
 
 /** Split text into alternating word and number runs; concatenating the runs gives the input back. */
 export function splitNumerals(text: string): Segment[] {

@@ -21,6 +21,15 @@ describe("splitNumerals", () => {
     expect(splitNumerals("No known biosphere")).toEqual([{ text: "No known biosphere", num: false }]);
   });
 
+  it("keeps digits that belong to names in the text face", () => {
+    expect(nums("GMTED2010 30″ mean elevation, research tier-1 screen")).toEqual(["30"]);
+    expect(nums("Copernicus DEM GLO-90")).toEqual([]);
+    expect(nums("rand_d8_233 · MGS-M-MOLA-5-MEGDR-L3-V1.0 · 2D/3D · 463m")).toEqual([]);
+    expect(nums("+0.5 native column (measured on 39/39 EZs)")).toEqual(["+0.5", "39", "39"]);
+    expect(nums("MEGDR 128 pixels/degree counts (~463 m bins)")).toEqual(["128", "~463"]);
+    expect(nums("bare-like ≥ 0.50, vegetated ≤0.20")).toEqual(["0.50", "0.20"]);
+  });
+
   it("always reassembles to the original text", () => {
     for (const p of PLANETARY_DIFFERENCES) {
       for (const t of [p.factor, p.mars, p.earth]) expect(splitNumerals(t).map((s) => s.text).join("")).toBe(t);
