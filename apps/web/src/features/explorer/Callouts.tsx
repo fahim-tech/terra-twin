@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useGlobeBus } from "../../app/globeBus";
 import { leaderDy } from "../../components/map/Annotations";
+import { anchorPoint } from "../../globes/protocol";
 import { useGlobes } from "../../store/globes";
-import { calloutGeometry, placeCallout, underCover, type CalloutSide, type CalloutStart } from "./readouts";
+import { calloutGeometry, placeCallout, reachFromGlyph, underCover, type CalloutSide, type CalloutStart } from "./readouts";
 
 export interface Callout {
   id: string;
@@ -28,6 +29,12 @@ export interface Callout {
 const MARK = 9;
 /** Edge of the solid square end marks, px. */
 const END = 4;
+/** Half-size of the globe's bracketed glyph (glyphs.ts: brackets 11 px from its centre). */
+const GLYPH_HALF = 11;
+/** Below this the glyph sits on its ground point (top-down view): the footprint square decides where the leader starts. */
+const STEM_MIN_PX = 2;
+/** Least vertical reach of a leader from the glyph, px (the shared default). */
+const MIN_REACH = leaderDy();
 /** The navigator field covers the top of the frame down to here on every layout (12 px inset + 44 px field). */
 const NAVIGATOR_BOTTOM = 56;
 /** Phones: the nav column (44 px buttons, 12 px inset) runs down the right edge and is not a measured inset. */
@@ -54,6 +61,10 @@ function useSize(ref: React.RefObject<HTMLElement>) {
  * where the leader plugs into its label plate. Positions are the globe's projected anchors (the same
  * tracking protocol as the shared AnnotationLayer, which Mars no longer mounts), so callouts follow the
  * camera and disappear behind the limb. Labels stay inside the free part of the frame (`placeCallout`).
+ *
+ * In the 3D view the globe stands the selected glyph on a stem above its ground point and reports where
+ * (anchor `top`): the side is chosen, and the leader drawn, from that glyph — the label meets the mark the
+ * reader sees, not the stem's foot — while the reach still clears the square around the ground point.
  */
 export function Callouts({ items }: { items: Callout[] }) {
   const bus = useGlobeBus();
@@ -81,13 +92,23 @@ export function Callouts({ items }: { items: Callout[] }) {
       {size.w > 0 && items.map((it) => {
         const a = anchors[it.id];
         if (!a || !a.visible || underCover(a, size, ins)) return null;
-        // Reach that clears what surrounds the point per side; never shorter than clearing the footprint square.
-        const dy = { n: leaderDy(it.clear?.n), s: leaderDy(it.clear?.s) };
-        const { side, maxW, dy: reach } = placeCallout(a, it.side, bounds, dy, { minDy: leaderDy(it.boxPx) });
         const marked = it.markerR !== undefined;
-        const from: CalloutStart = it.boxPx !== undefined && it.boxPx > (it.markerR ?? 0) ? { square: it.boxPx + 3 }
-          : marked ? { circle: it.markerR! + 2 } : { square: MARK / 2 + 1 };
-        const g = calloutGeometry(a, side, reach, from);
+        // The glyph on its stem when the globe draws one (3D view); else the point itself.
+        const o = anchorPoint(a);
+        const stemPx = o.glyph && marked ? a.y - o.y : 0;
+        const stemmed = stemPx > STEM_MIN_PX;
+        const p = stemmed ? { x: o.x, y: o.y } : { x: a.x, y: a.y };
+        // Reach that clears what surrounds the point per side (measured from the ground point); never shorter
+        // than clearing the footprint square.
+        const dy = { n: leaderDy(it.clear?.n), s: leaderDy(it.clear?.s) };
+        const box = leaderDy(it.boxPx);
+        const { side, maxW, dy: reach } = stemmed
+          ? placeCallout(p, it.side, bounds, reachFromGlyph(dy, stemPx, MIN_REACH), { minDy: Math.max(MIN_REACH, box - stemPx) })
+          : placeCallout(p, it.side, bounds, dy, { minDy: box });
+        const from: CalloutStart = stemmed ? { square: GLYPH_HALF + 2 }
+          : it.boxPx !== undefined && it.boxPx > (it.markerR ?? 0) ? { square: it.boxPx + 3 }
+            : marked ? { circle: it.markerR! + 2 } : { square: MARK / 2 + 1 };
+        const g = calloutGeometry(p, side, reach, from);
         const stroke = it.tone === "neutral" ? "var(--color-ink)" : "var(--color-mars)";
         const leader = `${g.start.x},${g.start.y} ${g.elbow.x},${g.elbow.y} ${g.end.x},${g.end.y}`;
         const sq = (p: { x: number; y: number }) => <rect x={p.x - END / 2} y={p.y - END / 2} width={END} height={END} fill={stroke} />;

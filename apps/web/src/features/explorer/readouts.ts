@@ -127,6 +127,18 @@ export function calloutGeometry(a: Pt, side: CalloutSide, dy: number, from: Call
   return { sx, sy, start, elbow, end };
 }
 
+/**
+ * Where a callout's leader starts when the globe draws the point's glyph on a stem (3D view): at the glyph,
+ * `stemPx` above the ground point. What the label must clear — the footprint square, the zone outline — is
+ * measured from the ground point (`dy` per side), so from the glyph a north label needs `stemPx` less reach and
+ * a south label `stemPx` more; never less than `minDy` from the glyph itself. Looking straight down the stem has
+ * no height and the reach is unchanged.
+ */
+export function reachFromGlyph(dy: { n: number; s: number }, stemPx: number, minDy: number): { n: number; s: number } {
+  const s = Math.max(0, stemPx);
+  return { n: Math.max(minDy, dy.n - s), s: Math.max(minDy, dy.s + s) };
+}
+
 /** The part of the globe frame a callout label may use (the frame less the UI covering it), px. */
 export interface Bounds { left: number; top: number; right: number; bottom: number }
 

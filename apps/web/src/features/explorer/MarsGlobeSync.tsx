@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useGlobeBus, useGlobeEvents } from "../../app/globeBus";
+import { useLayout } from "../../app/useLayout";
 import { zoneName } from "../../lib/glossary";
 import { useSites } from "../../services/api";
 import { useApp } from "../../store/app";
@@ -24,18 +25,22 @@ export function MarsGlobeSync() {
   }, [bus, introOpen]);
 
   // Research zones layer: every zone's footprint drawn faintly, with its centre marker. Names come from
-  // the hover readout and HTML annotations, so Cesium labels stay off.
+  // the hover readout and HTML annotations, so Cesium labels stay off. On phones the intro's copy lies over
+  // the planet, and the zone glyphs and outlines would show through the text: they wait until it closes.
+  const phone = useLayout() === "phone";
+  const quietForIntro = introOpen && phone;
   useEffect(() => {
     if (!sites.data) return;
+    const zones = quietForIntro ? [] : sites.data;
     bus.send("mars", {
       t: "setMarkers", group: "sites", options: { labels: "none" },
-      markers: sites.data.map((x) => ({ id: `site:${x.id}`, lat: x.lat, lon: x.lon, kind: "research_site", label: zoneName(x.id) })),
+      markers: zones.map((x) => ({ id: `site:${x.id}`, lat: x.lat, lon: x.lon, kind: "research_site", label: zoneName(x.id) })),
     });
     bus.send("mars", {
       t: "setFootprints", group: "zones",
-      footprints: sites.data.map((x) => ({ id: x.id, kind: "research_bbox", lat: x.lat, lon: x.lon, bbox: [x.bbox.lon_min, x.bbox.lat_min, x.bbox.lon_max, x.bbox.lat_max] })),
+      footprints: zones.map((x) => ({ id: x.id, kind: "research_bbox", lat: x.lat, lon: x.lon, bbox: [x.bbox.lon_min, x.bbox.lat_min, x.bbox.lon_max, x.bbox.lat_max] })),
     });
-  }, [bus, sites.data]);
+  }, [bus, sites.data, quietForIntro]);
 
   // Selection marker and the requested footprint (AOI) around it.
   useEffect(() => {

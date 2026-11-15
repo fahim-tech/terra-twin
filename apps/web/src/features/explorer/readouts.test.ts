@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   availabilityItems, baselineFromExplanation, CALLOUT_MIN_W, calloutGeometry, graticulePaths, gridMetres, LEADER_DX, nextActive, orthographic,
-  placeCallout, revealDelta, scalesFromEvidence, underCover,
+  placeCallout, reachFromGlyph, revealDelta, scalesFromEvidence, underCover,
 } from "./readouts";
 
 describe("orthographic", () => {
@@ -195,5 +195,35 @@ describe("placeCallout", () => {
     expect(placeCallout({ x: 195, y: 120 }, "ne", phone, { n: 131, s: 400 }, { minDy: 50 })).toMatchObject({ side: "nw", dy: 50 });
     // …and takes the other shelf when that one overflows less.
     expect(placeCallout({ x: 195, y: 120 }, "ne", phone, { n: 131, s: 300 })).toMatchObject({ side: "sw", dy: 300 - 78 });
+  });
+});
+
+describe("callouts on a stemmed glyph (3D view)", () => {
+  it("measures the reach from the glyph while still clearing the square around the ground point", () => {
+    // AOI square needs 152 px north and south of the ground point; the glyph stands 46 px above it.
+    expect(reachFromGlyph({ n: 152, s: 152 }, 46, 38)).toEqual({ n: 106, s: 198 });
+    // A small square: the label still keeps the default reach from the glyph itself.
+    expect(reachFromGlyph({ n: 52, s: 52 }, 46, 38)).toEqual({ n: 38, s: 98 });
+  });
+
+  it("changes nothing looking straight down (no stem)", () => {
+    expect(reachFromGlyph({ n: 152, s: 60 }, 0, 38)).toEqual({ n: 152, s: 60 });
+    expect(reachFromGlyph({ n: 152, s: 60 }, -3, 38)).toEqual({ n: 152, s: 60 });
+  });
+
+  it("chooses the side and draws the leader from the glyph, so the label meets the mark the reader sees", () => {
+    const desktop = { left: 0, top: 56, right: 1036, bottom: 848 };
+    const ground = { x: 520, y: 470 }, glyph = { x: 516, y: 424 };
+    const reach = reachFromGlyph({ n: 52, s: 52 }, ground.y - glyph.y, 38);
+    const p = placeCallout(glyph, "ne", desktop, reach, { minDy: 38 });
+    expect(p.side).toBe("ne");
+    const g = calloutGeometry(glyph, p.side, p.dy, { square: 13 });
+    // The leader leaves the glyph's bracket box, up and to the right of the glyph — not from the stem's foot.
+    expect(Math.max(Math.abs(g.start.x - glyph.x), Math.abs(g.start.y - glyph.y))).toBeCloseTo(13, 6);
+    expect(g.start.y).toBeLessThan(glyph.y);
+    expect(g.end.y).toBe(glyph.y - 38);
+    // Near the top of the frame the glyph's own position decides the flip, not the ground point's.
+    const high = { x: 516, y: 120 };
+    expect(placeCallout(high, "ne", desktop, reachFromGlyph({ n: 52, s: 52 }, 46, 38), { minDy: 38 }).side).toBe("se");
   });
 });
