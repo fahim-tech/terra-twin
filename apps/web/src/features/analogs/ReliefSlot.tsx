@@ -74,7 +74,7 @@ export function ReliefSlot({ candidate, windowId, index }: ReliefSlotProps) {
 function Caption({ relief, ve }: { relief: Relief; ve: Exaggeration }) {
   const measured = relief.source.representation === "as_measured";
   return (
-    <div className="space-y-1 text-caption">
+    <div className="space-y-1 text-caption [&_button]:text-left">
       <p className="text-ink/85">
         {measured
           ? <>Earth terrain: {G5.toggleMeasured} — the <Term k="operator">MOLA observation model</Term> is not applied.</>

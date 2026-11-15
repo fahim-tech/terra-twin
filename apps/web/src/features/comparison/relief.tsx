@@ -157,7 +157,7 @@ function Caption({ earth, earthId, mars, zone, ve, both, marsWhy }: {
 }) {
   const row = "grid grid-cols-[3.5rem_minmax(0,1fr)] items-baseline gap-x-3 py-1.5";
   return (
-    <dl className="mt-3 divide-y divide-line border-y border-line text-caption">
+    <dl className="mt-3 divide-y divide-line border-y border-line text-caption [&_button]:text-left">
       <div className={row}>
         <dt className="kicker !text-earth">Earth</dt>
         <dd className="text-muted">
