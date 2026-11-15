@@ -54,6 +54,7 @@ export type ParentToGlobe =
   | { t: "resize" };
 
 export type GlobeToParent =
+  | { t: "boot"; planet: Planet }
   | { t: "ready"; planet: Planet; mode: "ion" | "fallback"; layers: LayerInfo[]; ellipsoid: string }
   | { t: "pick"; lat: number; lon: number }
   | { t: "hover"; lat: number | null; lon: number | null }
