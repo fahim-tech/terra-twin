@@ -263,14 +263,14 @@ export function PanelHeader({ children, onClose, className }: { children: ReactN
   );
 }
 /**
- * In the landscape-phone side sheet (`.side-sheet`, App.tsx) the whole panel scrolls as one column: the
- * header scrolls away with the body and only the footer command stays docked at the foot.
+ * In the landscape-phone side sheet (`.side-sheet`, App.tsx) the whole panel scrolls as one column: header,
+ * body and footer in order. The stage is under 500 px tall there, too short to dock a footer over the body.
  */
 export function PanelBody({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cx("scroll-thin fade-edges min-h-0 flex-1 overflow-y-auto px-5 py-2 [.side-sheet_&]:flex-none [.side-sheet_&]:overflow-visible [.side-sheet_&]:[mask-image:none]", className)}>{children}</div>;
 }
 export function PanelFooter({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx("shrink-0 bg-surface px-5 pb-5 pt-3 [padding-bottom:max(20px,env(safe-area-inset-bottom))] [.side-sheet_&]:sticky [.side-sheet_&]:bottom-0 [.side-sheet_&]:z-10 [.side-sheet_&]:pb-3", className)}>{children}</div>;
+  return <div className={cx("shrink-0 bg-surface px-5 pb-5 pt-3 [padding-bottom:max(20px,env(safe-area-inset-bottom))] [.side-sheet_&]:pb-3", className)}>{children}</div>;
 }
 
 /** A titled block inside a panel body: caps title followed by a hairline rule. */

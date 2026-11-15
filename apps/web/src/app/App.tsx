@@ -13,7 +13,8 @@ import { GlobeBusProvider, useGlobeBus } from "./globeBus";
 import { LiveRegion, useEscapeToClose, useStageFocus } from "./a11y";
 import { useUrlState } from "./useUrlState";
 import { useGlobeInsets } from "./useGlobeInsets";
-import { useLayout } from "./useLayout";
+import { useLandscapePhone, useLayout } from "./useLayout";
+import { useGlobeSources } from "./globeSources";
 import { TopBar } from "./TopBar";
 import { Intro } from "./Intro";
 import { MarsSearch } from "../features/explorer/MarsSearch";
@@ -53,6 +54,7 @@ function Workspace() {
   useStageFocus();
   useUrlState();
   const layout = useLayout();
+  const landscapePhone = useLandscapePhone();
   const stageRef = useRef<HTMLElement>(null);
   const marsFrame = useRef<HTMLDivElement>(null);
   const earthFrame = useRef<HTMLDivElement>(null);
@@ -74,8 +76,17 @@ function Workspace() {
   useEffect(() => { bus.send("mars", { t: "setGraticule", on: graticule }); bus.send("earth", { t: "setGraticule", on: graticule }); }, [bus, graticule]);
   useEffect(() => { bus.send("mars", { t: "setSpin", on: introOpen }); }, [bus, introOpen]);
 
+  // Printing: blur the focused control first, so an open glossary popover closes (index.css also hides any).
+  useEffect(() => {
+    const onPrint = () => (document.activeElement as HTMLElement | null)?.blur?.();
+    window.addEventListener("beforeprint", onPrint);
+    return () => window.removeEventListener("beforeprint", onPrint);
+  }, []);
+
   const onGlobe = useCallback((planet: Planet) => (m: GlobeToParent) => {
     bus.emit(planet, m);
+    // What the globe draws (ion tiles or NASA imagery, and its layer notes): imagery credits are built from it.
+    if (m.t === "ready") useGlobeSources.getState().setSource(planet, { mode: m.mode, layers: m.layers });
     if (m.t === "hover") useGlobes.getState().setHover(m.lat === null || m.lon === null ? null : { planet, lat: m.lat, lon: m.lon });
     else if (m.t === "error") console.warn(`[${planet} globe]`, m.message);
   }, [bus]);
@@ -106,10 +117,12 @@ function Workspace() {
       <CompareGlobeSync />
       <TopBar compact={phone} />
       <StatusBanner />
-      <main ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden">
+      {/* overflow-clip, not hidden: a clip box is not a scroll container, so focus moving into the translated
+          intro globe (Cesium's credit link) can never scroll the stage sideways and strand the intro off-screen. */}
+      <main ref={stageRef} className="relative min-h-0 flex-1 overflow-clip">
         {/* Globe stage: both viewers stay mounted; stages change layout and opacity only (no WebGL resize animation).
             Full pages (Evidence, Report) hide it entirely (spec §15), so no globe or Cesium credit shows under the text. */}
-        <div aria-hidden={fullPage || undefined} className={cx("absolute inset-0 transition-opacity duration-500", fullPage && "pointer-events-none opacity-0")}>
+        <div aria-hidden={fullPage || undefined} className={cx("absolute inset-0 overflow-clip transition-opacity duration-500", fullPage && "pointer-events-none opacity-0")}>
           <div ref={marsFrame} {...inert(!marsActive)}
             className={cx("absolute inset-y-0 left-0 transition-[opacity,translate] duration-[600ms] ease-[var(--ease-out-soft)]",
               split && !phone ? "w-1/2" : "w-full",
@@ -137,30 +150,38 @@ function Workspace() {
         </AnimatePresence>
 
         {!introOpen && (stage === "mars" || stage === "earth") && (
-          <>
+          // Stage chrome enters in step with its globe: the Earth frame fades in after a 200 ms delay over
+          // 600 ms, so Earth panels wait until that planet is half up instead of sitting over the Mars view.
+          <motion.div key={stage} className="pointer-events-none absolute inset-0 z-20"
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1], delay: stage === "earth" ? 0.45 : 0.12 }}>
             {/* Navigator capsule (top-left). */}
-            <div className="no-print absolute left-3 right-3 top-3 z-30 sm:right-auto sm:w-[360px]">
+            <div className="chrome-scale no-print pointer-events-auto absolute left-3 right-3 top-3 z-30 sm:right-auto sm:w-[360px]">
               {stage === "mars" ? <MarsSearch /> : <EarthLayers />}
             </div>
             <Instruments planet={activePlanet} phone={phone} />
-            <ContextSurface stage={stage} phone={phone} open={stage === "mars" ? !!selection : !!search}>
+            <ContextSurface stage={stage} phone={phone} side={landscapePhone} open={stage === "mars" ? !!selection : !!search}>
               {stage === "mars" ? <MarsInspector /> : <AnalogResults />}
             </ContextSurface>
-          </>
+          </motion.div>
         )}
 
         {split && (
           <>
             {phone && (
-              <div role="radiogroup" aria-label="Planet" onKeyDown={radioGroupKeys<Planet>(["mars", "earth"], phonePlanet, setPhonePlanet)}
-                className="surface no-print absolute left-1/2 top-3 z-20 flex -translate-x-1/2 divide-x divide-line-strong rounded-control">
-                {(["mars", "earth"] as Planet[]).map((p) => (
-                  <button key={p} role="radio" aria-checked={phonePlanet === p} tabIndex={phonePlanet === p ? 0 : -1} onClick={() => setPhonePlanet(p)}
-                    className={cx("hit label-caps flex items-center gap-2 px-4 py-1.5", phonePlanet === p ? "bg-ink text-space" : "text-muted")}>
-                    <span aria-hidden className={cx("h-1.5 w-1.5", p === "mars" ? "bg-mars" : "bg-earth")} />
-                    {p === "mars" ? "Mars" : "Earth"}
-                  </button>
-                ))}
+              // Named "Globe" so it is never mistaken for a panel's own Mars / Earth switch (the relief view has one).
+              <div className="no-print absolute left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-2">
+                <span aria-hidden className="kicker on-imagery text-[10px]">Globe</span>
+                <div role="radiogroup" aria-label="Globe shown" onKeyDown={radioGroupKeys<Planet>(["mars", "earth"], phonePlanet, setPhonePlanet)}
+                  className="surface flex divide-x divide-line-strong rounded-control">
+                  {(["mars", "earth"] as Planet[]).map((p) => (
+                    <button key={p} role="radio" aria-checked={phonePlanet === p} tabIndex={phonePlanet === p ? 0 : -1} onClick={() => setPhonePlanet(p)}
+                      className={cx("hit label-caps flex items-center gap-2 px-4 py-1.5 transition-colors active:duration-0 focus-visible:outline-offset-[-3px]",
+                        phonePlanet === p ? "bg-ink text-space active:bg-ink/80" : "text-muted hover:text-ink active:bg-white/[0.12]")}>
+                      <span aria-hidden className={cx("h-1.5 w-1.5", p === "mars" ? "bg-mars" : "bg-earth")} />
+                      {p === "mars" ? "Mars" : "Earth"}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             <ComparisonPanel />
@@ -181,10 +202,29 @@ function Workspace() {
   );
 }
 
-/** Right-hand context surface on desktop/tablet; bottom sheet on phones. Enters and leaves along its own edge. */
-function ContextSurface({ stage, phone, open, children }: { stage: "mars" | "earth"; phone: boolean; open: boolean; children: React.ReactNode }) {
+/**
+ * Right-hand context surface on desktop/tablet; bottom sheet on phones; on a phone held sideways, a right-hand
+ * side sheet the stage's full height, where the whole panel scrolls as one column and only its footer command
+ * stays docked (PanelBody / PanelFooter read `.side-sheet`). Enters and leaves along its own edge.
+ */
+function ContextSurface({ stage, phone, side, open, children }: { stage: "mars" | "earth"; phone: boolean; side: boolean; open: boolean; children: React.ReactNode }) {
   const [snap, setSnap] = useState<SheetSnap>("half");
   useEffect(() => { if (open) setSnap("half"); }, [open, stage]);
+  if (phone && side) {
+    return (
+      <AnimatePresence>
+        {open && (
+          <motion.aside key={stage} aria-label={stage === "mars" ? "Selected location" : "Earth analogs"} data-occludes={stage}
+            initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} transition={SPRING}
+            className="side-sheet no-print pointer-events-none absolute bottom-2 right-2 top-2 z-20 flex w-[min(380px,46%)] flex-col [padding-right:env(safe-area-inset-right)]">
+            <div className="surface frame scroll-thin pointer-events-auto block max-h-full min-h-0 overflow-y-auto overscroll-contain rounded-surface [&>*]:!h-auto">
+              {children}
+            </div>
+          </motion.aside>
+        )}
+      </AnimatePresence>
+    );
+  }
   if (phone) {
     return open ? (
       <div className="no-print pointer-events-none absolute inset-0 z-20 [&>section]:pointer-events-auto">
@@ -199,7 +239,7 @@ function ContextSurface({ stage, phone, open, children }: { stage: "mars" | "ear
       {open && (
         <motion.aside key={stage} aria-label={stage === "mars" ? "Selected location" : "Earth analogs"} data-occludes={stage}
           initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} transition={SPRING}
-          className="no-print pointer-events-none absolute bottom-3 right-3 top-3 z-20 flex w-[min(380px,calc(100%-24px))] flex-col">
+          className="chrome-scale no-print pointer-events-none absolute bottom-3 right-3 top-3 z-20 flex w-[min(380px,calc(100%-24px))] flex-col">
           {/* The aside keeps the full-height box (globe framing uses it); the surface itself is sized to
               its content and capped at the stage, so it appears only as tall as what it has to say. */}
           <div className="surface frame pointer-events-auto flex max-h-full min-h-0 flex-col overflow-hidden rounded-surface">
@@ -214,29 +254,36 @@ function ContextSurface({ stage, phone, open, children }: { stage: "mars" | "ear
 /** Scale, altitude and centre (bottom-left) and navigation (bottom-right), placed inside the free area. */
 function Instruments({ planet, phone }: { planet: Planet; phone: boolean }) {
   const ins = useGlobes((s) => s.insets[planet]);
+  // The clusters follow the free area as panels open and sheets move, but never slide in from the previous
+  // stage's insets: the first moments after mounting (a stage change) place them without a transition.
+  const [settled, setSettled] = useState(false);
+  useEffect(() => { const t = window.setTimeout(() => setSettled(true), 900); return () => clearTimeout(t); }, []);
+  const glide = settled ? "transition-[left,right,bottom] duration-300" : "";
   if (phone) {
     // Spec §7: phones keep the scale bar and the nav controls. The scale bar sits just above whatever
-    // covers the bottom of the globe (sheet peek, comparison strip), as measured by the insets.
+    // covers the bottom of the globe (sheet peek, comparison strip), as measured by the insets; the nav
+    // stack stays left of a side sheet (landscape phones).
     return (
       <>
-        <div className="no-print on-imagery pointer-events-none absolute z-10 bg-[rgb(2_3_4/0.55)] px-2 py-1.5 transition-[left,bottom] duration-300"
+        <div className={cx("no-print on-imagery pointer-events-none absolute z-10 bg-[rgb(2_3_4/0.55)] px-2 py-1.5", glide)}
           style={{ left: ins.left + 12, bottom: ins.bottom + 12 }}>
           <ScaleBar planet={planet} maxPx={88} />
         </div>
-        <NavControls planet={planet} className="no-print absolute right-3 top-[68px] z-10" />
+        <NavControls planet={planet} className={cx("no-print pointer-events-auto absolute top-[68px] z-10 short:top-3", glide)} style={{ right: ins.right + 12 }} />
       </>
     );
   }
+  // Both clusters rest on one baseline, 24 px above the free area's bottom edge.
   return (
     <>
       {/* A small dark backing keeps the readouts legible over bright terrain without becoming a surface. */}
-      <div className="no-print on-imagery frame pointer-events-none absolute z-10 flex items-end gap-6 bg-[rgb(2_3_4/0.55)] px-3.5 py-2.5 [--frame-l:6px] transition-[left,bottom] duration-300"
+      <div className={cx("chrome-scale no-print on-imagery frame pointer-events-none absolute z-10 flex items-end gap-6 bg-[rgb(2_3_4/0.55)] px-3.5 py-2.5 [--frame-l:6px]", glide)}
         style={{ left: ins.left + 12, bottom: ins.bottom + 24 }}>
         <ScaleBar planet={planet} />
         <AltitudeReadout planet={planet} />
         <CenterReadout planet={planet} className="hidden lg:flex" />
       </div>
-      <NavControls planet={planet} className="no-print absolute z-10 transition-[right,bottom] duration-300" style={{ right: ins.right + 16, bottom: ins.bottom + 34 }} />
+      <NavControls planet={planet} className={cx("chrome-scale no-print pointer-events-auto absolute z-10", glide)} style={{ right: ins.right + 16, bottom: ins.bottom + 24 }} />
     </>
   );
 }
