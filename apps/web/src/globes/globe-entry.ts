@@ -245,7 +245,7 @@ function setMarkers(group: string, markers: GlobeMarker[], opts: MarkerGroupOpti
       },
       label: m.label && labels !== "none" ? {
         text: m.rank ? `${m.rank}  ${m.label}` : m.label,
-        font: "500 12px 'IBM Plex Sans', system-ui, sans-serif",
+        font: "500 12px 'Instrument Sans', system-ui, sans-serif",
         fillColor: css("#F2EEE8"),
         outlineColor: css("#07090C").withAlpha(0.9),
         outlineWidth: 3,
@@ -651,7 +651,7 @@ async function init(ionToken: string | null) {
   scene.preUpdate.addEventListener(() => { if (occluder && viewer) occluder.cameraPosition = viewer.camera.positionWC; });
   scene.postRender.addEventListener(() => { emitTelemetry(); emitAnchors(); });
   (viewer.cesiumWidget.creditContainer as HTMLElement).style.cssText =
-    "font:10px 'IBM Plex Sans',system-ui;opacity:.5;filter:grayscale(1) invert(1);";
+    "font:10px 'Instrument Sans',system-ui;opacity:.5;filter:grayscale(1) invert(1);";
   scene.screenSpaceCameraController.minimumZoomDistance = 20_000;
   scene.screenSpaceCameraController.maximumZoomDistance = planet === "mars" ? 40_000_000 : 80_000_000;
   viewer.camera.moveStart.addEventListener(() => { moving = true; emitTelemetry(true); });
