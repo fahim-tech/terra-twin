@@ -33,7 +33,7 @@ export function Measure({ value, unit, digits, className, missing = "—" }: {
   return (
     <span className={cx("whitespace-nowrap", className)}>
       <span className="num">{text}</span>
-      {u ? (u === "°" || u === "%" ? <span className="num">{u}</span> : <span className="ml-[0.18em] text-[0.82em] text-muted">{u}</span>) : null}
+      {u ? (u === "°" || u === "%" ? <span className="num">{u}</span> : <span className="ml-[0.18em] text-[length:max(11px,0.82em)] text-muted">{u}</span>) : null}
     </span>
   );
 }

@@ -114,9 +114,9 @@ function Track({ r }: { r: RatioRow }) {
         : <span className="absolute top-1/2 h-[11px] w-[11px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-earth ring-[1.5px] ring-space" style={{ left: pct(r.pos) }} />)}
       {linear && (
         <>
-          <span className="num absolute -bottom-2 left-0 text-[10.5px] leading-none text-faint">−0.3</span>
-          <span className="num absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10.5px] leading-none text-faint">Δ 0</span>
-          <span className="num absolute -bottom-2 right-0 text-[10.5px] leading-none text-faint">+0.3</span>
+          <span className="num absolute -bottom-2 left-0 text-[11px] leading-none text-muted">−0.3</span>
+          <span className="num absolute -bottom-2 left-1/2 -translate-x-1/2 text-[11px] leading-none text-muted">Δ 0</span>
+          <span className="num absolute -bottom-2 right-0 text-[11px] leading-none text-muted">+0.3</span>
         </>
       )}
     </div>

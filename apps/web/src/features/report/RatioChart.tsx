@@ -79,7 +79,7 @@ export function RatioChart({ rows }: { rows: TerrainRow[] }) {
                         {p.clipped !== 0 && <span className="num absolute top-1/2 -translate-y-1/2 text-num-sm text-earth" style={p.clipped < 0 ? { left: 14 } : { right: 14 }}>{p.clipped < 0 ? "‹ beyond" : "beyond ›"}</span>}
                       </div>
                     )}
-                    {r.transform === "linear" && <span className="num absolute -bottom-3 right-0 text-[10.5px] text-faint sm:-bottom-3.5">Δ ±0.3 axis</span>}
+                    {r.transform === "linear" && <span className="num absolute -bottom-3 right-0 text-[11px] text-muted sm:-bottom-3.5">Δ ±0.3 axis</span>}
                   </div>
                   <Measure value={r.mars} unit={r.unit} digits={digitsFor(r)} className="text-right text-num text-ink" />
                   <Measure value={r.earth} unit={r.unit} digits={digitsFor(r)} className="text-right text-num text-ink" />
