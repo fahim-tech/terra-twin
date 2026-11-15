@@ -61,7 +61,7 @@ function WindowRow({ c, on, onPick }: { c: Tier2Candidate; on: boolean; onPick: 
     <li>
       <button type="button" onClick={onPick} aria-pressed={on}
         aria-label={`${name}, ${coord(c.lat, c.lon)}, similarity ${sSpoken(c.S)}, ${measuresOf(c.coverage, T2_MEASURES) ?? "unknown"} of ${T2_MEASURES} measures`}
-        className={rowClass(on, cx(WINDOW_ROW, "py-2.5 max-xs:py-2"))}>
+        className={rowClass(on, cx(WINDOW_ROW, "py-2.5 max-md:py-2"))}>
         {on && <SelectionBar layoutId="t2-selection" />}
         <span className={cx("min-w-0 break-words text-label", on ? "text-earth" : "text-ink")}>{name}</span>
         <span className="num whitespace-nowrap text-num-sm text-muted max-xs:hidden">{coord(c.lat, c.lon)}</span>

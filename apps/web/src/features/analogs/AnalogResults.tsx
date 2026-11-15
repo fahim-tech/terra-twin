@@ -138,12 +138,14 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
 }
 
 /** Footer of the Live discovery stage: the selected refined window (S beside its validation caveat), or a hint. */
-function LiveFooter() {
+function LiveFooter({ phone }: { phone: boolean }) {
   const liveRunId = useApp((s) => s.liveRunId);
   const liveCandidate = useApp((s) => s.liveCandidate);
   const run = useDiscoveryRun(liveRunId);
   const c = run.data?.refinement?.candidates.find((x) => x.id === liveCandidate) ?? null;
-  if (!run.data?.refinement) return null;
+  // Phones leave it out: the selected row already carries the earth bar and its figure, and the half-height
+  // sheet keeps the decision in view.
+  if (!run.data?.refinement || phone) return null;
   return (
     <PanelFooter className="border-t border-line">
       {c ? (
@@ -259,7 +261,7 @@ export function AnalogResults() {
       </PanelBody>
 
       {/* The next step is the sticky footer action in every state, so it stays in reach at half height on phones. */}
-      {live ? <LiveFooter /> : noResult ? <NoResultFooter search={search} target={target} /> : <Footer current={current} search={search} target={target} phone={phone} />}
+      {live ? <LiveFooter phone={phone} /> : noResult ? <NoResultFooter search={search} target={target} /> : <Footer current={current} search={search} target={target} phone={phone} />}
     </div>
   );
 }

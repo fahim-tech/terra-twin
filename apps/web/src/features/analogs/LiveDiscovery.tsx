@@ -89,7 +89,7 @@ export function JobProgress({ job }: { job: DiscoveryJob }) {
       </div>
       {failed && (
         <div className="border-t border-bad/40 px-3 py-2.5 text-caption text-ink">
-          <p className="kicker !text-bad">Error{job.error?.type ? ` · ${job.error.type}` : ""}</p>
+          <p className="kicker !text-bad">Error{job.error?.type && <> · <span className="font-mono normal-case tracking-normal">{job.error.type}</span></>}</p>
           <p className="mt-1 break-words">{job.error?.message ?? "The job reported a failure without a message."}</p>
         </div>
       )}
@@ -110,12 +110,12 @@ function Annunciator({ run }: { run: DiscoveryRun }) {
         <OutcomeMark kind={outcomeKind(d.type)} />
         <span className="min-w-0">
           {term ? <Term k={term}>{DECISION_WORDS[d.type]}</Term> : DECISION_WORDS[d.type]}
-          {d.type === "tied_set" && <span className="text-muted"> · {d.members.length} equivalent windows</span>}
+          {d.type === "tied_set" && <span className="text-muted"> · {d.members.length}<span className="max-md:sr-only"> equivalent</span> windows</span>}
         </span>
       </h4>
       {/* Above the members, always in view: a tie is an unordered set. */}
       {d.type === "tied_set"
-        ? <span className="kicker !text-ink/80">Unordered · west → east</span>
+        ? <span className="kicker shrink-0 !text-ink/80"><span className="md:hidden">Unordered · W → E</span><span className="max-md:hidden">Unordered · west → east</span></span>
         : typeof rot === "number" ? <span className="num text-num-sm uppercase text-muted">{rot} orientations checked</span> : null}
     </div>
   );
@@ -190,16 +190,16 @@ function CandidateDetail({ c, run, index }: { c: DiscoveryCandidate; run: Discov
     <section aria-labelledby="live-detail" className="mt-6">
       <SectionHead id="live-detail" index={index}>Selected window</SectionHead>
       <div className="mt-2.5 border border-line-strong">
-        <div className="relative flex items-baseline justify-between gap-3 px-3 py-2.5 pl-4">
+        <div className="relative px-3 py-2.5 pl-4">
           <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-earth" />
-          <span className="min-w-0">
-            <span className="num block text-num text-earth">{cellLabel(c.lat, c.lon)}</span>
-            <span className="mt-0.5 block break-all font-mono text-[10.5px] text-faint">{c.id}</span>
-          </span>
-          <span className="shrink-0 text-right">
-            <SFigure value={c.S} term className="text-[22px] text-ink" />
-            <span className="mt-1 block text-caption text-muted">validated on <Term k="synthetic">synthetic twins only</Term></span>
-          </span>
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="num min-w-0 whitespace-nowrap text-num text-earth">{cellLabel(c.lat, c.lon)}</span>
+            <SFigure value={c.S} term className="shrink-0 text-[22px] text-ink" />
+          </div>
+          <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3">
+            <span className="break-all font-mono text-[10.5px] text-faint">{c.id}</span>
+            <span className="text-caption text-muted">validated on <Term k="synthetic">synthetic twins only</Term></span>
+          </div>
         </div>
         {tieMember && <p className="flex items-center gap-2 border-t border-line px-3 py-1.5 text-caption text-ink/85"><OutcomeMark kind="tie" />One of {r.decision.members.length} tied windows</p>}
       </div>

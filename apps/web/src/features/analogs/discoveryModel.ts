@@ -75,7 +75,7 @@ export function westToEast<T extends { lon: number }>(xs: readonly T[]): T[] {
 export function decisionMembers(run: DiscoveryRun): DiscoveryCandidate[] {
   const r = run.refinement;
   if (!r) return [];
-  const ids = new Set(r.decision.members);
+  const ids = namedIds(run);
   return westToEast(r.candidates.filter((c) => ids.has(c.id)));
 }
 
@@ -83,10 +83,19 @@ export function decisionMembers(run: DiscoveryRun): DiscoveryCandidate[] {
  * Candidates outside the decision (context only). Payload order is kept; a named leader or tie member is
  * never mixed in, and no rank number is shown for them.
  */
+/**
+ * The windows a decision names: the stable leader or the tied set. "No convincing analog" and "not enough
+ * evidence" name none (their `members` are the closest windows, which the decision explicitly does not name).
+ */
+function namedIds(run: DiscoveryRun): Set<string> {
+  const d = run.refinement?.decision;
+  return new Set(d && (d.type === "named_leader" || d.type === "tied_set") ? d.members : []);
+}
+
 export function otherCandidates(run: DiscoveryRun): DiscoveryCandidate[] {
   const r = run.refinement;
   if (!r) return [];
-  const ids = new Set(r.decision.members);
+  const ids = namedIds(run);
   return r.candidates.filter((c) => !ids.has(c.id));
 }
 

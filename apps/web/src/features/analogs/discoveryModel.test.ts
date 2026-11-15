@@ -7,7 +7,7 @@ import {
 } from "./discoveryModel";
 
 const cand = (id: string, lon: number, S: number | null) => ({ id, lat: 10, lon, S, coverage: 1 });
-const run = (type: "tied_set" | "named_leader", members: string[]): DiscoveryRun => ({
+const run = (type: "tied_set" | "named_leader" | "no_convincing_analog", members: string[]): DiscoveryRun => ({
   run_id: "r", status: "ok",
   refinement: {
     target: { lat: 0, lon: 0, window_km: 50 }, representation: "mars_observation_space", mission: "rover_mobility", window_km: 50,
@@ -25,6 +25,10 @@ describe("tied sets are unordered", () => {
   });
   it("keeps members out of the context list", () => {
     expect(otherCandidates(run("tied_set", ["east", "west", "mid"])).map((c) => c.id)).toEqual(["other"]);
+  });
+  it("a decision that names no analog lists no members", () => {
+    expect(decisionMembers(run("no_convincing_analog", ["east", "west"]))).toEqual([]);
+    expect(otherCandidates(run("no_convincing_analog", ["east", "west"]))).toHaveLength(4);
   });
   it("westToEast does not mutate its input", () => {
     const xs = [{ lon: 5 }, { lon: -5 }];

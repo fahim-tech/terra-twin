@@ -43,7 +43,9 @@ function useLiveGlobe() {
   }, [bus, live]);
 
   useEffect(() => {
-    const members = new Set(r?.decision.members ?? []);
+    // Only a stable leader or a tied set names windows; the closest windows of "no convincing analog" stay candidates.
+    const named = r && (r.decision.type === "named_leader" || r.decision.type === "tied_set");
+    const members = new Set(named ? r.decision.members : []);
     const cands = live && r ? r.candidates : [];
     bus.send("earth", {
       t: "setMarkers", group: "live", options: { labels: "none" },

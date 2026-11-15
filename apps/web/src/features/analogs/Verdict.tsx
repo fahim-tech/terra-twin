@@ -64,7 +64,7 @@ export function DecisionHead({ t2, id, as: As = "h4" }: { t2: Tier2Result; id?: 
         <OutcomeMark kind={c.mark} />
         <span className="min-w-0">
           {c.term ? <Term k={c.term}>{c.title}</Term> : c.title}
-          {d.type === "tied_set" && <span className="text-muted"> · {d.members.length} equivalent windows</span>}
+          {d.type === "tied_set" && <span className="text-muted"> · {d.members.length}<span className="max-md:sr-only"> equivalent</span> windows</span>}
         </span>
       </As>
       {/* Phones drop the column heads, so a tie says its listing order here, always above its members. */}
