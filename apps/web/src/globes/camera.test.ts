@@ -80,10 +80,11 @@ describe("flight rules", () => {
     expect(flightPitchDeg("mars", 1_100, false)).toBe(-90); // the user chose top-down
   });
 
-  it("reads telemetry pitch as 3D only when clearly tilted", () => {
+  it("reads telemetry pitch as 3D whenever the camera is not looking straight down", () => {
     expect(isTilted(-90)).toBe(false);
-    expect(isTilted(-84)).toBe(false);
-    expect(isTilted(-62)).toBe(true);
+    expect(isTilted(-88.5)).toBe(false);
+    expect(isTilted(-80.5)).toBe(true); // tilted around Mars's home view, 10,400 km out
+    expect(isTilted(-62)).toBe(true); // site-scale approach
     expect(isTilted(null)).toBe(false);
     expect(isTilted(undefined)).toBe(false);
   });

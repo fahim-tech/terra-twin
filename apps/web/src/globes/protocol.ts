@@ -95,7 +95,10 @@ export interface CameraTelemetry {
   metersPerPixel: number | null;
   /** Direction of north at the frame centre, degrees clockwise (the compass). */
   headingDeg: number;
-  /** Camera pitch below its own horizon: −90 looking straight down, about −56° to −69° in the 3D view. */
+  /**
+   * Camera pitch below its own horizon: exactly −90 looking straight down; in the 3D view about −56° to −69°
+   * at site scale, nearer −90° from far away (see camera.ts isTilted).
+   */
   pitchDeg: number;
   moving: boolean;
 }

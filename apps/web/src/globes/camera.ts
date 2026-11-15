@@ -43,9 +43,14 @@ export function flightPitchDeg(planet: Planet, depthKm: number, tiltOn: boolean)
   return tiltOn && depthKm <= SITE_SCALE_KM[planet] ? OBLIQUE_PITCH_DEG : -90;
 }
 
-/** Whether a camera pitch (telemetry, relative to the camera's own horizon) reads as the 3D view. */
+/**
+ * Whether a camera pitch (telemetry, relative to the camera's own horizon) reads as the 3D view. Top-down
+ * placements, drags and wheel zooms keep the camera at exactly −90°; a 3D view reads −56° to −69° at site
+ * scale and creeps towards −90° from far away (−80° to −87° when tilted around a whole-planet view), as the
+ * camera's own horizon turns away from the target's.
+ */
 export function isTilted(pitchDeg: number | null | undefined): boolean {
-  return typeof pitchDeg === "number" && Number.isFinite(pitchDeg) && pitchDeg > -80;
+  return typeof pitchDeg === "number" && Number.isFinite(pitchDeg) && pitchDeg > -88;
 }
 
 /**
