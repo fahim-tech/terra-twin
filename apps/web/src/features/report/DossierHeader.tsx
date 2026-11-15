@@ -53,7 +53,7 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <span aria-hidden className="h-1.5 w-1.5 shrink-0 bg-ink" />
           <span className="kicker !text-ink">TerraTwin · Mission dossier</span>
-          <span className="kicker sm:border-l sm:border-line-strong sm:pl-3">{basis}</span>
+          <span className="kicker text-balance sm:border-l sm:border-line-strong sm:pl-3">{basis}</span>
         </div>
         <Exports search={search} c={c} mission={mission} generatedAt={generatedAt} />
       </div>
