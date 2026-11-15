@@ -47,12 +47,16 @@ export function ScoreFigure({ c, className, symbolClassName }: { c: CandidateVie
   );
 }
 
-export function BackToResults({ className }: { className?: string }) {
+/**
+ * Back to the Earth results. `compact`: in a strip narrowed beside the Why brief the word gives way
+ * (the arrow keeps its accessible name), so the mode switch keeps its row.
+ */
+export function BackToResults({ className, compact = false }: { className?: string; compact?: boolean }) {
   const go = useApp((s) => s.go);
   return (
-    <button type="button" onClick={() => go("earth")} aria-label="Back to Earth results"
-      className={cx("hit label-caps -ml-1 inline-flex shrink-0 items-center gap-1.5 px-1 py-1 text-muted transition-colors duration-150 hover:text-ink active:text-ink/70 active:duration-0", className)}>
-      <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> Results
+    <button type="button" onClick={() => go("earth")} aria-label="Back to Earth results" title="Back to Earth results"
+      className={cx("hit label-caps -ml-1 inline-flex shrink-0 items-center justify-center gap-1.5 px-1 py-1 text-muted transition-colors duration-150 hover:text-ink active:text-ink/70 active:duration-0", className)}>
+      <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> <span className={cx(compact && "@max-[600px]:hidden")}>Results</span>
     </button>
   );
 }
@@ -76,10 +80,10 @@ function Validation({ c, lead = "Validated on" }: { c: CandidateView; lead?: str
 }
 
 /** One planet's half of the pair heading: kicker (decorative; the heading text names the planet) and toponym. */
-function PairName({ planet, name, role, size, className }: { planet: Planet; name: string; role: string; size: "lg" | "md" | "sm"; className?: string }) {
+function PairName({ planet, name, role, size, className, roleClassName }: { planet: Planet; name: string; role: string; size: "lg" | "md" | "sm"; className?: string; roleClassName?: string }) {
   return (
     <span className={cx("block min-w-0", className)}>
-      <PlanetLabel planet={planet} role={role} hidden />
+      <PlanetLabel planet={planet} role={role} roleClassName={roleClassName} hidden />
       <span className={cx("toponym mt-2 block break-words text-ink",
         size === "lg" ? "text-[24px] leading-[1.02] tracking-[0.03em]" : size === "md" ? "text-[20px] leading-[1.04] tracking-[0.04em]" : "text-[17px] leading-[1.06] tracking-[0.04em]")}>
         {name}
@@ -119,9 +123,10 @@ export function TelemetryReadout({ c, basis, targets, verdict, onWhy, narrow }: 
         {/* The pair is the stage heading; the planet kickers and roles are visual only. */}
         <h2 data-stage-heading="compare" tabIndex={-1} style={NO_RING} className="col-span-2 col-start-1 row-start-1 grid grid-cols-subgrid">
           <span className="sr-only">Comparing </span>
-          <PairName planet="mars" name={targets.mars.name} role="Target" size={narrow ? "md" : "lg"} className="px-4 pt-3" />
+          {/* Beside the brief, cells under ~600 px drop the role words (the planet still names each half). */}
+          <PairName planet="mars" name={targets.mars.name} role="Target" size={narrow ? "md" : "lg"} className="px-4 pt-3" roleClassName={narrow ? "@max-[600px]:hidden" : undefined} />
           <span className="sr-only"> on Mars with </span>
-          <PairName planet="earth" name={targets.earth.name} role="Candidate" size={narrow ? "md" : "lg"} className="border-l border-line px-4 pt-3" />
+          <PairName planet="earth" name={targets.earth.name} role="Candidate" size={narrow ? "md" : "lg"} className="border-l border-line px-4 pt-3" roleClassName={narrow ? "@max-[600px]:hidden" : undefined} />
           <span className="sr-only"> on Earth</span>
         </h2>
         <Coords lat={targets.mars.lat} lon={targets.mars.lon} className="col-start-1 row-start-2 px-4 pb-3 pt-1.5" />

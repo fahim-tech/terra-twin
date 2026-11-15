@@ -38,7 +38,8 @@ export function ModeSwitch({ modes, value, expanded, onChange, fill = false, cla
             onClick={() => onChange(m.value)}
             className={cx(
               "hit relative whitespace-nowrap font-semibold uppercase leading-none transition-colors duration-150 active:duration-0 focus-visible:z-10",
-              fill ? "flex-auto px-2 py-3 text-[10.5px] tracking-[0.08em]" : "px-3.5 py-[9px] text-[11px] tracking-[0.12em]",
+              // Strips narrowed beside the Why brief (container < 600 px) tighten the cells so all four fit.
+              fill ? "flex-auto px-2 py-3 text-[10.5px] tracking-[0.08em]" : "px-3.5 py-[9px] text-[11px] tracking-[0.12em] @max-[600px]:px-2.5 @max-[600px]:tracking-[0.07em]",
               i > 0 && "border-l border-line-strong",
               on ? "bg-ink text-space" : "text-muted hover:bg-white/[0.06] hover:text-ink active:bg-white/[0.14]",
             )}>

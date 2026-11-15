@@ -200,10 +200,11 @@ export function ComparisonPanel() {
         ) : (
           <>
             {expanded ? <CompactReadout {...readout} narrow={narrow} /> : <TelemetryReadout {...readout} narrow={narrow} />}
-            <div className="order-first flex min-h-11 shrink-0 items-center gap-3 border-b border-line py-1.5 pl-4 pr-2">
-              <BackToResults />
+            <div className="order-first flex min-h-11 shrink-0 items-center gap-3 border-b border-line py-1.5 pl-4 pr-2 @max-[600px]:gap-2 @max-[600px]:pl-3">
+              <BackToResults compact />
               <span aria-hidden className="h-4 w-px shrink-0 bg-line-strong" />
-              <span className="kicker hidden min-w-0 truncate @min-[760px]:block">Comparison · {targets.footprintLabel}s</span>
+              {/* Shown only where it fits whole beside the switch (never cut to "WINDO…"). */}
+              <span className="kicker hidden min-w-0 truncate @min-[940px]:block">Comparison · {targets.footprintLabel}s</span>
               <div className="ml-auto flex shrink-0 items-center gap-1">
                 <ModeSwitch modes={modes} value={mode} expanded={expanded} onChange={setMode} />
                 {expanded && (

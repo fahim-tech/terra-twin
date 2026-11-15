@@ -21,13 +21,21 @@ export function PlanetMark({ planet, className }: { planet: Planet; className?: 
   return <span aria-hidden className={cx("inline-block h-1.5 w-1.5 shrink-0", planet === "mars" ? "bg-mars" : "bg-earth", className)} />;
 }
 
-/** "■ MARS · TARGET": planet kicker with an optional role, uppercase and tracked. */
-export function PlanetLabel({ planet, role, className, hidden }: { planet: Planet; role?: ReactNode; className?: string; hidden?: boolean }) {
+/**
+ * "■ MARS · TARGET": planet kicker with an optional role, uppercase and tracked. Never wider than its
+ * cell: the role truncates, or gives way entirely where `roleClassName` hides it (narrow cells).
+ */
+export function PlanetLabel({ planet, role, className, roleClassName, hidden }: { planet: Planet; role?: ReactNode; className?: string; roleClassName?: string; hidden?: boolean }) {
   return (
-    <span aria-hidden={hidden || undefined} className={cx("kicker inline-flex min-w-0 items-center gap-2", className)}>
+    <span aria-hidden={hidden || undefined} className={cx("kicker inline-flex min-w-0 max-w-full items-center gap-2", className)}>
       <PlanetMark planet={planet} />
-      <span className="text-ink/85">{PLANET_NAME[planet]}</span>
-      {role && <><span aria-hidden className="h-px w-2.5 shrink-0 bg-line-strong" /><span className="truncate">{role}</span></>}
+      <span className="shrink-0 text-ink/85">{PLANET_NAME[planet]}</span>
+      {role && (
+        <span className={cx("inline-flex min-w-0 items-center gap-2", roleClassName)}>
+          <span aria-hidden className="h-px w-2.5 shrink-0 bg-line-strong" />
+          <span className="min-w-0 truncate">{role}</span>
+        </span>
+      )}
     </span>
   );
 }
