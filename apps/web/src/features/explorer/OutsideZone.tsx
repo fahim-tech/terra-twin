@@ -100,12 +100,12 @@ export function OutsideActions({ selection }: { selection: Selection }) {
     if (!near) return;
     set({ origin: selection, kept: null });
     select(zoneSelection(near.site));
-    useApp.getState().announce(`Moved to the nearest research zone, ${near.name}, ${formatKm(near.km ?? 0)} away. Your point ${formatCoord(selection.lat, selection.lon)} stays marked.`);
+    useApp.getState().announce(`Moved to the nearest research zone, ${near.name}${near.km !== null && near.km !== undefined ? `, ${formatKm(near.km)} away` : ""}. Your point ${formatCoord(selection.lat, selection.lon)} stays marked.`);
   };
   return (
     <div className="space-y-1.5">
       <Button variant="primary-mars" className="w-full py-2.5" onClick={go} disabled={!near}>
-        {near ? <>Go to nearest zone · {near.name} · <KmFigure km={near.km ?? 0} /><span className="sr-only"> to its centre</span></> : "Loading research zones…"}
+        {near ? <span>Go to nearest zone · {near.name}{near.km !== null && near.km !== undefined && <> · <KmFigure km={near.km} /><span className="sr-only"> to its centre</span></>}</span> : "Loading research zones…"}
         <ArrowRight className="h-4 w-4" aria-hidden />
       </Button>
       {!isKept && (
