@@ -12,13 +12,15 @@ import { Availability } from "./Availability";
 import { Locator } from "./Locator";
 import { useExplorer } from "./explorerStore";
 import { useSiteOutcomes } from "./outcomes";
-import { OutsideActions, OutsideBody } from "./OutsideZone";
+import { ContextReadout, GridReadout } from "./GisPoint";
+import { OutsideActions, OutsideBody, useGisAvailable } from "./OutsideZone";
 import { Mark, Readout, Section, SectionTitle } from "./parts";
 import type { Scales } from "./readouts";
 import { Terrain, TerrainSkeleton } from "./Terrain";
 import { useRunSearch } from "./useRunSearch";
 import { useScales } from "./useScales";
 import { formatCoord, FOOTPRINTS } from "./zones";
+import { DiscoveryAction } from "../analogs/DiscoveryAction";
 
 /**
  * Inspector for the selected Mars point, laid out like a telemetry panel: the target (name and
@@ -40,6 +42,12 @@ export function MarsInspector() {
   const sites = useSites();
   const root = useRef<HTMLDivElement>(null);
   const inSheet = useSheetFit(root, !!selection);
+  const gis = useGisAvailable();
+  // Closing unmounts the Close button; keep keyboard users in place by moving focus to the search field.
+  const close = () => {
+    select(null);
+    requestAnimationFrame(() => document.querySelector<HTMLInputElement>("input[role=combobox]")?.focus());
+  };
 
   // Announce when the measurements for a new selection arrive (or fail).
   const announced = useRef<string | null>(null);
@@ -63,7 +71,7 @@ export function MarsInspector() {
 
   return (
     <div ref={root} className={cx("group/insp flex min-h-0 flex-col overflow-clip", inSheet && "h-full")}>
-      <PanelHeader onClose={() => select(null)} className={cx(inSheet ? "pb-2 pr-14 pt-1!" : "pr-[76px]")}>
+      <PanelHeader onClose={close} className={cx(inSheet ? "pb-2 pr-14 pt-1!" : "pr-[76px]")}>
         {/* Where on Mars (panel only; the phone sheet keeps its header compact). */}
         {!inSheet && <div className="absolute right-4 top-[54px]"><Locator lat={selection.lat} lon={selection.lon} zones={sites.data} /></div>}
         <div className="flex items-center gap-2">
@@ -119,14 +127,36 @@ export function MarsInspector() {
             <Section n={4} title="Evidence availability">
               {a ? <Availability a={a} /> : q.isLoading ? <div aria-hidden className="h-4 w-56 animate-pulse rounded-control bg-elevated motion-reduce:animate-none" /> : <p className="text-caption text-faint">Not loaded.</p>}
             </Section>
+            {/* Point facts from the GIS grids: they describe the picked point, not the zone's research record above. */}
+            {gis && (
+              <>
+                <Section n={5} title="1 km grid at this point">
+                  <GridReadout lat={selection.lat} lon={selection.lon} />
+                </Section>
+                <Section n={6} title="Context · not used in similarity">
+                  <ContextReadout lat={selection.lat} lon={selection.lon} />
+                </Section>
+                {/* In the phone sheet the discovery command lives here, so the docked footer stays one row high. */}
+                {inSheet && (
+                  <Section n={7} title="Global discovery">
+                    <DiscoveryAction selection={selection} variant="outline" />
+                  </Section>
+                )}
+              </>
+            )}
           </>
         )}
       </PanelBody>
 
       {/* Docked command. In the phone sheet it is hidden at the peek detent, where it would cover the header. */}
       <PanelFooter className={cx("border-t border-line", inSheet ? "pt-2.5! group-data-[peek=true]/insp:hidden" : "pt-4!")}>
-        {outside ? <OutsideActions selection={selection} />
-          : <ZoneActions a={!!a} pending={search.pending} error={search.error} onRun={() => search.run(selection)} compact={inSheet} />}
+        {outside ? <OutsideActions selection={selection} compact={inSheet} />
+          : (
+            <>
+              <ZoneActions a={!!a} pending={search.pending} error={search.error} onRun={() => search.run(selection)} compact={inSheet} />
+              {gis && !inSheet && <DiscoveryAction selection={selection} variant="outline" caption={false} className="mt-2" />}
+            </>
+          )}
       </PanelFooter>
     </div>
   );
@@ -190,15 +220,17 @@ function missionEffect(m: MissionProfile | undefined): ReactNode {
   if (!m) return null;
   if (!m.available) return m.reason_unavailable ?? "Not available yet.";
   const desc = m.description.trim();
+  // The mission weights only the global screen; the research comparison uses equal weights, and the mission
+  // only sets its land-cover filter. Say each stage's part, so the outcome below never reads as mission-weighted.
   if (m.gate_mode === "report") {
-    const rest = desc.split(/(?<=\.)\s+/).slice(1).join(" ");
-    return rest || "Land cover is reported, never used to exclude.";
+    const rest = desc.split(/(?<=\.)\s+/).slice(1).join(" ").trim();
+    return <>Both stages: {rest ? `${rest[0].toLowerCase()}${rest.slice(1)}` : "equal weights; land cover reported, never used to exclude."}</>;
   }
   const weights = (desc.includes(":") ? desc.slice(desc.indexOf(":") + 1) : desc).trim().replace(/\.$/, "") || null;
   return (
     <>
-      {weights ? `${weights[0].toUpperCase()}${weights.slice(1)}; ` : ""}
-      <Term k="landCover">{weights ? "vegetated ground" : "Vegetated ground"}</Term> is removed before ranking.
+      {weights && <>Global screen: {weights}. </>}
+      Research comparison: equal weights; windows that are <Term k="landCover">vegetated or lack exposed ground</Term> are removed before ranking.
     </>
   );
 }
