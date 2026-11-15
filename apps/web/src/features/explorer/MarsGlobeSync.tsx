@@ -3,6 +3,7 @@ import { useGlobeBus, useGlobeEvents } from "../../app/globeBus";
 import { useLayout } from "../../app/useLayout";
 import { zoneName } from "../../lib/glossary";
 import { useSites } from "../../services/api";
+import { DataLayerSync } from "../../components/datalayers/DataLayerSync";
 import { useApp } from "../../store/app";
 import { useExplorer } from "./explorerStore";
 import { introOverlapsPlanet } from "./readouts";
@@ -24,6 +25,7 @@ export function MarsGlobeSync() {
   const selection = useApp((s) => s.selection);
   const footprintKm = useApp((s) => s.footprintKm);
   const introOpen = useApp((s) => s.introOpen);
+  const stage = useApp((s) => s.stage);
 
   // The title screen's three-quarter light, set for legibility (not the Sun's position), follows the intro
   // itself — not the idle spin, which stops at the first touch or never runs under reduced motion.
@@ -88,5 +90,6 @@ export function MarsGlobeSync() {
       if (site) { useExplorer.getState().set({ origin: null }); select(zoneSelection(site)); }
     }
   });
-  return null;
+  // The 1 km data layer is drawn only while the explorer (and the layer's legend) is on screen.
+  return <DataLayerSync planet="mars" active={stage === "mars" && !introOpen} />;
 }

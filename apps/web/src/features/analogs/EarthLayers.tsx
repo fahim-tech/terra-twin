@@ -1,4 +1,9 @@
 import { ChevronDown } from "lucide-react";
+import { useEffect, useId, useState } from "react";
+import { DataLayersControl } from "../../components/datalayers/DataLayersControl";
+import { DataLayerSync } from "../../components/datalayers/DataLayerSync";
+import { useDataLayers } from "../../store/dataLayers";
+import { useGridInfo } from "../../services/gis";
 import { PlanetMark } from "../../components/marks";
 import { Term } from "../../components/primitives";
 import { cx } from "../../components/ui";
@@ -87,6 +92,29 @@ function SimilarityLegend({ lg, km }: { lg: VisualizationLegend["tier1_similarit
 }
 
 /** Earth layer panel: a segmented set of layer switches (similarity field, research pool, screened land, reference sites) and their legend. */
+/** The 1 km grid's data layers inside the Earth layers panel: a folding row naming the layer drawn. */
+function EarthDataLayers() {
+  const open = useDataLayers((s) => s.open.earth);
+  const chosen = useDataLayers((s) => s.layer.earth);
+  const info = useGridInfo("earth");
+  const label = chosen ? info.data?.layers.find((l) => l.name === chosen)?.label ?? null : null;
+  const id = useId();
+  return (
+    <div className="border-t border-line">
+      <button type="button" aria-expanded={open} aria-controls={id} onClick={() => useDataLayers.getState().setOpen("earth", !open)}
+        className="hit flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.04]">
+        <span className={cx(CAPS, "shrink-0 !text-ink/85")}>1 km data layers</span>
+        <span className="min-w-0 flex-1 truncate text-right text-caption text-muted">{label ?? "None"}</span>
+        <ChevronDown aria-hidden className={cx("h-4 w-4 shrink-0 text-muted transition-transform duration-200", open && "rotate-180")} />
+      </button>
+      {open && <div id={id} className="border-t border-line"><DataLayersControl planet="earth" /></div>}
+    </div>
+  );
+}
+
+/** Below this window width a chosen candidate's glyph can stand under the unfolded panel: it folds to its header then. */
+const FOLD_BELOW_PX = 1200;
+
 export function EarthLayers() {
   const overlays = useApp((s) => s.earthOverlays);
   const search = useApp((s) => s.search);
@@ -98,6 +126,11 @@ export function EarthLayers() {
   const phone = useLayout() === "phone";
   const legend = useLegend();
   const pool = useEarthPool();
+  const candidateId = useApp((s) => s.candidateId);
+  const [folded, setFolded] = useState(false);
+  // A candidate chosen on a narrower screen: fold to the header row so the panel does not cover its glyph.
+  useEffect(() => { if (candidateId && window.innerWidth < FOLD_BELOW_PX) setFolded(true); }, [candidateId]);
+  const bodyId = useId();
   const toggle = (key: keyof typeof overlays) => set({ earthOverlays: { ...overlays, [key]: !overlays[key] } });
   const lg = legend.data?.tier1_similarity;
   const cov = legend.data?.tier1_coverage;
@@ -120,11 +153,15 @@ export function EarthLayers() {
 
   return (
     <div className="surface frame rounded-surface" data-occludes="earth" role="group" aria-label="Earth layers">
+      <DataLayerSync planet="earth" active />
       {!phone && (
-        <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-2.5">
+        <button type="button" aria-expanded={!folded} aria-controls={bodyId} onClick={() => setFolded((f) => !f)}
+          className="hit flex w-full items-center justify-between gap-3 px-3 pb-2 pt-2.5 text-left transition-colors hover:bg-white/[0.03]">
           <span className="kicker flex items-center gap-2 !text-ink/85"><PlanetMark planet="earth" />Earth layers</span>
-        </div>
+          <ChevronDown aria-hidden className={cx("h-4 w-4 text-muted transition-transform duration-200", !folded && "rotate-180")} />
+        </button>
       )}
+      {!(folded && !phone) && <div id={bodyId}>
       <div className={cx("flex", !phone && "border-t border-line")}>
         <div className={cx(phone ? "flex min-w-0 flex-1" : "grid flex-1 grid-cols-2")}>
           {cells.map((c, i) => (
@@ -132,14 +169,16 @@ export function EarthLayers() {
               className={cx(phone ? i > 0 && "border-l border-line" : cx(i % 2 === 1 && "border-l border-line", i >= 2 && "border-t border-line"))} />
           ))}
         </div>
-        {phone && anyLegend && (
-          <button type="button" aria-expanded={legendOpen} aria-label={legendOpen ? "Hide legend" : "Show legend"} onClick={() => useEarthLocal.setState({ legendOpen: !legendOpen })}
+        {phone && (
+          <button type="button" aria-expanded={legendOpen} aria-label={legendOpen ? "Hide legend and data layers" : "Show legend and data layers"} onClick={() => useEarthLocal.setState({ legendOpen: !legendOpen })}
             className="hit grid w-10 shrink-0 place-items-center border-l border-line text-muted transition-colors hover:bg-white/[0.05] hover:text-ink active:bg-white/[0.1] active:duration-0">
             <ChevronDown className={cx("h-4 w-4 transition-transform duration-200", legendOpen && "rotate-180")} aria-hidden />
           </button>
         )}
       </div>
 
+      {!phone && <EarthDataLayers />}
+      {phone && legendOpen && <EarthDataLayers />}
       {showLegend && anyLegend && (
         <div className="space-y-3 border-t border-line px-3 pb-3 pt-2.5">
           {overlays.similarity && hasT1 && lg && <SimilarityLegend lg={lg} km={screenCellKm(search)} />}
@@ -186,6 +225,7 @@ export function EarthLayers() {
           )}
         </div>
       )}
+      </div>}
     </div>
   );
 }

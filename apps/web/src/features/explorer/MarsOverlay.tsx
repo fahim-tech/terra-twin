@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
+import { MarsDataLayersPanel } from "../../components/datalayers/DataLayersControl";
 import { cx } from "../../components/ui";
+import { useLayout } from "../../app/useLayout";
 import { zoneName } from "../../lib/glossary";
 import { R_MARS_M } from "../../lib/geodesy";
 import { useSites } from "../../services/api";
@@ -21,11 +23,12 @@ const NEAR_KM = 900;
  * Callout label: a dark plate with corner brackets, condensed caps name over a mono coordinate. The name
  * wraps (balanced) when the callout caps the plate's width; the coordinate stays on one line.
  */
-function Plate({ title, coord, tone, align = "left" }: { title: string; coord: string; tone: "mars" | "neutral"; align?: "left" | "right" }) {
+function Plate({ title, coord, tone, align = "left", compact = false }: { title: string; coord: string; tone: "mars" | "neutral"; align?: "left" | "right"; compact?: boolean }) {
   const frame = { "--frame-l": "6px", "--frame-c": tone === "mars" ? "rgb(236 127 83 / 0.95)" : "rgb(242 244 245 / 0.7)" } as CSSProperties;
   return (
     <div style={frame} className={cx("frame on-imagery bg-[rgb(2_3_4/0.8)] px-2.5 pb-[5px] pt-[3px]", align === "right" && "text-right")}>
-      <div className="toponym text-balance text-[16px] leading-[1.2] tracking-[0.06em] text-ink">{title}</div>
+      {/* Phones: a smaller name, so a long zone name wraps to two balanced lines at most. */}
+      <div className={cx("toponym text-balance leading-[1.2] tracking-[0.06em] text-ink", compact ? "text-[14px]" : "text-[16px]")}>{title}</div>
       <div className="num whitespace-nowrap text-[11px] leading-[1.3] text-ink/80">{coord}</div>
     </div>
   );
@@ -42,6 +45,7 @@ export function MarsOverlay() {
   const mpp = useGlobes((s) => s.camera.mars?.metersPerPixel ?? null);
   const footprintKm = useApp((s) => s.footprintKm);
   const sites = useSites();
+  const phone = useLayout() === "phone";
   // The selection label sits outside the AOI square drawn around the point. On phones the zone's outline
   // is close around the point too and the label is wider than the gap beside it, so there the label also
   // clears the zone outline vertically (top-down camera: degrees of latitude → px via the frame's scale).
@@ -76,20 +80,21 @@ export function MarsOverlay() {
       id: "selection", lat: selection.lat, lon: selection.lon, tone: "mars", side: "ne",
       clear: { n: clearFor("n"), s: clearFor("s") }, markerR: 11, boxPx: aoiHalfPx,
       ...around(selection.lat, selection.lon, zone?.id ?? null),
-      content: <Plate tone="mars" title={selection.siteId ? zoneName(selection.siteId) : "Selected point"} coord={formatCoord(selection.lat, selection.lon)} />,
+      content: <Plate tone="mars" compact={narrow} title={selection.siteId ? zoneName(selection.siteId) : "Selected point"} coord={formatCoord(selection.lat, selection.lon)} />,
     });
   }
   if (origin && selection && (origin.lat !== selection.lat || origin.lon !== selection.lon)) {
     items.push({
       id: "origin", lat: origin.lat, lon: origin.lon, tone: "neutral", side: "sw",
       ...around(origin.lat, origin.lon, null),
-      content: (side) => <Plate tone="neutral" title="Your point" coord={formatCoord(origin.lat, origin.lon)} align={side.endsWith("w") ? "right" : "left"} />,
+      content: (side) => <Plate tone="neutral" compact={narrow} title="Your point" coord={formatCoord(origin.lat, origin.lon)} align={side.endsWith("w") ? "right" : "left"} />,
     });
   }
   return (
     <>
       <Callouts items={items} />
       <HoverReadout />
+      <MarsDataLayersPanel phone={phone} />
     </>
   );
 }
