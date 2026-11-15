@@ -25,13 +25,14 @@ export const GLOSSARY = {
   globalScreen: {
     label: "Global screen",
     term: "Tier 1 coarse screening",
-    definition: "All 249,165 GMTED2010 land cells (≈25 km) compared with the Mars zone on seven terrain descriptors, Earth as measured, mission-weighted. A wide net, not a verdict.",
+    // Counts and grid facts are filled from the payloads by glossaryDefinition(); this fixed text names none.
+    definition: "Every GMTED2010 land cell of the global screen compared with the Mars zone on the tier-1 terrain descriptors, Earth as measured, mission-weighted. A wide net, not a verdict.",
     source: "earth_global_screen.parquet · similarity.score",
   },
   researchComparison: {
     label: "Research comparison",
     term: "Tier 2 observation-operator matching (OOM)",
-    definition: "Published research record for this zone: a fixed pool of 230 Earth windows (50 km, 463 m grid) re-observed the way MOLA observed the Mars site, then compared on eight descriptors.",
+    definition: "Published research record for this zone: a fixed pool of Earth windows re-observed the way MOLA observed the Mars site, then compared on the tier-2 terrain descriptors.",
     source: "G2/G5 · oom_real_mars_*decisions.csv",
   },
   similarity: {
@@ -57,12 +58,12 @@ export const GLOSSARY = {
   researchZone: {
     label: "Research zone",
     term: "Exploration Zone (EZ)",
-    definition: "One of 39 candidate human-landing zones from NASA's 2015 workshop, with terrain measured from the 463 m MOLA grid.",
+    definition: "One of the candidate human-landing zones from NASA's 2015 workshop, with terrain measured from the MOLA grid.",
   },
   landCover: {
     label: "Land-cover filter",
     term: "Mission-conditional ESA WorldCover gate",
-    definition: "For field-test missions, windows that are vegetated (> 20 %) or have little exposed ground (< 50 %) are removed before ranking. Thresholds are working hypotheses.",
+    definition: "For field-test missions, windows that are vegetated or have little exposed ground are removed before ranking. Thresholds are working assumptions.",
   },
   synthetic: { label: "synthetic twins only", term: "Validation status", definition: G5.validation },
   scope: { label: "Terrain geometry only", term: "Scope", definition: G5.scope },
@@ -79,7 +80,7 @@ export const GLOSSARY = {
   megdr: {
     label: "MEGDR",
     term: "MOLA Mission Experiment Gridded Data Record",
-    definition: "The gridded MOLA elevation product (128 pixels per degree, about 463 m). Its counts layer records how many laser shots fell in each bin; bins with none are interpolated.",
+    definition: "The gridded MOLA elevation product. Its counts layer records how many laser shots fell in each bin; bins with none are interpolated.",
     source: "MEGDR 128 ppd counts mask",
   },
   aeqd: {
@@ -139,4 +140,60 @@ export function decisionG5Label(d: { type: string; label?: string | null }): str
   if (d.type === "named_leader") return G5.leader;
   if (d.type === "tied_set") return G5.tied;
   return d.label ?? null;
+}
+
+/**
+ * Research counts and grid facts that glossary definitions quote, read from the API payloads (datasets,
+ * sites, research pool, mission profiles, evidence, the current search). Null = not loaded or not stated;
+ * it prints as a dash, never as a typed-in figure.
+ */
+export interface GlossaryFacts {
+  zones: number | null;
+  cells: number | null;
+  cellKm: number | null;
+  t1Descriptors: number | null;
+  windows: number | null;
+  windowKm: number | null;
+  gridM: number | null;
+  t2Descriptors: number | null;
+  /** Land-cover gate thresholds as fractions: exposed (bare-like) ground minimum, vegetated maximum. */
+  bareMin: number | null;
+  vegMax: number | null;
+  megdrPpd: number | null;
+}
+
+export const NO_FACTS: GlossaryFacts = {
+  zones: null, cells: null, cellKm: null, t1Descriptors: null, windows: null, windowKm: null, gridM: null,
+  t2Descriptors: null, bareMin: null, vegMax: null, megdrPpd: null,
+};
+
+const fig = (v: number | null) => (v === null ? "—" : v.toLocaleString("en-US"));
+const pctOf = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)} %`);
+
+/** Definitions that quote counts or grid facts, written around the payload values. */
+const WITH_FACTS: Partial<Record<GlossaryKey, (f: GlossaryFacts) => string>> = {
+  globalScreen: (f) =>
+    `All ${fig(f.cells)} GMTED2010 land cells (≈${fig(f.cellKm)} km) compared with the Mars zone on ${fig(f.t1Descriptors)} terrain descriptors, Earth as measured, mission-weighted. A wide net, not a verdict.`,
+  researchComparison: (f) =>
+    `Published research record for this zone: a fixed pool of ${fig(f.windows)} Earth windows (${fig(f.windowKm)} km, ${fig(f.gridM)} m grid) re-observed the way MOLA observed the Mars site, then compared on ${fig(f.t2Descriptors)} descriptors.`,
+  researchZone: (f) =>
+    `One of ${fig(f.zones)} candidate human-landing zones from NASA's 2015 workshop, with terrain measured from the ${fig(f.gridM)} m MOLA grid.`,
+  landCover: (f) =>
+    `For field-test missions, windows that are vegetated (> ${pctOf(f.vegMax)}) or have little exposed ground (< ${pctOf(f.bareMin)}) are removed before ranking. Thresholds are working assumptions.`,
+  megdr: (f) =>
+    `The gridded MOLA elevation product (${fig(f.megdrPpd)} pixels per degree, about ${fig(f.gridM)} m). Its counts layer records how many laser shots fell in each bin; bins with none are interpolated.`,
+};
+
+/** A term's definition with the payload facts filled in. Terms that quote no figures keep their fixed text. */
+export function glossaryDefinition(k: GlossaryKey, facts: GlossaryFacts | null): string {
+  const t = WITH_FACTS[k];
+  return t && facts ? t(facts) : GLOSSARY[k].definition;
+}
+
+/** First number captured by `re` in a payload text ("249,165 land cells" → 249165). Null when absent, never invented. */
+export function numberIn(text: string | null | undefined, re: RegExp): number | null {
+  const m = text?.match(re);
+  if (!m) return null;
+  const v = Number(m[1].replace(/,/g, ""));
+  return Number.isFinite(v) ? v : null;
 }
