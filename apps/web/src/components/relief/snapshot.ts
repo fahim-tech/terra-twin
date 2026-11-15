@@ -6,7 +6,7 @@
 import type { Relief } from "../../types/contracts";
 import { drawFlat, FONT_MONO, FONT_SANS } from "./flat";
 import { ReliefRenderer, reliefContext } from "./reliefGl";
-import { axisPlacement, buildModel, camera, fmtNum, homePose, labelAnchors, layoutLabels, toGrid } from "./reliefMath";
+import { axisPlacement, buildModel, camera, fmtNum, homePose, labelAnchors, layoutLabels, representationNote, toGrid } from "./reliefMath";
 
 export interface SnapshotOptions {
   planet: "earth" | "mars";
@@ -106,8 +106,8 @@ export async function renderReliefSnapshot(relief: Relief, o: SnapshotOptions): 
   ctx.fillText(fit(`${relief.id.toUpperCase()}  ·  VERTICAL EXAGGERATION ×${ve}${contour}  ·  ${mode === "3d" ? "3D VIEW" : "HILLSHADE, NORTH UP"}`, W - 24), 12, sceneH + 14);
   ctx.font = `10px ${FONT_MONO}`;
   ctx.fillStyle = "rgba(166,174,182,0.95)";
-  const as = relief.source.representation === "as_measured" ? "as measured (MOLA observation operator not applied)" : "in Mars observation space";
-  ctx.fillText(fit(`${relief.rows} × ${relief.cols} cells @ ${relief.cell_m.toFixed(2)} m · ${relief.source.title} · ${relief.planet === "mars" ? "Mars" : "Earth"} ${as}`, W - 24), 12, sceneH + 29);
+  const as = representationNote(relief.planet, relief.source.representation);
+  ctx.fillText(fit(`${relief.rows} × ${relief.cols} cells @ ${relief.cell_m.toFixed(2)} m · ${relief.source.title} · ${as}`, W - 24), 12, sceneH + 29);
   ctx.restore();
   return { dataUrl: out.toDataURL("image/png"), width: W, height: H, mode };
 }

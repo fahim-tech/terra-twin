@@ -664,10 +664,13 @@ export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: nu
 
 // ---------------------------------------------------------------- shading shared by WebGL and 2D
 
-/** Light from the north-west (azimuth 315°) at 45° altitude, the cartographic hillshade convention. */
+/**
+ * Fixed cartographic light, not the real sun at the site: from the north-west (azimuth 315°) at 45°
+ * altitude, the hillshade convention. The view labels it LIGHT so it is never read as solar telemetry.
+ */
 export const SUN = { azDeg: 315, altDeg: 45 };
 
-/** Unit vector toward the sun in world space (X east, Y up, Z south). */
+/** Unit vector toward the light in world space (X east, Y up, Z south). */
 export function sunVector(): Vec3 {
   const az = (SUN.azDeg * Math.PI) / 180, alt = (SUN.altDeg * Math.PI) / 180;
   return [Math.sin(az) * Math.cos(alt), Math.sin(alt), -Math.cos(az) * Math.cos(alt)];
@@ -769,5 +772,17 @@ export function ariaSummary(
   const gaps = r.valid_fraction < 1 ? ` ${(100 * (1 - r.valid_fraction)).toFixed(1)} % of cells have no elevation and are left open.` : "";
   return `${mode === "3d" ? "3D terrain relief" : "Hillshade map, north up,"} of ${r.id}, ${planet === "mars" ? "Mars" : "Earth"}, centred ${formatLatLon(r.lat, r.lon)}. `
     + `${w.toFixed(1)} by ${h.toFixed(1)} km window, ${r.rows} by ${r.cols} cells of ${r.cell_m.toFixed(0)} m. ${elev}${gaps} `
-    + `Vertical exaggeration ×${ve}.`;
+    + `Vertical exaggeration ×${ve}. Shaded by a fixed cartographic light from ${SUN.azDeg}° at ${SUN.altDeg}°, not the real sun.`;
+}
+
+/**
+ * What the grid shows, in words, for captions and legends. An Earth grid is either as measured or
+ * resampled as MOLA would observe it; a Mars grid is the planet's own measurement, so the MOLA
+ * observation-operator clause never applies to it.
+ */
+export function representationNote(planet: "earth" | "mars", representation: string): string {
+  if (planet === "mars") return "Mars as measured";
+  return representation === "as_measured"
+    ? "Earth as measured: the MOLA observation operator is not applied"
+    : "Earth as MOLA would observe it";
 }

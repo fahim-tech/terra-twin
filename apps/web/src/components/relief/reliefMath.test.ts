@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   anchorShown, ariaSummary, axisPlacement, baseElevation, boxEdges, buildModel, camera, contourInterval, contourSegments, gradients, gridStats,
-  fitDistance, fmtPitch, hillshade, homePose, labelAnchors, layoutLabels, niceStep, niceTicks, pickCell, project, sunVector, TINT, toGrid, worldY, type Grid,
+  fitDistance, fmtPitch, hillshade, homePose, labelAnchors, layoutLabels, niceStep, niceTicks, pickCell, project, representationNote, sunVector, TINT, toGrid,
+  worldY, type Grid,
 } from "./reliefMath";
 
 /** Plane z = a·east + b·north on a north-up grid (row 0 = north). */
@@ -212,6 +213,16 @@ describe("accessible summary", () => {
     expect(s).toContain("759 to 2,419 metres, relief 1,660 metres");
     expect(s).toContain("×4");
     expect(s).not.toContain("no elevation");
+  });
+  it("calls the shading light what it is, never the sun at the site", () => {
+    const s = ariaSummary({ ...base, z_min: 759.3, z_max: 2419, valid_fraction: 1 }, 4, "earth");
+    expect(s).toContain("fixed cartographic light from 315° at 45°, not the real sun");
+  });
+  it("words the grid's representation per planet, with no MOLA-operator clause for Mars", () => {
+    expect(representationNote("earth", "as_measured")).toBe("Earth as measured: the MOLA observation operator is not applied");
+    expect(representationNote("earth", "mars_observation_space")).toBe("Earth as MOLA would observe it");
+    expect(representationNote("mars", "as_measured")).toBe("Mars as measured");
+    expect(representationNote("mars", "as_measured")).not.toMatch(/operator/);
   });
   it("never turns a missing range into 0", () => {
     const s = ariaSummary({ ...base, z_min: null, z_max: null, valid_fraction: 0 }, 2, "mars", "2d");

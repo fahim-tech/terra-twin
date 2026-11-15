@@ -1,5 +1,6 @@
 /**
- * Terrain twin: a real-data 3D relief of one research window, drawn with raw WebGL2 (no dependency).
+ * Terrain relief: a real-data 3D relief of one research window, drawn with raw WebGL2 (no dependency).
+ * (Never called a "twin": in this project twins are the synthetic test terrains of the validation.)
  *
  * Everything on screen comes from the relief payload: the surface is the elevation grid itself
  * (gaps stay open over a hatched "no data" floor), contours and the elevation scale are in real
@@ -19,7 +20,8 @@ import { drawFlat } from "./flat";
 import { Orbit } from "./orbit";
 import { ReliefRenderer, reliefContext } from "./reliefGl";
 import {
-  ariaSummary, axisPlacement, buildModel, camera, fmtNum, fmtPitch, homePose, labelAnchors, layoutLabels, pickCell, project, rampColor, SUN, TINT, toGrid,
+  ariaSummary, axisPlacement, buildModel, camera, fmtNum, fmtPitch, homePose, labelAnchors, layoutLabels, pickCell, project, rampColor, representationNote, SUN,
+  TINT, toGrid,
   type Grid, type Model,
 } from "./reliefMath";
 
@@ -79,7 +81,7 @@ function Header({ planet, name, relief, where }: {
     <header className="relative px-4 pb-3 pt-3.5 sm:px-5">
       <div className="flex items-center gap-2.5">
         <span aria-hidden className={cx("h-1.5 w-1.5", planet === "mars" ? "bg-mars" : "bg-earth")} />
-        <span className="kicker !text-muted">Terrain twin</span>
+        <span className="kicker !text-muted">Terrain relief</span>
         <span aria-hidden className="h-px w-4 bg-line-strong" />
         <span className="kicker">{planet === "mars" ? "Mars · Exploration Zone" : "Earth · research window"}</span>
       </div>
@@ -444,7 +446,7 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
       <div aria-hidden className="on-imagery pointer-events-none absolute left-3 top-3 flex gap-4 sm:left-4">
         <Readline label="Hdg"><span ref={heading}>—</span></Readline>
         <Readline label="Pitch"><span ref={pitch}>—</span></Readline>
-        <Readline label="Sun" className="hidden sm:flex">{SUN.azDeg}° / {SUN.altDeg}°</Readline>
+        <Readline label="Light" className="hidden sm:flex">{SUN.azDeg}° / {SUN.altDeg}°</Readline>
         <Readline label="Probe" className="hidden min-w-[220px] sm:pointer-fine:flex"><span ref={probeEl}>—</span></Readline>
       </div>
       <div aria-hidden className="pointer-events-none absolute right-4 top-3 hidden opacity-0 transition-opacity duration-150 peer-focus-visible:opacity-100 lg:flex">
@@ -507,9 +509,7 @@ function Legend({ model, relief, planet }: { model: Model; relief: Relief; plane
     return `rgb(${c.join(" ")}) ${t * 100}%`;
   }).join(", ");
   const noData = 1 - relief.valid_fraction;
-  const as = relief.source.representation === "as_measured"
-    ? `${planet === "mars" ? "Mars" : "Earth"} as measured: the MOLA observation operator is not applied`
-    : "Mars observation space";
+  const as = representationNote(planet, relief.source.representation);
   return (
     <footer className="border-t border-line px-4 py-3 sm:px-5">
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2.5">
