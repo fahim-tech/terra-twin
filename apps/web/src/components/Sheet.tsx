@@ -38,6 +38,7 @@ export function Sheet({ children, label, snap, onSnapChange, peek = 112, header,
   const y = useMotionValue(10_000);
   const reduced = useReducedMotion();
   const drag = useRef<{ startY: number; startOffset: number; samples: { t: number; y: number }[] } | null>(null);
+  const tapAt = useRef(-Infinity);
 
   const points = useCallback((height: number) => ({ full: 64, half: Math.round(height * 0.48), peek: Math.max(0, height - peek) }), [peek]);
 
@@ -82,7 +83,8 @@ export function Sheet({ children, label, snap, onSnapChange, peek = 112, header,
     if (!d || !h) return;
     const moved = Math.abs(e.clientY - d.startY);
     if (moved < 6) { // a tap on the handle cycles snap points
-      onSnapChange(snap === "peek" ? "half" : snap === "half" ? "full" : "peek");
+      tapAt.current = performance.now();
+      cycle();
       return;
     }
     const first = d.samples[0], last = d.samples[d.samples.length - 1];
@@ -93,6 +95,13 @@ export function Sheet({ children, label, snap, onSnapChange, peek = 112, header,
     const target = order.reduce((best, s) => (Math.abs(p[s] - projected) < Math.abs(p[best] - projected) ? s : best), "half" as SheetSnap);
     if (target === snap) settle(target, v);
     else onSnapChange(target);
+  };
+
+  const cycle = () => onSnapChange(snap === "peek" ? "half" : snap === "half" ? "full" : "peek");
+  // Enter/Space and assistive-technology activation arrive as a click with no preceding pointer tap.
+  const onHandleClick = () => {
+    if (performance.now() - tapAt.current < 600) return; // already cycled by the pointer tap
+    cycle();
   };
 
   const onKey = (e: React.KeyboardEvent) => {
@@ -107,7 +116,7 @@ export function Sheet({ children, label, snap, onSnapChange, peek = 112, header,
       className={cx("absolute inset-x-0 top-0 z-20 flex flex-col rounded-t-[18px] bg-surface shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_-12px_40px_rgba(0,0,0,0.5)]", className)}
       >
       <div className="touch-none select-none" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
-        <button type="button" onKeyDown={onKey} aria-label={`${label}: ${snap === "full" ? "expanded" : snap === "half" ? "half open" : "collapsed"}. Press to change, arrow keys to resize.`}
+        <button type="button" onKeyDown={onKey} onClick={onHandleClick} aria-label={`${label}: ${snap === "full" ? "expanded" : snap === "half" ? "half open" : "collapsed"}. Press to change, arrow keys to resize.`}
           className="mx-auto flex h-6 w-full items-center justify-center focus-visible:outline-offset-[-4px]">
           <span className="h-1 w-9 rounded-full bg-ink/25" />
         </button>
