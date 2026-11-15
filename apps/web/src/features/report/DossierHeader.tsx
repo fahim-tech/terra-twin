@@ -111,8 +111,10 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
             <>
               <span className="num block text-ink">{stamp.date}</span>
               <span className="block text-ink"><span className="num">{stamp.time}</span> UTC</span>
-              <span className="mt-1 block text-caption text-faint">
-                <span className="whitespace-nowrap">MSD <span className="num">{stamp.msd.toLocaleString("en-US")}</span></span> · <span className="whitespace-nowrap">MTC <span className="num">{stamp.mtc}</span></span>
+              {/* Two readouts side by side; in a narrow column they stack, with no separator left dangling. */}
+              <span className="mt-1 flex flex-wrap gap-x-3 text-caption text-faint">
+                <span className="whitespace-nowrap">MSD <span className="num">{stamp.msd.toLocaleString("en-US")}</span></span>
+                <span className="whitespace-nowrap">MTC <span className="num">{stamp.mtc}</span></span>
               </span>
             </>
           ) : <span className="num text-faint">—</span>}

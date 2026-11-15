@@ -50,6 +50,21 @@ function NoReport() {
   );
 }
 
+/** The plates note on the whole-disk locators actually shown (none, one or both), with their real camera heights. */
+function LocatorNote({ mars, earth }: { mars: number | null; earth: number | null }) {
+  const parts = [
+    mars !== null ? <><span className="num">{mars.toLocaleString("en-US")}</span> km (Mars)</> : null,
+    earth !== null ? <><span className="num">{earth.toLocaleString("en-US")}</span> km (Earth)</> : null,
+  ].filter(Boolean);
+  if (!parts.length) return null;
+  return (
+    <>
+      {parts.length > 1 ? "Whole-disk locators look" : "The whole-disk locator looks"} straight down on the plate centre from {parts[0]}
+      {parts[1] ? <> and {parts[1]}</> : null}; the small square is the plate.
+    </>
+  );
+}
+
 /** A numbered dossier section; its number and title come from the section list, so numbering never has gaps. */
 function Section({ of, id, aside, children }: { of: Sec[]; id: SectionId; aside?: ReactNode; children: ReactNode }) {
   const s = of.find((x) => x.id === id);
@@ -135,9 +150,8 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
           <p className="mt-5 max-w-[86ch] text-caption text-faint">
             Rendered from the planet globes at <span className="num">{PLATE_HEIGHT_KM}</span> km, nadir, north up. Frames and scale bars use the scale at the plate
             centre and are approximate; neatline ticks mark where parallels and meridians cross the plate edge (planetocentric on Mars, geodetic WGS84 on Earth).
-            Whole-disk locators look straight down on the plate centre from <span className="num">{diskKm.mars.toLocaleString("en-US")}</span> km (Mars)
-            {c && earthFrame ? <> and <span className="num">{diskKm.earth.toLocaleString("en-US")}</span> km (Earth)</> : null}; the small square is the plate.
-            Lighting is set for legibility, not the Sun&apos;s position. Imagery is never used in any measurement.
+            {" "}<LocatorNote mars={marsDisk.status !== "failed" ? diskKm.mars : null} earth={c && earthFrame && earthDisk.status !== "failed" ? diskKm.earth : null} />
+            {" "}Lighting is set for legibility, not the Sun&apos;s position. Imagery is never used in any measurement.
           </p>
         </Section>
 

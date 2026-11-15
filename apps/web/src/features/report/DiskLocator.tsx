@@ -63,7 +63,8 @@ export function DiskLocator({ planet, body, lat, lon, heightKm, snapshot, plateK
             <svg viewBox="0 0 100 100" aria-hidden className="absolute inset-0 h-full w-full text-line-strong">
               <circle cx="50" cy="50" r={50 / 1.1} fill="none" stroke="currentColor" strokeWidth={1} vectorEffect="non-scaling-stroke" />
             </svg>
-            <span className="sr-only" role="status">Rendering the {name} whole disk</span>
+            {/* Read in place, not announced: the plates' own status already speaks for the imagery. */}
+            <span className="sr-only">Rendering the {name} whole disk</span>
           </>
         )}
       </div>
