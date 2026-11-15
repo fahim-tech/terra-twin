@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useGlobeBus } from "../../app/globeBus";
 import { cx } from "../../components/ui";
 import type { Planet } from "../../globes/protocol";
@@ -101,7 +101,7 @@ function niceScale(maxKm: number) {
 }
 
 export function LocationPlate({ planet, lat, lon, frame, kicker, name, imagery }: {
-  planet: Planet; lat: number; lon: number; frame: PlateFrame; kicker: string; name: string; imagery: string;
+  planet: Planet; lat: number; lon: number; frame: PlateFrame; kicker: string; name: ReactNode; imagery: string;
 }) {
   const snap = useSnapshot(planet, lat, lon);
   const tone = planet === "mars" ? "!text-mars" : "!text-earth";
@@ -111,7 +111,7 @@ export function LocationPlate({ planet, lat, lon, frame, kicker, name, imagery }
     <figure className="m-0 min-w-0 break-inside-avoid">
       <div className="relative aspect-[4/3] w-full overflow-hidden rounded-surface bg-elevated [print-color-adjust:exact]">
         {snap.status === "ok" ? (
-          <PlateImage shot={snap.shot} frame={frame} alt={`${planet === "mars" ? "Mars" : "Earth"} imagery centred on ${name}, ${coord}, seen from ${PLATE_HEIGHT_KM} km, north up, with the ${frame.label} outlined.`} />
+          <PlateImage shot={snap.shot} frame={frame} alt={`${planet === "mars" ? "Mars" : "Earth"} imagery centred on ${coord}, seen from ${PLATE_HEIGHT_KM} km, north up, with the ${frame.label} outlined.`} />
         ) : (
           <CoordinatePlate status={snap.status} coord={coord} frame={frame} planet={planet} />
         )}

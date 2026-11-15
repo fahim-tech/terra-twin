@@ -65,7 +65,7 @@ export function RatioChart({ rows }: { rows: TerrainRow[] }) {
                   <div className="min-w-0">
                     <div className="text-label text-ink">{r.label}</div>
                     <div className="text-caption text-faint">
-                      <span className="num">{relation(r)}</span> · {r.kind === "match" ? "within" : r.kind === "mismatch" ? "outside" : "no"} research tolerance
+                      <span className="num">{relation(r)}</span> · {r.kind === "match" ? "within tolerance" : r.kind === "mismatch" ? "outside tolerance" : "missing value"}
                     </div>
                   </div>
                   <div className="relative order-last col-span-3 h-6 sm:order-none sm:col-span-1" role="img"

@@ -77,14 +77,14 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
 
       {/* Title block */}
       <header>
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
-          <Kicker className="pt-1">TerraTwin dossier · {kicker}</Kicker>
-          <Exports search={search} c={c} mission={mission} generatedAt={generatedAt} />
+        <div className="grid items-start gap-x-6 gap-y-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+          <Kicker className="pt-2.5 lg:order-none">TerraTwin dossier · {kicker}</Kicker>
+          <div className="hidden lg:block"><Exports search={search} c={c} mission={mission} generatedAt={generatedAt} /></div>
         </div>
         <h1 data-stage-heading="report" tabIndex={-1} className="toponym mt-5 text-balance text-[40px] leading-[1.04] tracking-[-0.02em] text-ink outline-none md:text-display">
-          <span>{target.label}</span>
+          <Place name={target.label} coord={target.siteId ? null : { lat: target.lat, lon: target.lon }} />
           <span className="mx-[0.28em] text-faint" aria-label="compared with">↔</span>
-          {c ? <span>{c.label}</span> : <span className="text-muted">No candidate selected</span>}
+          {c ? <Place name={c.label} coord={c.tier === 1 && !c.t1?.known_analog.name ? { lat: c.lat, lon: c.lon, prefix: "Screening cell" } : null} /> : <span className="text-muted">No candidate selected</span>}
         </h1>
         <p className="mt-4 flex items-start gap-2 text-lead text-warn">
           <span aria-hidden className="mt-[1px]">⚠</span>
@@ -96,6 +96,8 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
           <Meta k="Analysis units"><span className="text-ink">50 km research windows · 25 km screening cells</span><span className="block text-faint">Requested footprint <span className="num">{target.footprintKm}</span> km</span></Meta>
           <Meta k="Generated"><span className="num text-num">{generatedAt.slice(0, 16).replace("T", " ")} UTC</span><span className="block truncate text-faint">Analysis <span className="num">{search.id}</span></span></Meta>
         </dl>
+        {/* Below the desktop width the exports follow the title block, so the title leads. */}
+        <div className="mt-5 lg:hidden"><Exports search={search} c={c} mission={mission} generatedAt={generatedAt} /></div>
         {stale && (
           <p className="mt-5 rounded-control bg-elevated px-3.5 py-2.5 text-body text-muted print:bg-transparent print:px-0" role="note">
             <span className="text-warn" aria-hidden>⚠ </span>This dossier describes <span className="text-ink">{target.label}</span>, the target of the last search. The current selection{liveLabel ? <> (<span className="text-ink">{liveLabel}</span>)</> : null} has moved on; run Find Earth Analogs again to report it.
@@ -106,9 +108,9 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
       {/* Location plates */}
       <section aria-label="Location plates" className="mt-10 break-inside-avoid">
         <div className="grid gap-6 md:grid-cols-2 md:gap-8">
-          <LocationPlate planet="mars" lat={target.lat} lon={target.lon} frame={marsFrame} kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"} name={target.label} imagery="NASA Mars Trek imagery" />
+          <LocationPlate planet="mars" lat={target.lat} lon={target.lon} frame={marsFrame} kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"} name={target.siteId ? target.label : "Search target"} imagery="NASA Mars Trek imagery" />
           {c && earthFrame ? (
-            <LocationPlate planet="earth" lat={c.lat} lon={c.lon} frame={earthFrame} kicker={c.tier === 1 ? "Earth · Screening cell" : role === "tie_member" ? "Earth · Tie member" : "Earth · Research window"} name={c.label} imagery="NASA GIBS imagery" />
+            <LocationPlate planet="earth" lat={c.lat} lon={c.lon} frame={earthFrame} kicker={c.tier === 1 ? "Earth · Screening cell" : role === "tie_member" ? "Earth · Tie member" : "Earth · Research window"} name={c.tier === 1 && !c.t1?.known_analog.name ? "Screening cell" : c.label} imagery="NASA GIBS imagery" />
           ) : (
             <NoCandidatePlate />
           )}
@@ -208,6 +210,17 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
   );
 }
 
+/** A place name set in the serif; a bare coordinate is a measurement, so it is set in mono at a reduced size. */
+function Place({ name, coord }: { name: string; coord: { lat: number; lon: number; prefix?: string } | null }) {
+  if (!coord) return <span>{name}</span>;
+  return (
+    <span>
+      {coord.prefix && <>{coord.prefix} </>}
+      <span className="num whitespace-nowrap text-[0.6em] tracking-[-0.02em] align-[0.12em]">{fmtCoord(coord.lat, coord.lon, 2)}</span>
+    </span>
+  );
+}
+
 function Meta({ k, children }: { k: ReactNode; children: ReactNode }) {
   return (
     <div className="min-w-0">
@@ -288,7 +301,7 @@ function KeyFigures({ search, c }: { search: AnalogSearch; c: ReportCandidate | 
         note={c ? (c.tier === 2 ? "Research descriptors computed for this window" : "Screening descriptors computed for this cell") : "No candidate"} />
       <Fig label="Validation"
         value={<span className="font-sans text-[22px] font-semibold tracking-[-0.01em]">{c?.tier === 1 ? "Not validated" : t2.validation_status === "synthetic_twins_only" ? "Synthetic only" : t2.validation_status.replace(/_/g, " ")}</span>}
-        note={c?.tier === 1 ? <>Screening weights are {t1weights === "hypothesis" ? "working hypotheses" : t1weights ?? "unvalidated"}. {G5.validation}</> : G5.validation} />
+        note={c?.tier === 1 ? <>Screening weights are {t1weights === "hypothesis" ? "working hypotheses" : t1weights ?? "unvalidated"}; the screen is not validated against field data or expert review.</> : G5.validation} />
     </section>
   );
 }
@@ -317,7 +330,7 @@ function ResearchSummary({ search, c }: { search: AnalogSearch; c: ReportCandida
     <div className="space-y-4">
       <div>
         {/* The key figures already carry the decision for a research window or no candidate; a screening cell needs it here. */}
-        {(c?.tier === 1 || d.type === "insufficient_evidence") && (
+        {c?.tier === 1 && (
           <>
             <div className="text-title text-ink"><span aria-hidden className="mr-1.5 font-normal">{DECISION[d.type].glyph}</span>{decisionHeadline(search)}{c?.tier === 1 && <span className="font-normal text-muted"> — research decision for this zone</span>}</div>
             {decisionLabel(search) && <p className="mt-1 max-w-[68ch] text-body text-muted">{decisionLabel(search)}</p>}
@@ -341,21 +354,21 @@ function ResearchSummary({ search, c }: { search: AnalogSearch; c: ReportCandida
         )}
       </div>
       <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
-        <Meta k="Candidate pool">
+        {pool && <Meta k="Candidate pool">
           <span className="num">{pool?.n_windows ?? "—"}</span> fixed research windows
-          {pool?.n_random_stratified !== undefined && <span className="block text-caption text-faint"><span className="num">{pool.n_random_stratified}</span> stratified random + <span className="num">{pool.n_named_controls}</span> named controls · <span className="num">{pool.window_km ?? 50}</span> km</span>}
-        </Meta>
-        <Meta k="Ranked">
-          {pool?.n_ranked !== undefined ? <><span className="num">{pool.n_ranked}</span> of <span className="num">{pool.n_windows}</span> windows</> : "—"}
-          {pool?.ranked_basis && <span className="block text-caption text-faint">{pool.ranked_basis}</span>}
-        </Meta>
+          {pool.n_random_stratified !== undefined && <span className="block text-caption text-faint"><span className="num">{pool.n_random_stratified}</span> stratified random + <span className="num">{pool.n_named_controls}</span> named controls · <span className="num">{pool.window_km ?? 50}</span> km</span>}
+        </Meta>}
+        {pool?.n_ranked !== undefined && <Meta k="Ranked">
+          <span className="num">{pool.n_ranked}</span> of <span className="num">{pool.n_windows}</span> windows
+          {pool.ranked_basis && <span className="block text-caption text-faint">{pool.ranked_basis}</span>}
+        </Meta>}
         <Meta k={<Term k="operator">MOLA observation model</Term>}>
           {t2.operator.status === "ok" ? "Applied" : "Unavailable at this coordinate"}
           <span className="block text-caption text-faint">{t2.operator.status === "ok" ? `${(t2.operator as { mask?: string }).mask ?? ""}` : "No comparison is made"}</span>
         </Meta>
         <Meta k="Orientation check">
           {d.rotations_checked > 0 ? <><span className="num">{d.rotations_checked}</span> orientations of the Earth window</> : "Not run"}
-          <span className="block text-caption text-faint">S is reported at rotation <span className="num">0°</span>, equal weights</span>
+          {d.rotations_checked > 0 && <span className="block text-caption text-faint">S is reported at rotation <span className="num">0°</span>, equal weights</span>}
         </Meta>
         {b && (
           <Meta k="Uncorrected comparator">
@@ -486,6 +499,7 @@ function Exports({ search, c, mission, generatedAt }: { search: AnalogSearch; c:
 function ReportPrintStyles() {
   return (
     <style>{`
+      [data-stage-heading="report"]:focus, [data-stage-heading="report"]:focus-visible { outline: none; }
       @media print {
         @page { margin: 14mm 14mm 16mm; }
         main > div.absolute.inset-0.z-20 { background: #fff !important; }
