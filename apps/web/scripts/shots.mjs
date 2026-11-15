@@ -89,7 +89,7 @@ const VIEWS = {
       const res = await h.api.findAnalogs({ lat: p.jezero.lat, lon: p.jezero.lon, footprint_km: 25, mission: "landing_site" });
       s.set({ search: res, candidateId: `t2:${res.tier2.candidates[0].id}`, tier: 2 }); s.go("compare"); s.go("report");
     },
-    settle: 3000,
+    settle: 9000, // the Mars plate waits for the globe's camera flight to settle before capturing (~8 s)
     pages: 4,
   },
 };

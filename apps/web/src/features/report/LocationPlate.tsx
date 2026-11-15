@@ -139,7 +139,16 @@ export function LocationPlate({ planet, lat, lon, frame, kicker, name, imagery }
 }
 
 function PlateImage({ shot, frame, alt }: { shot: Shot; frame: PlateFrame; alt: string }) {
-  const { width: w, height: h } = shot;
+  return (
+    <>
+      <img src={shot.dataUrl} alt={alt} className="absolute inset-0 h-full w-full object-cover" />
+      <PlateMarks w={shot.width} h={shot.height} frame={frame} />
+    </>
+  );
+}
+
+/** Frame, scale bar and north arrow at the plate geometry (420 km nadir view), over imagery or an empty plate. */
+function PlateMarks({ w, h, frame }: { w: number; h: number; frame: PlateFrame }) {
   // Ground distance per snapshot pixel at the nadir point: the frustum spans 2·h·tan(fov/2) across the larger side.
   const kmPerPx = (2 * PLATE_HEIGHT_KM * Math.tan(FOV_RAD / 2)) / Math.max(w, h);
   const fw = frame.ewKm / kmPerPx;
@@ -156,7 +165,6 @@ function PlateImage({ shot, frame, alt }: { shot: Shot; frame: PlateFrame; alt: 
 
   return (
     <>
-      <img src={shot.dataUrl} alt={alt} className="absolute inset-0 h-full w-full object-cover" />
       <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="xMidYMid slice" className="absolute inset-0 h-full w-full" aria-hidden>
         <g fill="none" strokeLinecap="square">
           {/* Halo, then the frame: identical styling on both planets. */}
@@ -190,17 +198,20 @@ function PlateImage({ shot, frame, alt }: { shot: Shot; frame: PlateFrame; alt: 
   );
 }
 
-/** Honest fallback: coordinates and the frame size, no imagery of any kind. */
+/**
+ * Honest fallback: the frame, scale and north arrow at plate geometry with the coordinates, and no
+ * imagery of any kind. While the snapshot renders the same plate is shown, so the page never looks broken.
+ */
 function CoordinatePlate({ status, coord, frame, planet }: { status: "loading" | "failed"; coord: string; frame: PlateFrame; planet: Planet }) {
   return (
-    <div className="absolute inset-0 grid place-items-center p-6 text-center" role={status === "loading" ? "status" : undefined}>
-      <div>
-        <div className="num text-num text-ink">{coord}</div>
-        <div className="mt-1.5 text-caption text-faint">{frame.label}</div>
-        <div className="mt-4 text-caption text-muted">
+    <div className="absolute inset-0" role={status === "loading" ? "status" : undefined}>
+      <PlateMarks w={PLATE_MAX_WIDTH} h={PLATE_MAX_WIDTH / PLATE_ASPECT} frame={frame} />
+      <div className="absolute inset-x-0 top-[calc(50%+18%)] px-6 text-center">
+        <div className="num text-num-sm text-ink">{coord}</div>
+        <div className={cx("mt-1 text-caption", status === "loading" ? "text-muted motion-safe:animate-pulse" : "text-faint")}>
           {status === "loading"
-            ? `Rendering ${planet === "mars" ? "Mars" : "Earth"} imagery from the globe…`
-            : "Imagery snapshot unavailable. Coordinates only — no imagery is substituted."}
+            ? `Rendering ${planet === "mars" ? "Mars" : "Earth"} imagery…`
+            : "No imagery snapshot · coordinates only, nothing substituted"}
         </div>
       </div>
     </div>
