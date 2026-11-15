@@ -1,4 +1,5 @@
-import { Disclosure, Kicker, Measure, Term, Toponym } from "../../components/primitives";
+import { useLayout } from "../../app/useLayout";
+import { Disclosure, Measure, Term, Toponym } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
 import type { AnalogSearch, Tier2Candidate } from "../../types/contracts";
@@ -29,10 +30,12 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
   const winKm = t2.target.window_km || 50;
   const pick = (c: Tier2Candidate) => chooseCandidate(`t2:${c.id}`);
   const isOn = (c: Tier2Candidate) => candidateId === `t2:${c.id}`;
+  const phone = useLayout() === "phone";
 
   return (
     <section aria-labelledby="stage-research" className="pb-2">
-      <Kicker className="leading-[1.5]"><span id="stage-research">Research comparison</span> · {winKm} km windows · Earth as MOLA would observe it</Kicker>
+      {/* The tab above names the stage; this line states only its basis. */}
+      <p className="text-caption text-faint"><span id="stage-research" className="sr-only">Research comparison: </span>{winKm} km windows · Earth as MOLA would observe it</p>
 
       {/* Verdict headline */}
       <div className="mt-4">
@@ -55,7 +58,7 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
           </button>
         )}
 
-        {label && <p className="mt-2 text-caption text-muted">{label}</p>}
+        {label && d.type !== "tied_set" && <p className="mt-2 text-caption text-muted">{label}</p>}
       </div>
 
       {/* Score + basis */}
@@ -81,14 +84,15 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
                 const on = isOn(c);
                 return (
                   <li key={c.id}>
+                    {/* Phones: one equal-weight line per member, so the whole tied set fits together at half height. */}
                     <button type="button" onClick={() => pick(c)} aria-pressed={on}
-                      className={cx("hit flex min-h-[44px] w-full items-center gap-3 rounded-control px-2 py-1.5 text-left transition-colors hover:bg-elevated", on && "bg-elevated")}>
+                      className={cx("hit flex min-h-[44px] w-full items-center gap-3 rounded-control px-2 text-left transition-colors hover:bg-elevated", phone ? "py-1" : "py-1.5", on && "bg-elevated")}>
                       <span aria-hidden className={cx("h-2 w-2 shrink-0 rounded-full", on ? "bg-earth" : "ring-1 ring-inset ring-earth")} />
                       <span className="min-w-0 flex-1">
                         <span className={cx("block text-label", on ? "text-earth" : "text-ink")}>{w.name}</span>
-                        <span className="num block text-num-sm text-muted">{coord(c.lat!, c.lon!)}</span>
+                        <span className={cx("num block text-num-sm text-muted", phone && "sr-only")}>{coord(c.lat!, c.lon!)}</span>
                       </span>
-                      <span className="text-right">
+                      <span className={cx("text-right", phone && "flex items-baseline gap-2")}>
                         <span className="num block text-num text-ink">S {c.S === null ? "—" : c.S.toFixed(3)}</span>
                         <span className="num block text-num-sm text-faint">{measuresOf(c.coverage, T2_MEASURES) ?? "—"}/{T2_MEASURES}</span>
                       </span>
@@ -98,6 +102,7 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
               })}
             </ul>
           </div>
+          {label && <p className="mt-2 text-caption text-muted">{label}</p>}
           <p className="mt-2 text-caption text-muted">
             Listed west to east. Equivalent at this resolution — none is preferred, so none is pre-selected.
             Scores use <Term k="measures">8 measures</Term>; validated on <Term k="synthetic">synthetic twins only</Term>.

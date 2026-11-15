@@ -1,5 +1,5 @@
 import { Fragment, useId, useState } from "react";
-import { Kicker, Term } from "../../components/primitives";
+import { Term } from "../../components/primitives";
 import { Button, cx, Segmented } from "../../components/ui";
 import { api } from "../../services/api";
 import { useApp } from "../../store/app";
@@ -101,9 +101,9 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
 
   return (
     <section aria-labelledby="stage-global" className="pb-2">
-      <Kicker className="leading-[1.5]">
-        <span id="stage-global">Global screen</span> · <span className="num">{t1.candidate_pool.n_cells_searched.toLocaleString()}</span> land cells · {km} km · Earth as measured
-      </Kicker>
+      <p className="text-caption text-faint">
+        <span id="stage-global" className="sr-only">Global screen: </span><span className="num">{t1.candidate_pool.n_cells_searched.toLocaleString("en-US")}</span> land cells · {km} km · Earth as measured
+      </p>
       <p className="mt-2 text-caption text-muted">
         <Term k="globalScreen">A wide net, not a verdict</Term>. Top <Term k="similarity">S</Term>{" "}
         <span className="num text-num-sm text-ink">{top.toFixed(3)}</span> ·{" "}
