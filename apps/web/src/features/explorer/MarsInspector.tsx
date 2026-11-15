@@ -1,13 +1,12 @@
 import { ArrowRight, CornerUpLeft } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import { Block, Kicker, PanelBody, PanelFooter, PanelHeader, Term, Toponym } from "../../components/primitives";
 import { Button, cx, Note, Segmented } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { zoneName } from "../../lib/glossary";
 import { useMarsAnalysis, useMissions } from "../../services/api";
 import { useApp } from "../../store/app";
-import type { MissionProfile } from "../../types/contracts";
+import type { MarsAnalysis, MissionProfile } from "../../types/contracts";
 import { Availability } from "./Availability";
 import { useExplorer } from "./explorerStore";
 import { OutsideActions, OutsideBody } from "./OutsideZone";
@@ -31,7 +30,8 @@ export function MarsInspector() {
   const a = q.data;
   const search = useRunSearch();
   const root = useRef<HTMLDivElement>(null);
-  const footerHost = useSheetFooterHost(root);
+  const inSheet = useSheetFit(root, !!selection);
+  useContentSizedSurface(root, !!selection && !inSheet);
 
   // Announce when the measurements for a new selection arrive (or fail).
   const announced = useRef<string | null>(null);
@@ -49,37 +49,33 @@ export function MarsInspector() {
   if (!selection) return null;
   const outside = a ? a.status === "unavailable" : !selection.siteId;
   const name = a?.site ? zoneName(a.site) : selection.siteId ? zoneName(selection.siteId) : "Selected point";
-  const centred = !!selection.siteId && a?.site_centre ? Math.abs((a.site_centre as { lat: number }).lat - selection.lat) < 1e-6 : true;
+  const centre = a ? siteCentre(a) : null;
+  const centred = !selection.siteId || !centre || (Math.abs(centre.lat - selection.lat) < 1e-6 && Math.abs(centre.lon - selection.lon) < 1e-6);
   const fromOrigin = origin && !(origin.lat === selection.lat && origin.lon === selection.lon) ? origin : null;
 
-  const footer = (
-    <PanelFooter className={cx(footerHost && "pointer-events-auto absolute inset-x-0 bottom-0 z-30 bg-surface shadow-[0_-12px_24px_-12px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.06)]")}>
-      {outside ? <OutsideActions selection={selection} /> : <ZoneActions a={!!a} pending={search.pending} error={search.error} onRun={() => search.run(selection)} />}
-    </PanelFooter>
-  );
-
   return (
-    <div ref={root} className="flex h-full min-h-0 flex-col">
-      <PanelHeader onClose={() => select(null)} className="pr-14">
+    <div ref={root} className={cx("group/insp flex min-h-0 flex-col overflow-clip", inSheet ? "h-full" : "surface pointer-events-auto max-h-full rounded-surface")}>
+      <PanelHeader onClose={() => select(null)} className={cx("pr-14", inSheet && "pb-2 pt-1!")}>
         <Kicker tone={outside ? undefined : "mars"}>{outside ? "Outside research zones" : "Research zone"}</Kicker>
         <Toponym data-stage-heading="mars" tabIndex={-1} style={{ outline: "none" }} className="mt-1.5">{name}</Toponym>
-        <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-caption text-muted">
           <span className="num text-num">{formatLat(selection.lat, 3)} {formatLon(selection.lon, 3)}</span>
           {!outside && !centred && <span>picked point · zone measures describe the whole zone</span>}
-        </p>
-        {fromOrigin && (
-          <button type="button" onClick={() => { useExplorer.getState().set({ origin: null }); select(fromOrigin); }}
-            className="hit -mx-1 mt-1.5 inline-flex items-center gap-1.5 rounded-control px-1 py-0.5 text-caption text-muted hover:text-ink">
-            <CornerUpLeft className="h-3.5 w-3.5" aria-hidden /> Back to your point <span className="num text-num-sm">{formatCoord(fromOrigin.lat, fromOrigin.lon)}</span>
-          </button>
-        )}
+          {fromOrigin && (
+            <button type="button" onClick={() => { useExplorer.getState().set({ origin: null }); select(fromOrigin); }}
+              aria-label={`Back to your point, ${formatCoord(fromOrigin.lat, fromOrigin.lon)}`}
+              className="hit -mx-1 inline-flex items-center gap-1.5 rounded-control px-1 py-0.5 text-caption text-muted hover:text-ink">
+              <CornerUpLeft className="h-3.5 w-3.5" aria-hidden /> Back to your point
+            </button>
+          )}
+        </div>
       </PanelHeader>
 
-      <PanelBody className="pb-4">
+      <PanelBody className={cx("pb-4", inSheet && "pt-0")}>
         {q.isError && (
           <Note tone="critical" className="py-3">
             Measurements could not be loaded: {(q.error as Error).message}{" "}
-            <button type="button" className="underline hover:text-ink" onClick={() => q.refetch()}>Retry</button>
+            <button type="button" className="hit underline hover:text-ink" onClick={() => q.refetch()}>Retry</button>
           </Note>
         )}
         {outside ? <OutsideBody a={a} /> : (
@@ -99,16 +95,26 @@ export function MarsInspector() {
               </p>
             </Block>
             <Block title="Evidence availability">
-              {a ? <Availability a={a} /> : <div aria-hidden className="h-4 w-56 animate-pulse rounded-control bg-elevated motion-reduce:animate-none" />}
+              {a ? <Availability a={a} /> : q.isLoading ? <div aria-hidden className="h-4 w-56 animate-pulse rounded-control bg-elevated motion-reduce:animate-none" /> : <p className="text-caption text-faint">Not loaded.</p>}
             </Block>
           </>
         )}
-        {footerHost && <div aria-hidden style={{ height: outside ? 176 : 132 }} />}
       </PanelBody>
 
-      {footerHost ? (footerHost.visible ? createPortal(footer, footerHost.el) : null) : footer}
+      {/* In the phone sheet the footer is hidden at the peek detent, where it would cover the header. */}
+      <PanelFooter className={cx(inSheet && "pt-2 group-data-[peek=true]/insp:hidden")}>
+        {outside ? <OutsideActions selection={selection} /> : <ZoneActions a={!!a} pending={search.pending} error={search.error} onRun={() => search.run(selection)} />}
+      </PanelFooter>
     </div>
   );
+}
+
+/** The analysis echoes the zone centre (not in the shared schema yet); read it defensively. */
+function siteCentre(a: MarsAnalysis): { lat: number; lon: number } | null {
+  const c = (a as { site_centre?: unknown }).site_centre;
+  if (!c || typeof c !== "object") return null;
+  const { lat, lon } = c as { lat?: unknown; lon?: unknown };
+  return typeof lat === "number" && typeof lon === "number" ? { lat, lon } : null;
 }
 
 function ZoneActions({ a, pending, error, onRun }: { a: boolean; pending: boolean; error: Error | null; onRun: () => void }) {
@@ -131,7 +137,7 @@ function ZoneActions({ a, pending, error, onRun }: { a: boolean; pending: boolea
 }
 
 /** One sentence on what the chosen mission changes. Built from the API's own mission profile. */
-export function missionEffect(m: MissionProfile | undefined): ReactNode {
+function missionEffect(m: MissionProfile | undefined): ReactNode {
   if (!m) return null;
   if (!m.available) return m.reason_unavailable ?? "Not available yet.";
   const desc = m.description.trim();
@@ -169,31 +175,74 @@ function MissionRow() {
 }
 
 /**
- * Workaround for the phone sheet: its content is laid out at full height and slid down, so a footer at
- * the foot of the column sits off-screen at the half detent. When this inspector is inside the sheet,
- * the footer is portalled to the sheet's host and pinned to the bottom of the visible stage; it hides
- * at the peek detent, where it would cover the header. (Shared-file request: Sheet should expose a
- * footer slot.)
+ * Phone sheet fit. The Sheet lays its content out at full height and slides it down, so a footer at
+ * the foot of the column would sit below the screen at the half detent, and focus moving to a control
+ * below the visible part would scroll the stage. Instead, the inspector's own height is kept equal to
+ * the visible part of the sheet (updated as the sheet moves): the footer stays in the flow at the
+ * screen's foot, the body scrolls inside, and nothing outside the body ever needs to scroll. As a
+ * guard, any scroll of the stage or the sheet's scroller is undone. Returns true inside the sheet.
+ * (Shared-file request: Sheet should expose a footer slot and size its scroller to the detent.)
  */
-function useSheetFooterHost(root: React.RefObject<HTMLDivElement>): { el: HTMLElement; visible: boolean } | null {
-  const [host, setHost] = useState<{ el: HTMLElement; visible: boolean } | null>(null);
+function useSheetFit(root: React.RefObject<HTMLDivElement>, mounted: boolean): boolean {
+  const [inSheet, setInSheet] = useState(false);
   useLayoutEffect(() => {
-    const sheet = root.current?.closest<HTMLElement>("section[aria-label]");
-    const el = sheet?.parentElement;
-    if (!sheet || !el || el.tagName === "MAIN") { setHost(null); return; }
-    let visible = true;
-    const measure = () => {
-      const top = sheet.getBoundingClientRect().top;
-      const bottom = el.getBoundingClientRect().bottom;
-      const v = bottom - top > 260;
-      if (v !== visible) { visible = v; setHost({ el, visible: v }); }
+    const el = root.current;
+    const sheet = el?.closest<HTMLElement>('section[aria-label="Selected location"]');
+    const host = sheet?.parentElement;
+    if (!el || !sheet || !host) { setInSheet(false); return; }
+    let scroller: HTMLElement | null = el.parentElement;
+    while (scroller && scroller !== sheet && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+    if (!scroller || scroller === sheet) { setInSheet(false); return; }
+    const sc = scroller;
+    const stage = sheet.closest("main");
+    setInSheet(true);
+    let raf = 0;
+    const fit = () => {
+      const top = sc.getBoundingClientRect().top;
+      const bottom = Math.min(host.getBoundingClientRect().bottom, window.innerHeight);
+      const cap = parseFloat(sc.style.maxHeight) || Infinity;
+      const h = Math.max(0, Math.min(cap, Math.floor(bottom - top)));
+      el.style.height = `${h}px`;
+      el.dataset.peek = String(h < 260);
     };
-    setHost({ el, visible: true });
-    measure();
+    const measure = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(fit); };
+    const unscroll = (e: Event) => { const t = e.currentTarget as HTMLElement; if (t.scrollTop !== 0) t.scrollTop = 0; };
+    fit();
     const mo = new MutationObserver(measure);
     mo.observe(sheet, { attributes: true, attributeFilter: ["style"] });
+    const ro = new ResizeObserver(measure);
+    ro.observe(host);
     window.addEventListener("resize", measure);
-    return () => { mo.disconnect(); window.removeEventListener("resize", measure); };
-  }, [root]);
-  return host;
+    sc.addEventListener("scroll", unscroll);
+    stage?.addEventListener("scroll", unscroll);
+    return () => {
+      cancelAnimationFrame(raf); mo.disconnect(); ro.disconnect();
+      window.removeEventListener("resize", measure);
+      sc.removeEventListener("scroll", unscroll);
+      stage?.removeEventListener("scroll", unscroll);
+      el.style.height = "";
+    };
+  }, [root, mounted]);
+  return inSheet;
+}
+
+/**
+ * Desktop/tablet: the shared context surface is full stage height. The inspector should be sized to
+ * its content (spec 17(b)1), so the host keeps its full-height box (globe framing is unchanged) but
+ * drops its own surface paint and pointer events, and the inspector draws the surface itself at its
+ * content height, capped at the stage. Restored on unmount.
+ * (Shared-file request: ContextSurface should size to content with max-height = stage.)
+ */
+function useContentSizedSurface(root: React.RefObject<HTMLDivElement>, active: boolean) {
+  useLayoutEffect(() => {
+    const host = active ? root.current?.closest<HTMLElement>("aside[data-occludes]") : null;
+    if (!host) return;
+    const off: Record<string, string> = {
+      background: "transparent", "box-shadow": "none", "backdrop-filter": "none", "-webkit-backdrop-filter": "none",
+      "pointer-events": "none", overflow: "visible",
+    };
+    const prev = Object.keys(off).map((k) => [k, host.style.getPropertyValue(k)] as const);
+    for (const [k, v] of Object.entries(off)) host.style.setProperty(k, v);
+    return () => { for (const [k, v] of prev) { if (v) host.style.setProperty(k, v); else host.style.removeProperty(k); } };
+  }, [root, active]);
 }
