@@ -1,5 +1,5 @@
 import { Fragment, useId, useState } from "react";
-import { MarkLegend } from "../../components/marks";
+import { MarkLegend, SFigure } from "../../components/marks";
 import { Term } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { api } from "../../services/api";
@@ -48,8 +48,9 @@ function CellRow({ c, on, approx }: { c: CandidateView; on: boolean; approx: boo
         {on && <SelectionBar layoutId="t1-selection" />}
         {!approx && <span className="num text-num-sm text-faint">{c.rank?.toLocaleString("en-US")}</span>}
         <span className={cx("num truncate text-num-sm", on ? "text-earth" : "text-ink")}>{coord(c.lat, c.lon)}</span>
-        {/* No length bars: a bar would read as an order, and cells near the top are not ranked against each other. */}
-        <span className="num whitespace-nowrap text-right text-num text-ink"><span aria-hidden className="text-faint md:hidden">S </span>{sText(c.score)}</span>
+        {/* No length bars: a bar would read as an order, and cells near the top are not ranked against each other.
+            "S 0.909" is set as every view sets it; desktop prints the symbol once, in the column head. */}
+        <SFigure value={c.score} symbolClassName="md:hidden" className="justify-self-end text-num text-ink" />
         <span aria-hidden className="grid place-items-center" title={flagText || undefined}><CellFlag flagged={flagged} near={near} /></span>
       </button>
     </li>

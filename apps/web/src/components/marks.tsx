@@ -187,14 +187,14 @@ export function AnalogMark({ className }: { className?: string }) {
  * half the figure's size (never below 11 px), then the figure in mono. `term` links the symbol to its
  * definition where a view offers one (`symbol` swaps in a view's own term trigger, e.g. one whose popover
  * escapes a clipping panel); inside a button it must stay plain text (no nested controls). A missing score
- * reads as missing, never as 0.
+ * reads as missing, never as 0. `symbolClassName` can hide the symbol where a column head already prints it.
  */
-export function SFigure({ value, term = false, symbol, digits = 3, missing = "—", className, figureClassName }: {
-  value: number | null | undefined; term?: boolean; symbol?: ReactNode; digits?: number; missing?: string; className?: string; figureClassName?: string;
+export function SFigure({ value, term = false, symbol, digits = 3, missing = "—", className, figureClassName, symbolClassName }: {
+  value: number | null | undefined; term?: boolean; symbol?: ReactNode; digits?: number; missing?: string; className?: string; figureClassName?: string; symbolClassName?: string;
 }) {
   return (
     <span className={cx("inline-flex items-baseline gap-[0.32em] whitespace-nowrap", className)}>
-      <span className="font-sans text-[length:max(11px,0.5em)] font-medium normal-case tracking-normal text-muted">{symbol ?? (term ? <Term k="similarity">S</Term> : "S")}</span>
+      <span className={cx("font-sans text-[length:max(11px,0.5em)] font-medium normal-case tracking-normal text-muted", symbolClassName)}>{symbol ?? (term ? <Term k="similarity">S</Term> : "S")}</span>
       <Measure value={value} digits={digits} missing={missing} className={figureClassName} />
     </span>
   );
