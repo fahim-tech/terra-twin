@@ -9,6 +9,7 @@ import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, Relief } from "../../types/contracts";
 import type { CandidateView } from "../analogs/candidates";
 import type { CompareTargets } from "./model";
+import { usePhonePlanet } from "../../store/phone";
 
 /**
  * "3D relief" mode of the comparison: the compared pair as real elevation, Mars | Earth side by side on desktop
@@ -51,7 +52,7 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
   const mars = useMarsRelief(zone);
   const [ve, setVe] = useState<Exaggeration>(4);
   const both = !!earth.data && !!mars.data;
-  const [side, setSide] = useState<"mars" | "earth">("earth");
+  const side = usePhonePlanet((s) => s.planet), setSide = usePhonePlanet((s) => s.setPlanet);
   const root = useRef<HTMLDivElement>(null);
   const room = usePanelRoom(root);
   const marsWhy = mars.isError ? unavailableWords("mars", mars.error instanceof ApiError ? mars.error : { message: mars.error.message }).plain : null;
