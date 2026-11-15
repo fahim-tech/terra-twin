@@ -3,6 +3,7 @@
  * Every number on the page comes from here, and every reader returns null when the payload
  * does not carry the value — the page shows that as missing, never as a made-up figure.
  */
+import { instrumentWords } from "../../lib/wording";
 
 type Json = Record<string, unknown>;
 
@@ -215,7 +216,7 @@ export function buildModel(e: unknown, opts: { poolSize?: number | null } = {}):
     },
     novelty: { wording: str(at(e, "novelty", "wording")), status: str(at(e, "novelty", "status")), site: str(at(e, "novelty", "site_novelty")) },
     limitations: arr(at(e, "limitations"))
-      .map((l) => ({ code: str(at(l, "code")) ?? "", text: str(at(l, "text")) ?? "" }))
+      .map((l) => ({ code: str(at(l, "code")) ?? "", text: instrumentWords(str(at(l, "text"))) ?? "" }))
       .filter((l) => l.text),
   };
 }

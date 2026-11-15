@@ -188,7 +188,7 @@ export function SupportStrip({ m, targetSite, fig }: { m: EvidenceModel; targetS
   const [ref, width] = useWidth<HTMLDivElement>();
   const [active, setActive] = useState<string | null>(null);
   const rows = m.support.rows;
-  if (!rows.length) return <p className="text-caption text-faint">Observation support is not in the evidence payload.</p>;
+  if (!rows.length) return <p className="text-caption text-faint">Observation support is not in the research record.</p>;
   const lo = Math.floor(((m.support.min ?? 0) - 0.005) * 100) / 100;
   const hi = Math.ceil(((m.support.max ?? 1) + 0.005) * 100) / 100;
   const s = scale(lo, hi, zoomedTicks(lo, hi));
@@ -292,7 +292,7 @@ export function SupportStrip({ m, targetSite, fig }: { m: EvidenceModel; targetS
 
 /** Unit squares, one per real zone: filled = stable leader, outlined = tie (inner square = tie of three or more). */
 function ZoneSquares({ named, ties, label }: { named: number | null; ties: { size: number; count: number }[]; label: string }) {
-  if (named === null) return <p className="text-caption text-faint">Not in the evidence payload.</p>;
+  if (named === null) return <p className="text-caption text-faint">Not in the research record.</p>;
   const cells: ("named" | number)[] = [...Array(named).fill("named"), ...ties.flatMap((t) => Array(t.count).fill(t.size))];
   const parts = [`${named} stable leader${named === 1 ? "" : "s"}`, ...ties.map((t) => `${t.count} tie${t.count === 1 ? "" : "s"} of ${t.size}`)];
   return (

@@ -49,7 +49,7 @@ export function gisRows(status: GisStatus | undefined, datasets: DatasetLite[] |
     const active = numOrNull(d.active_runs);
     const max = numOrNull(d.max_active_runs);
     const parts = [
-      alive === null ? null : alive ? `worker alive${age !== null ? ` (heartbeat ${Math.round(age)} s ago)` : ""}` : "worker not responding",
+      alive === null ? null : alive ? `service running${age !== null ? ` (last heartbeat ${Math.round(age)} s ago)` : ""}` : "service not responding",
       active !== null ? `active runs ${active}${max !== null ? ` of ${max}` : ""}` : null,
       numOrNull(d.window_km) !== null ? `${d.window_km} km windows` : null,
     ].filter(Boolean);

@@ -23,7 +23,7 @@ describe("GIS integration rows", () => {
     expect(by["grid-mars"].detail).toBe("mars_grid_1km_v1");
     expect(by.context.value).toBe("Live");
     expect(by.context.detail).toMatch(/never a similarity feature/);
-    expect(by.discovery.detail).toBe("worker alive (heartbeat 51 s ago) · active runs 0 of 2 · 50 km windows");
+    expect(by.discovery.detail).toBe("service running (last heartbeat 51 s ago) · active runs 0 of 2 · 50 km windows");
     expect(by.mola_mosaic.value).toBe("Connected");
     expect(by.mola_counts_tiles.value).toBe("Not connected");
     expect(by.mola_counts_tiles.state).toBe("struck");

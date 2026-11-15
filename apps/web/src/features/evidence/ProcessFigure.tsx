@@ -251,7 +251,7 @@ export function ProcessFigure({ m, fig }: { m: EvidenceModel; fig?: string }) {
   // Mars cells, not the AEQD window grid of stage W (equal today, but a different quantity).
   const binM = metresBefore(m.method.operatorNote, "cells");
   const [lit, setLit] = useState<number | null>(null);
-  const missing = (what: string) => <span className="text-faint">{what} not in payload</span>;
+  const missing = (what: string) => <span className="text-faint">{what} not in the research record</span>;
 
   const stages: Stage[] = [
     {
@@ -345,7 +345,7 @@ export function ProcessFigure({ m, fig }: { m: EvidenceModel; fig?: string }) {
                 </div>
                 <div className="mt-2 grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3">
                   <dt className="pt-[3px] text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-faint">Chain</dt>
-                  <dd className="m-0 font-mono text-[11px] leading-snug text-faint">{s.chain ?? "Chain step not in payload"}</dd>
+                  <dd className="m-0 font-mono text-[11px] leading-snug text-faint">{s.chain ?? "Chain step not in the research record"}</dd>
                 </div>
               </dl>
               <button type="button" onClick={() => jumpTo(s.evidence)} onFocus={() => setLit(i)} onBlur={() => setLit(null)}

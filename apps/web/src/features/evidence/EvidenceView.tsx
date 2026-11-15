@@ -103,7 +103,7 @@ export default function EvidenceView() {
 /** Document control block, like the title block of an engineering drawing. Every value is from the API. */
 function DocControl({ m, pkg, pkgState }: { m: EvidenceModel; pkg: DatasetsResponse["research_import"] | undefined; pkgState: "loading" | "error" | "ready" }) {
   const rows: [string, ReactNode][] = [
-    ["Method", m.method.name ?? <span className="text-faint">Not in payload</span>],
+    ["Method", m.method.name ?? <span className="text-faint">Not in the research record</span>],
     ["Version", <span className="num text-ink">{m.method.version ?? "—"}</span>],
     ["Used for", <Term k="researchComparison" />],
     ["Validation", <><Term k="synthetic">Synthetic twins only</Term> · not validated against field data or expert review</>],
@@ -151,11 +151,11 @@ function KeyFigures({ m }: { m: EvidenceModel }) {
           scale={<MiniScale link={[k.directMrr, k.oomMrr]} marks={[{ v: k.directMrr, kind: "hollow" }, { v: k.oomMrr, kind: "solid" }]} />} />
         <KeyFig label="Strongest alternative"
           value={fmtPct(k.alt?.top1 ?? null)}
-          basis={k.alt ? <>{k.alt.name}: twin ranked first · MRR <span className="num">{fmtNum(k.alt.mrr)}</span></> : "Not in payload"}
+          basis={k.alt ? <>{k.alt.name}: twin ranked first · MRR <span className="num">{fmtNum(k.alt.mrr)}</span></> : "Not in the research record"}
           scale={<MiniScale ends={["0%", "100%"]} marks={[{ v: k.alt?.top1 ?? null, kind: "alt" }]} />} />
         <KeyFig label="Adverse result" warn
           value={k.adverse ? <>{fmtNum(k.adverse.oom, 2)}<span className="mx-2 text-muted" aria-hidden>&lt;</span><span className="sr-only"> is below </span>{fmtNum(k.adverse.direct, 2)}</> : "—"}
-          basis={k.adverse ? <>If the true chain were {k.adverse.chain.toLowerCase()}: deployed operator MRR below direct comparison</> : "No adverse row in payload"}
+          basis={k.adverse ? <>If the true chain were {k.adverse.chain.toLowerCase()}: deployed operator MRR below direct comparison</> : "No adverse result in the research record"}
           scale={k.adverse ? <MiniScale link={[k.adverse.oom, k.adverse.direct]} linkClass="bg-warn/80" marks={[{ v: k.adverse.direct, kind: "hollow" }, { v: k.adverse.oom, kind: "warn" }]} /> : null} />
       </dl>
       <p className="px-5 py-3.5 text-caption text-muted sm:px-6">{G5.validation}.</p>
@@ -340,7 +340,7 @@ function Body({ m, ds, dsLoading, dsError, targetSite }: { m: EvidenceModel; ds?
             </li>
           ))}
         </ol>
-        {!m.limitations.length && <p className="flex items-baseline gap-2 text-caption text-ink"><StatusMark state="fault" className="-translate-y-px" />Limitations are missing from the evidence payload.</p>}
+        {!m.limitations.length && <p className="flex items-baseline gap-2 text-caption text-ink"><StatusMark state="fault" className="-translate-y-px" />Limitations are missing from the research record.</p>}
       </Section>
 
       <Section id="ev-provenance" title="Datasets and integrity">
