@@ -43,7 +43,8 @@ function Plate({ planet, targets, drawerOpen }: { planet: Planet; targets: Compa
         <span aria-hidden className="inline-block h-2.5 w-2.5 shrink-0 translate-y-[1px] border border-ink" />
         <span>{t.footprint}</span>
       </div>
-      {sub && <div className="mt-1 line-clamp-2 text-caption text-faint" title={sub}>{sub}</div>}
+      {/* Narrowed beside the Why drawer the note wraps in full rather than being cut off. */}
+      {sub && <div className={cx("mt-1 text-caption text-faint", !drawerOpen && "line-clamp-2")} title={sub}>{sub}</div>}
     </section>
   );
 }

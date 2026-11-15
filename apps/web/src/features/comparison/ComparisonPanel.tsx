@@ -120,6 +120,16 @@ export function ComparisonPanel() {
     setMode(MODES[next].value);
   }, [mode, setMode]);
 
+  // Height of the strip, so a narrowed strip can still mark the full bottom band as covered (below).
+  const [stripH, setStripH] = useState(0);
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setStripH(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  });
+
   if (!search || !c || !targets || !verdict) return <NoCandidate hasSearch={!!search} phone={phone} />;
 
   // With the Why drawer open, the strip reflows into the width the drawer leaves free (so the G5 scope
@@ -134,12 +144,16 @@ export function ComparisonPanel() {
       {/* Phones: the shell's Mars|Earth switch sits over the top of the frame; mark that band as covered
           so the globe frames the compared window below it (the switch itself is not an occluder). */}
       {phone && <div aria-hidden data-occludes="both" className="pointer-events-none absolute inset-x-0 top-0 h-[64px]" />}
+      {/* A strip narrowed by the Why drawer no longer spans most of the Earth half, so the inset model
+          would stop treating it as a bottom cover and the Earth window would sit lower than the Mars one.
+          Mark the full-width band it occupies so both globes keep the same free area and baseline. */}
+      {stripRight !== null && stripH > 0 && <div aria-hidden data-occludes="both" className="pointer-events-none absolute inset-x-3 bottom-3" style={{ height: stripH }} />}
       <motion.section ref={stripRef} aria-label="Mars–Earth comparison" data-occludes="both"
         initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", bounce: 0, duration: 0.35 }}
         style={{ ...(expanded ? { height: phone ? "70%" : "56%" } : null), ...(stripRight !== null ? { right: stripRight } : null) }}
         className={cx("surface no-print absolute z-20 flex flex-col overflow-hidden",
           phone ? "inset-x-0 bottom-0 rounded-t-surface [padding-bottom:env(safe-area-inset-bottom)]" : "inset-x-3 bottom-3 rounded-surface")}>
-        <Summary c={c} targets={targets} verdict={verdict} mode={mode} setMode={setMode} onTabKeys={onTabKeys} phone={phone} onWhy={() => set({ whyOpen: true })} />
+        <Summary c={c} targets={targets} verdict={verdict} mode={mode} setMode={setMode} onTabKeys={onTabKeys} phone={phone} narrow={stripRight !== null} onWhy={() => set({ whyOpen: true })} />
         {expanded && (
           <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(mode)} className="relative flex min-h-0 flex-1 flex-col">
             <div className="mx-6 h-px shrink-0 bg-line/70 max-md:mx-4" aria-hidden />
@@ -177,9 +191,11 @@ export function ComparisonPanel() {
   );
 }
 
-function Summary({ c, targets, verdict, mode, setMode, onTabKeys, phone, onWhy }: {
+function Summary({ c, targets, verdict, mode, setMode, onTabKeys, phone, narrow = false, onWhy }: {
   c: CandidateView; targets: NonNullable<ReturnType<typeof compareTargets>>; verdict: Verdict;
-  mode: Mode; setMode: (m: Mode) => void; onTabKeys: (e: React.KeyboardEvent) => void; phone: boolean; onWhy: () => void;
+  mode: Mode; setMode: (m: Mode) => void; onTabKeys: (e: React.KeyboardEvent) => void; phone: boolean;
+  /** The strip shares the width with the open Why drawer: two columns, modes below, no second Why button. */
+  narrow?: boolean; onWhy: () => void;
 }) {
   const go = useApp((s) => s.go);
   const verdictTerm = verdict.kind === "leader" ? "stableLeader" : verdict.kind === "tie_member" ? "tie" : verdict.kind === "insufficient" ? "notEnough" : null;
@@ -250,7 +266,7 @@ function Summary({ c, targets, verdict, mode, setMode, onTabKeys, phone, onWhy }
   }
 
   return (
-    <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] gap-x-8 gap-y-2 px-6 pb-3 pt-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_auto]">
+    <div className={cx("grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] gap-x-8 gap-y-2 px-6 pb-3 pt-4", !narrow && "xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_auto]")}>
       {/* Pair and verdict */}
       <div className="min-w-0">
         <div className="flex items-center gap-2">
@@ -275,9 +291,9 @@ function Summary({ c, targets, verdict, mode, setMode, onTabKeys, phone, onWhy }
       </div>
 
       {/* Modes */}
-      <div className="col-span-2 flex min-w-0 flex-wrap items-center justify-between gap-x-6 gap-y-2 xl:col-span-1 xl:flex-col xl:items-end xl:justify-start">
+      <div className={cx("col-span-2 flex min-w-0 flex-wrap items-center justify-between gap-x-6 gap-y-2", !narrow && "xl:col-span-1 xl:flex-col xl:items-end xl:justify-start")}>
         {tabs}
-        {why}
+        {!narrow && why}
       </div>
     </div>
   );
