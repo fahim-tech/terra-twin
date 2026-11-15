@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { project, rubberband } from "./Sheet";
+import { cleanCut, project, rubberband } from "./Sheet";
 
 describe("sheet physics", () => {
   it("projects momentum like scroll deceleration", () => {
@@ -12,5 +12,18 @@ describe("sheet physics", () => {
     expect(a).toBeLessThan(50);
     expect(b).toBeLessThan(500);
     expect(b / 500).toBeLessThan(a / 50);
+  });
+});
+
+describe("cleanCut", () => {
+  const rows = [{ top: 0, bottom: 20 }, { top: 32, bottom: 52 }, { top: 88, bottom: 132 }];
+  it("moves a detent line up out of a row it would slice", () => {
+    expect(cleanCut(rows, 112, 72)).toBe(88);
+  });
+  it("keeps a line that already falls between rows", () => {
+    expect(cleanCut(rows, 70, 40)).toBe(70);
+  });
+  it("gives up at the floor and keeps the target when every line cuts a row", () => {
+    expect(cleanCut([{ top: 0, bottom: 300 }], 150, 100)).toBe(150);
   });
 });
