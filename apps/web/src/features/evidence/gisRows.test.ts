@@ -42,7 +42,7 @@ describe("GIS integration rows", () => {
   });
 
   it("keeps research records and live discovery apart in the live sentence", () => {
-    expect(liveSentence(LIVE)).toMatch(/published research records\. Live discovery runs through the GIS worker/);
+    expect(liveSentence(LIVE)).toMatch(/published research records\. Live discovery runs on the GIS discovery service/);
     expect(liveSentence(undefined)).toMatch(/could not be read/);
     const down = { ...LIVE, discovery: { ...LIVE.discovery, worker: { alive: false } } } as unknown as GisStatus;
     expect(liveSentence(down)).toMatch(/not available/);

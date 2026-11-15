@@ -78,6 +78,6 @@ export function liveSentence(status: GisStatus | undefined): string {
   if (!status) return `${base} Live discovery status could not be read.`;
   const d = status.discovery;
   const alive = (d.worker as { alive?: unknown } | undefined)?.alive;
-  if (d.status === "available" && alive !== false) return `${base} Live discovery runs through the GIS worker for a chosen Mars window.`;
+  if (d.status === "available" && alive !== false) return `${base} Live discovery runs on the GIS discovery service for a chosen Mars window.`;
   return `${base} Live discovery is not available${d.reason ? `: ${d.reason}` : ""}.`;
 }
