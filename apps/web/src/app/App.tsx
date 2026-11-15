@@ -29,6 +29,12 @@ import { CompareGlobeSync } from "../features/comparison/CompareGlobeSync";
 const EvidenceView = lazy(() => import("../features/evidence/EvidenceView"));
 const ReportView = lazy(() => import("../features/report/ReportView"));
 
+/**
+ * Where the Mars frame sits while the intro is open: right of the copy in landscape from 768 px, raised
+ * above it in portrait (phones and portrait tablets). Intro.tsx sizes its column against these offsets.
+ */
+const INTRO_POSE = "portrait:-translate-y-[24%] portrait:md:-translate-y-[20%] landscape:md:translate-x-[20vw] landscape:xl:translate-x-[16vw]";
+
 export function App() {
   return (
     <MotionConfig reducedMotion="user">
@@ -105,7 +111,7 @@ function Workspace() {
           <div ref={marsFrame} {...inert(!marsActive)}
             className={cx("absolute inset-y-0 left-0 transition-[opacity,transform] duration-[600ms] ease-[var(--ease-out-soft)]",
               split && !phone ? "w-1/2" : "w-full",
-              introOpen && stage === "mars" && !phone && "md:translate-x-[16vw]",
+              introOpen && stage === "mars" && INTRO_POSE,
               marsShown ? "opacity-100" : "pointer-events-none opacity-0")}>
             <GlobeFrame planet="mars" ref={bus.handles.mars} onMessage={onMars} />
             {stage === "mars" && !introOpen && <Reticle planet="mars" />}
