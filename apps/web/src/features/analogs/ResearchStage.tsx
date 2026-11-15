@@ -1,12 +1,13 @@
-import type { ComponentType } from "react";
 import { Disclosure, Term, Toponym } from "../../components/primitives";
+import { reliefWindowId } from "../../components/relief";
 import { cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
+import { useEarthPool } from "../../services/api";
 import type { AnalogSearch, Tier2Candidate } from "../../types/contracts";
 import { coord, decisionMembers, measuresOf, parseWindowId, prettyWindow, researchWindowKm, shortWindow, T2_MEASURES, unorderedMembers } from "./candidates";
 import { Readout, Readouts, rowClass, SectionHead, SelectionBar } from "./instruments";
 import { measuresText, sSpoken, sText } from "./readout";
-import { ReliefSlot, type ReliefSlotProps } from "./ReliefSlot";
+import { ReliefSlot } from "./ReliefSlot";
 import { chooseCandidate, switchTier } from "./tierMemory";
 import { decisionLabel, DecisionHead, OperatorStatus } from "./Verdict";
 
@@ -91,12 +92,11 @@ function LeaderRow({ c, on, onPick }: { c: Tier2Candidate; on: boolean; onPick: 
 }
 
 /**
- * Stage 1 — the published research comparison for this zone (tier 2, OOM, fixed research pool).
- * `relief` is the slot for a 3D relief preview of the selected window (see ReliefSlot); it renders nothing yet.
+ * Stage 1 — the published research comparison for this zone (tier 2, OOM, fixed research pool). A selected
+ * window that the research pool lists gets its 3D terrain relief under the decision (ReliefSlot); section
+ * numbers follow the sections shown, without gaps.
  */
-export function ResearchStage({ search, candidateId, relief: Relief = ReliefSlot }: {
-  search: AnalogSearch; candidateId: string | null; relief?: ComponentType<ReliefSlotProps>;
-}) {
+export function ResearchStage({ search, candidateId }: { search: AnalogSearch; candidateId: string | null }) {
   const t2 = search.tier2;
   const d = t2.decision;
   const label = decisionLabel(t2);
@@ -109,6 +109,12 @@ export function ResearchStage({ search, candidateId, relief: Relief = ReliefSlot
   const isOn = (c: Tier2Candidate) => candidateId === `t2:${c.id}`;
   const selected = t2.candidates.find(isOn) ?? null;
   const leader = d.type === "named_leader" ? members[0] : undefined;
+  // The relief is keyed on the research-pool window id: exactly the record's id, and only when the pool lists it.
+  const earthPool = useEarthPool();
+  const reliefId = selected ? reliefWindowId({ tier: 2, t2: selected }, earthPool.data) : null;
+  let n = 0;
+  const next = () => String(++n).padStart(2, "0");
+  const index = { decision: next(), relief: reliefId ? next() : "", basis: next(), others: others.length ? next() : "" };
 
   return (
     <section aria-labelledby="stage-research" className="pb-2">
@@ -117,7 +123,7 @@ export function ResearchStage({ search, candidateId, relief: Relief = ReliefSlot
 
       {/* Phones hide the rule (kept for screen readers): the status block is self-evidently the decision, and the
           members must fit at half height. */}
-      <SectionHead index="01" className="mt-4 max-md:sr-only">Decision</SectionHead>
+      <SectionHead index={index.decision} className="mt-4 max-md:sr-only">Decision</SectionHead>
       {/* Status block: annunciator, what the decision is about (leader or tied members), then the research
           label (G5 verbatim) and its caveats. */}
       <div className="mt-2.5 border border-line-strong max-md:mt-2">
@@ -154,9 +160,9 @@ export function ResearchStage({ search, candidateId, relief: Relief = ReliefSlot
         </div>
       </div>
 
-      {selected && <Relief search={search} candidate={selected} windowKm={researchWindowKm(search, selected)} />}
+      {selected && reliefId && <ReliefSlot candidate={selected} windowId={reliefId} index={index.relief} />}
 
-      <SectionHead index="02" className="mt-6">Basis</SectionHead>
+      <SectionHead index={index.basis} className="mt-6">Basis</SectionHead>
       <Readouts className="mt-2.5" label="Basis of the research comparison">
         <Readout label="Window">{winKm !== null ? <Term k="scale"><span className="num">{winKm}</span> km windows</Term> : "Not stated in the record"}</Readout>
         <Readout label="Observation"><OperatorStatus t2={t2} /></Readout>
@@ -179,7 +185,7 @@ export function ResearchStage({ search, candidateId, relief: Relief = ReliefSlot
 
       {others.length > 0 && (
         <>
-          <SectionHead index="03" className="mt-6" aside={others.length}>Other windows</SectionHead>
+          <SectionHead index={index.others} className="mt-6" aside={others.length}>Other windows</SectionHead>
           <p className="mt-1.5 text-caption text-muted">Context, not part of the decision.</p>
           <div className="mt-2 border-y border-line">
             <WindowTableHead />
