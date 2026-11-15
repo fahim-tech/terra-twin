@@ -8,6 +8,7 @@ import { Sheet, type SheetSnap } from "../components/Sheet";
 import { AltitudeReadout, CenterReadout, NavControls, Reticle, ScaleBar } from "../components/map/Instruments";
 import { useApp } from "../store/app";
 import { useGlobes } from "../store/globes";
+import { usePhonePlanet } from "../store/phone";
 import { useHealth } from "../services/api";
 import { GlobeBusProvider, useGlobeBus } from "./globeBus";
 import { LiveRegion, useEscapeToClose, useStageFocus } from "./a11y";
@@ -98,7 +99,9 @@ function Workspace() {
   const split = stage === "compare";
   const phone = layout === "phone";
   // On phones the comparison shows one planet at a time.
-  const [phonePlanet, setPhonePlanet] = useState<Planet>("earth");
+  // One value shared with the 3D relief's own Mars / Earth switch (store/phone.ts), so both always agree.
+  const phonePlanet = usePhonePlanet((s) => s.planet);
+  const setPhonePlanet = usePhonePlanet((s) => s.setPlanet);
   const marsShown = stage === "mars" || (split && (!phone || phonePlanet === "mars")) || (fullPage && previousStage === "mars");
   const earthShown = stage === "earth" || (split && (!phone || phonePlanet === "earth")) || (fullPage && previousStage !== "mars");
   const marsActive = !fullPage && marsShown;
