@@ -16,7 +16,8 @@ const FOV_RAD = Math.PI / 3;
 const PLATE_ASPECT = 4 / 3;
 
 type Shot = { dataUrl: string; width: number; height: number };
-type State = { status: "loading" } | { status: "ok"; shot: Shot } | { status: "failed" };
+export type SnapshotState = { status: "loading" } | { status: "ok"; shot: Shot } | { status: "failed" };
+type State = SnapshotState;
 
 // Snapshots are expensive (the globe re-renders off-view); keep them for the session.
 const cache = new Map<string, Promise<Shot | null>>();
@@ -25,7 +26,7 @@ const cache = new Map<string, Promise<Shot | null>>();
  * Real imagery from the planet's own globe, or a failure that the plate shows honestly.
  * Waits for the globe to be ready; gives up after a bounded time.
  */
-export function useSnapshot(planet: Planet, lat: number, lon: number): State {
+export function useSnapshot(planet: Planet, lat: number, lon: number, enabled = true): State {
   const bus = useGlobeBus();
   const qc = useQueryClient();
   const ready = useGlobes((s) => s.ready[planet]);
@@ -34,6 +35,7 @@ export function useSnapshot(planet: Planet, lat: number, lon: number): State {
 
   useEffect(() => {
     let live = true;
+    if (!enabled) { setState({ status: "failed" }); return; }
     setState({ status: "loading" });
     if (!ready) {
       const t = setTimeout(() => { if (live) setState({ status: "failed" }); }, 25000);
@@ -58,7 +60,7 @@ export function useSnapshot(planet: Planet, lat: number, lon: number): State {
       useApp.getState().announce(r ? `${name} location plate ready` : `${name} imagery unavailable; the plate shows coordinates only`);
     });
     return () => { live = false; };
-  }, [bus, qc, planet, lat, lon, ready, key]);
+  }, [bus, qc, planet, lat, lon, ready, key, enabled]);
 
   return state;
 }
@@ -105,10 +107,16 @@ function niceScale(maxKm: number) {
   return 10;
 }
 
-export function LocationPlate({ planet, lat, lon, frame, kicker, name, imagery }: {
+/**
+ * `snapshot` comes from the caller so a pair of plates can be revealed together: while `held`, the plate
+ * keeps its rendering state even if its own image is ready, so the dossier never opens on one real
+ * plate beside a blank one.
+ */
+export function LocationPlate({ planet, lat, lon, frame, kicker, name, imagery, snapshot, held = false }: {
   planet: Planet; lat: number; lon: number; frame: PlateFrame; kicker: string; name: ReactNode; imagery: string;
+  snapshot: SnapshotState; held?: boolean;
 }) {
-  const snap = useSnapshot(planet, lat, lon);
+  const snap: State = held && snapshot.status === "ok" ? { status: "loading" } : snapshot;
   const tone = planet === "mars" ? "!text-mars" : "!text-earth";
   const coord = `${fmtLat(lat, 3)} ${fmtLon(lon, 3)}`;
 

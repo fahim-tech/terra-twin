@@ -8,7 +8,7 @@ import { useApp } from "../../store/app";
 import { resultsAreStale, searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
 import { DIFFERENCES_SOURCE, PLANETARY_DIFFERENCES } from "../comparison/science";
-import { LocationPlate, PLATE_HEIGHT_KM, type PlateFrame } from "./LocationPlate";
+import { LocationPlate, PLATE_HEIGHT_KM, type PlateFrame, useSnapshot } from "./LocationPlate";
 import {
   buildCsv, buildReportJson, candidateRole, DECISION, decisionHeadline, decisionLabel, decisionMembers, dimensions,
   exportBaseName, fmtCoord, limitations, REFERENCES, representationLabel, resolveCandidate, terrainRows, windowLabel,
@@ -81,6 +81,10 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
   const earthFrame: PlateFrame | null = !c ? null : c.tier === 1
     ? { nsKm: c.t1!.footprint.cell_km_ns, ewKm: c.t1!.footprint.cell_km_ew, label: "25 km screening cell" }
     : { nsKm: c.t2!.window_km, ewKm: c.t2!.window_km, label: `${c.t2!.window_km} km research window` };
+  // Both plates are revealed together (each still falls back on its own after its timeout).
+  const marsSnap = useSnapshot("mars", marsLat, marsLon);
+  const earthSnap = useSnapshot("earth", c?.lat ?? 0, c?.lon ?? 0, !!(c && earthFrame));
+  const platesHeld = marsSnap.status === "loading" || (!!(c && earthFrame) && earthSnap.status === "loading");
 
   return (
     <article className="mx-auto max-w-[1040px] px-4 pb-28 pt-8 md:px-10 md:pt-12 print:max-w-none print:px-0 print:pt-0 print:pb-0">
@@ -128,9 +132,9 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
       {/* Location plates */}
       <section aria-label="Location plates" className="mt-10 break-inside-avoid">
         <div className="grid gap-6 md:grid-cols-2 md:gap-8 print:grid-cols-2 print:gap-6">
-          <LocationPlate planet="mars" lat={marsLat} lon={marsLon} frame={marsFrame} kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"} name={target.siteId ? target.label : "Search target"} imagery="NASA Mars Trek imagery" />
+          <LocationPlate planet="mars" lat={marsLat} lon={marsLon} frame={marsFrame} kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"} name={target.siteId ? target.label : "Search target"} imagery="NASA Mars Trek imagery" snapshot={marsSnap} held={platesHeld} />
           {c && earthFrame ? (
-            <LocationPlate planet="earth" lat={c.lat} lon={c.lon} frame={earthFrame} kicker={c.tier === 1 ? "Earth · Screening cell" : role === "tie_member" ? "Earth · Tie member" : "Earth · Research window"} name={c.tier === 1 && !c.t1?.known_analog.name ? "Screening cell" : c.label} imagery="NASA GIBS imagery" />
+            <LocationPlate planet="earth" lat={c.lat} lon={c.lon} frame={earthFrame} kicker={c.tier === 1 ? "Earth · Screening cell" : role === "tie_member" ? "Earth · Tie member" : "Earth · Research window"} name={c.tier === 1 && !c.t1?.known_analog.name ? "Screening cell" : c.label} imagery="NASA GIBS imagery" snapshot={earthSnap} held={platesHeld} />
           ) : (
             <NoCandidatePlate hasCandidates={search.tier2.candidates.some((x) => x.lat !== null && x.lon !== null) || (search.tier1?.candidates.length ?? 0) > 0} screenRan={!!search.tier1} decision={t2.decision.type} />
           )}
