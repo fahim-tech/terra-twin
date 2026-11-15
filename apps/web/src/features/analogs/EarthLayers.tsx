@@ -5,6 +5,7 @@ import { cx } from "../../components/ui";
 import { useLayout } from "../../app/useLayout";
 import { useEarthPool, useLegend } from "../../services/api";
 import { useApp } from "../../store/app";
+import { searchTarget } from "../../store/searchTarget";
 import { useEarthLocal } from "./earthLocal";
 
 function Toggle({ on, onClick, children, swatch, compact }: { on: boolean; onClick: () => void; children: ReactNode; swatch: ReactNode; compact?: boolean }) {
@@ -21,8 +22,9 @@ function Toggle({ on, onClick, children, swatch, compact }: { on: boolean; onCli
 /** Earth layer capsule: toggles for the similarity field, research pool, screened land and reference sites, plus legends. */
 export function EarthLayers() {
   const overlays = useApp((s) => s.earthOverlays);
-  const hasSearch = useApp((s) => !!s.search);
-  const hasT1 = useApp((s) => !!s.search?.tier1);
+  const search = useApp((s) => s.search);
+  const hasSearch = !!search;
+  const hasT1 = !!search?.tier1;
   const set = useApp((s) => s.set);
   const reference = useEarthLocal((s) => s.referenceSites);
   const legendOpen = useEarthLocal((s) => s.legendOpen);
@@ -32,7 +34,11 @@ export function EarthLayers() {
   const toggle = (key: keyof typeof overlays) => set({ earthOverlays: { ...overlays, [key]: !overlays[key] } });
   const lg = legend.data?.tier1_similarity;
   const cov = legend.data?.tier1_coverage;
-  const nPool = pool.data?.filter((w) => w.kind === "random").length;
+  const nPool = pool.data?.length;
+  const nRandom = pool.data?.filter((w) => w.kind === "random").length;
+  const t2pool = search?.tier2.candidate_pool as ({ n_windows: number; n_ranked?: number } | null | undefined);
+  const gate = search?.tier2.landcover_gate;
+  const target = searchTarget(search);
   const showLegend = !phone || legendOpen;
   const anyLegend = (overlays.similarity && hasT1) || overlays.pool || overlays.coverage || reference;
 
@@ -74,8 +80,14 @@ export function EarthLayers() {
           )}
           {overlays.similarity && hasSearch && !hasT1 && <p className="text-caption text-faint">No similarity field: the global screen did not run for this target.</p>}
           {overlays.pool && (
-            <p className="flex items-center gap-2 text-caption text-muted"><span aria-hidden className="h-1.5 w-1.5 rounded-full bg-muted" />
-              <span><span className="num text-num-sm text-ink">{nPool ?? "—"}</span> research-pool windows (50 km) the research comparison could rank</span></p>
+            <div className="flex items-start gap-2 text-caption text-muted"><span aria-hidden className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-muted" />
+              <p>
+                <span className="num text-num-sm text-ink">{nPool ?? "—"}</span> research-pool windows, 50 km each
+                {nRandom !== undefined && nPool !== undefined && <> (<span className="num text-num-sm">{nRandom}</span> sampled at random, <span className="num text-num-sm">{nPool - nRandom}</span> named)</>}.
+                {t2pool && target && <> Ranked for {target.label}: <span className="num text-num-sm text-ink">{t2pool.n_ranked ?? t2pool.n_windows}</span>
+                  {gate?.mode === "exclude" ? " that pass the land-cover filter" : ""}.</>}
+              </p>
+            </div>
           )}
           {overlays.coverage && cov && (
             <p className="flex items-center gap-2 text-caption text-muted"><span aria-hidden className="h-2.5 w-2.5 rounded-[3px]" style={{ background: `rgba(${cov.rgba.slice(0, 3).join(",")},${Math.max(0.5, (cov.rgba[3] ?? 255) / 255)})` }} />{cov.label}</p>

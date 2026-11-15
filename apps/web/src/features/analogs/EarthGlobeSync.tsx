@@ -3,15 +3,17 @@ import { useGlobeBus, useGlobeEvents } from "../../app/globeBus";
 import type { GlobeFootprint, GlobeMarker } from "../../globes/protocol";
 import { api, useEarthPool, useEarthSites } from "../../services/api";
 import { useApp } from "../../store/app";
-import { boundsOf, type CandidateView, candidateList, centroidOf, selectedCandidate } from "./candidates";
+import { useLayout } from "../../app/useLayout";
+import { useGlobes } from "../../store/globes";
+import { boundsOf, type CandidateView, candidateList, centroidOf, selectedCandidate, shortWindow } from "./candidates";
+import { phoneFrame, targetForNadir } from "./phoneFrame";
 import { useEarthLocal } from "./earthLocal";
 import { chooseCandidate, useTierMemorySync } from "./tierMemory";
 
 /** Short marker labels: the panel carries the full name. */
 function markerLabel(c: CandidateView) {
   if (c.tier === 1) return undefined;
-  const m = /^rand_d\d_(\d+)$/.exec(c.t2!.id);
-  return m ? `Window ${m[1]}` : c.label;
+  return shortWindow(c.t2!.id);
 }
 
 /**
@@ -45,6 +47,7 @@ export function EarthGlobeSync() {
   const cands = useMemo(() => candidateList(search), [search]);
   const current = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
   const members = useMemo(() => search?.tier2.decision.members ?? [], [search]);
+  const phone = useLayout() === "phone";
 
   // Named reference / control windows only when their layer is on.
   useEffect(() => {
@@ -63,9 +66,13 @@ export function EarthGlobeSync() {
     }));
     const t1: GlobeMarker[] = cands.filter((c) => c.tier === 1).map((c) => ({ id: c.id, lat: c.lat, lon: c.lon, kind: "candidate", rank: c.rank }));
     bus.send("earth", { t: "setMarkers", group: "candidates", markers: [] });
-    bus.send("earth", { t: "setMarkers", group: "t2", markers: t2, options: { labels: "selected" } });
+    // Cesium labels are demoted (spec §15): on the research stage every member has its 50 km window drawn and
+    // a label would straddle the box edge, and on phones they collide with cell clusters at the limb. The
+    // panel and its footer name the windows.
+    const labels = tier === 2 || phone ? "none" : "selected";
+    bus.send("earth", { t: "setMarkers", group: "t2", markers: t2, options: { labels } });
     bus.send("earth", { t: "setMarkers", group: "t1", markers: t1, options: { cluster: true, labels: "none" } });
-  }, [bus, cands, members]);
+  }, [bus, cands, members, tier, phone]);
 
   // 50 km windows of the tier-2 members, drawn while the research comparison is the active stage.
   useEffect(() => {
@@ -90,10 +97,20 @@ export function EarthGlobeSync() {
   // only when the user picks one.
   const frameKey = stage === "earth" && search ? `${search.id}|${tier}` : null;
   const last = useRef<{ frameKey: string | null; candidateId: string | null }>({ frameKey: null, candidateId: null });
+  /** The set framed by `frameShortFree`, until the user moves the camera or picks a candidate. */
+  const phoneFramed = useRef<CandidateView[] | null>(null);
+  const insets = useGlobes((s) => s.insets.earth);
+  // The globe re-aims its last target when the free area changes (the sheet settles after arrival), which
+  // would move the nadir chosen for the strip; frame the set again for the new strip instead.
+  useEffect(() => {
+    if (phone && stage === "earth" && phoneFramed.current) frameShortFree(phoneFramed.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [insets.top, insets.bottom, insets.left, insets.right]);
   useEffect(() => {
     const prev = last.current;
     last.current = { frameKey, candidateId };
     if (!frameKey || !search) return;
+    if (frameKey !== prev.frameKey || candidateId !== prev.candidateId) phoneFramed.current = null;
     if (frameKey !== prev.frameKey) {
       const intent = useEarthLocal.getState().intent;
       useEarthLocal.setState({ intent: null });
@@ -102,6 +119,7 @@ export function EarthGlobeSync() {
         return;
       }
       const set = activeSet(cands, tier, members, search.tier1?.limit || 50);
+      if (phone && frameShortFree(set)) return;
       let b = boundsOf(set.map((c) => ({ lat: c.lat, lon: c.lon, bbox: c.tier === 1 ? c.bbox : undefined })));
       if (!b) { bus.send("earth", { t: "reset" }); return; }
       let span = ((b.east - b.west) % 360 + 360) % 360;
@@ -144,7 +162,7 @@ export function EarthGlobeSync() {
     const show = overlays.pool && !!search && pool.data;
     bus.send("earth", {
       t: "setMarkers", group: "pool", options: { labels: "none" },
-      markers: show ? pool.data!.filter((w) => w.kind === "random").map((w) => ({ id: `pool:${w.id}`, lat: w.lat, lon: w.lon, kind: "pool" as const })) : [],
+      markers: show ? pool.data!.map((w) => ({ id: `pool:${w.id}`, lat: w.lat, lon: w.lon, kind: "pool" as const })) : [],
     });
   }, [bus, overlays.pool, search, pool.data]);
 
@@ -152,7 +170,30 @@ export function EarthGlobeSync() {
     bus.send("earth", { t: "setGraticule", on: useApp.getState().graticule });
   }, [bus]);
 
+  /**
+   * Phone: the free area is a short strip above the sheet, and a nadir camera keeps the planet's disc centred
+   * on the canvas, so a box fit of a spread-out set leaves most of the disc under the sheet. Frame such sets
+   * by searching for the nadir and altitude that put the members inside the strip. False = use the box fit.
+   */
+  function frameShortFree(set: CandidateView[]): boolean {
+    const b = boundsOf(set);
+    if (!b || set.length < 2) return false;
+    const span = ((b.east - b.west) % 360 + 360) % 360;
+    if (span < 20 && b.north - b.south < 20) return false;
+    const main = document.querySelector("main")?.getBoundingClientRect();
+    if (!main) return false;
+    const frame = { w: main.width, h: main.height, ...useGlobes.getState().insets.earth };
+    const centre = centroidOf(set) ?? { lat: (b.north + b.south) / 2, lon: b.west + span / 2 };
+    const fit = phoneFrame(set, frame, centre, { reserveRight: 48 });
+    if (!fit || fit.inside === 0) return false;
+    const t = targetForNadir(fit.nadir, fit.heightKm, frame);
+    bus.send("earth", { t: "flyTo", lat: t.lat, lon: t.lon, heightKm: fit.heightKm });
+    phoneFramed.current = set;
+    return true;
+  }
+
   useGlobeEvents("earth", (m) => {
+    if (m.t === "interaction") phoneFramed.current = null;
     if (m.t !== "markerClick" || m.id.startsWith("ref:") || m.id.startsWith("pool:")) return;
     useEarthLocal.setState({ intent: "select" });
     chooseCandidate(m.id);
