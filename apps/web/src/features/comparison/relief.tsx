@@ -38,7 +38,7 @@ const STATUS_BAR = 28;
  * Under each scene: the planet strip above it and the status bar; a deck row and the one-line key when the controls
  * sit below (floating controls carry the key inside the scene); the shared control.
  */
-const RESERVE = { strip: 28, status: STATUS_BAR, deck: 40, legend: 30, shared: 38, notice: 48 } as const;
+const RESERVE = { strip: 28, status: STATUS_BAR, deck: 40, legend: 56, shared: 38, notice: 48 } as const;
 /** A half at least this wide has room beside the block for its controls inside the scene. */
 const FLOAT_MIN_HALF = 540;
 
