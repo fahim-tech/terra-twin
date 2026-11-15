@@ -47,6 +47,32 @@ export function orbitPoint(aKm: number, theta: number): Vec3 {
 }
 
 /**
+ * Where `cost` is least between `lo` and `hi` (golden-section search), with the least finite cost seen (Infinity
+ * marks places a label may not go). Used to slide an orbit's label continuously to the point of the ring nearest
+ * its preferred spot: picking the nearest of a fixed set of ring samples made the label creep with the intro's
+ * spin and snap back a sample's width (13–21 px) every 0.7 s.
+ */
+export function refineMin(cost: (t: number) => number, lo: number, hi: number, iterations = 24): { t: number; c: number } {
+  const g = (Math.sqrt(5) - 1) / 2;
+  let a = lo, b = hi;
+  let x1 = b - g * (b - a), x2 = a + g * (b - a);
+  let f1 = cost(x1), f2 = cost(x2);
+  let best = f1 <= f2 ? { t: x1, c: f1 } : { t: x2, c: f2 };
+  for (let i = 0; i < iterations; i++) {
+    if (f1 <= f2) {
+      b = x2; x2 = x1; f2 = f1;
+      x1 = b - g * (b - a); f1 = cost(x1);
+      if (f1 < best.c) best = { t: x1, c: f1 };
+    } else {
+      a = x1; x1 = x2; f1 = f2;
+      x2 = a + g * (b - a); f2 = cost(x2);
+      if (f2 < best.c) best = { t: x2, c: f2 };
+    }
+  }
+  return best;
+}
+
+/**
  * Visibility of the orbits by camera altitude (km above the surface): drawn in whole-planet views (the
  * intro and the global explorer, ~9,000 km), gone once the camera descends towards a site.
  */

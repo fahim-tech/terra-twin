@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { R_EARTH_MEAN_M, R_MARS_M, distanceKm } from "../lib/geodesy";
 import { VOLUME_PX, footprintCorners, footprintSideKm, hasScanVolume, outlineRing, scanHeightM, slerp, volumeSizeWeight } from "./footprints";
-import { MARS_MOONS, orbitFade, orbitLabel, orbitPoint, orbitRing } from "./moons";
+import { MARS_MOONS, orbitFade, orbitLabel, orbitPoint, orbitRing, refineMin } from "./moons";
 import { daysSinceJ2000, icrfToMarsFixed, marsOrientation } from "./sky";
 
 describe("moon orbits", () => {
@@ -20,6 +20,17 @@ describe("moon orbits", () => {
     const p = orbitPoint(23_463.2, Math.PI / 2);
     expect(p[0]).toBeCloseTo(0, 6);
     expect(p[1]).toBeCloseTo(23_463_200, 3);
+  });
+
+  it("slides an orbit label continuously to the nearest allowed point, not to the nearest sample", () => {
+    // The preferred spot sits between two coarse samples: the label lands on it, not on either sample.
+    const best = refineMin((t) => (t - 0.0137) ** 2, 0, 0.0262);
+    expect(best.t).toBeCloseTo(0.0137, 6);
+    // A forbidden stretch (over the planet's disc) is never chosen even when it is nearer.
+    const walled = refineMin((t) => (t < 0.01 ? Infinity : (t - 0.005) ** 2), 0, 0.0262);
+    expect(walled.t).toBeGreaterThanOrEqual(0.01);
+    expect(walled.t).toBeLessThan(0.0105);
+    expect(Number.isFinite(walled.c)).toBe(true);
   });
 
   it("shows the orbits in whole-planet views and hides them near a site", () => {

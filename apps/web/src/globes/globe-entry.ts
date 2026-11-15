@@ -75,7 +75,7 @@ import { SETTLE_START, SNAPSHOT_SETTLE, type SettleVerdict, captureSse, serialRu
 import { footprintCorners, footprintSideKm, hasScanVolume, outlineRing, scanHeightM, volumeSizeWeight } from "./footprints";
 import { GLYPH_EARTH, GLYPH_INK, GLYPH_KINDS, GLYPH_MARS, GLYPH_SPACE, glyph, wallGradient } from "./glyphs";
 import { borderSamples, groundBox, horizonAlong } from "./ground";
-import { MARS_MOONS, orbitFade, orbitLabel, orbitRing } from "./moons";
+import { MARS_MOONS, orbitFade, orbitLabel, orbitRing, refineMin } from "./moons";
 import {
   type AnchorPosition,
   type AnchorRequest,
@@ -692,7 +692,9 @@ const scratchB = new Cartesian3();
 const scratchW = new Cartesian2();
 /**
  * A point on the orbit to hang its label from: in front of space (not over or behind the planet's disc),
- * on screen, and as close as possible to the preferred spot.
+ * on screen, and as close as possible to the preferred spot. The ring is searched coarsely, then the angle is
+ * refined continuously (moons.ts refineMin), so the label holds still while the planet turns under the
+ * camera instead of stepping from one sample to the next.
  */
 function orbitLabelSpot(o: OrbitDraw): Cartesian3 | null {
   const scene = viewer!.scene;
@@ -701,19 +703,26 @@ function orbitLabelSpot(o: OrbitDraw): Cartesian3 | null {
   const C = cam.positionWC;
   const disc = Math.asin(Math.min(1, ellipsoid.maximumRadius / Cartesian3.magnitude(C)));
   const toCentre = Cartesian3.normalize(Cartesian3.negate(C, scratchA), scratchA);
-  let best: Cartesian3 | null = null, bestD = Infinity;
   const a = o.aKm * 1000;
-  for (let i = 0; i < 240; i++) {
-    const th = (i / 240) * Math.PI * 2;
-    const P = new Cartesian3(a * Math.cos(th), a * Math.sin(th), 0);
+  const P = new Cartesian3();
+  const cost = (th: number) => {
+    P.x = a * Math.cos(th); P.y = a * Math.sin(th); P.z = 0;
     const toP = Cartesian3.normalize(Cartesian3.subtract(P, C, scratchB), scratchB);
-    if (Math.acos(Math.max(-1, Math.min(1, Cartesian3.dot(toP, toCentre)))) < disc + 0.03) continue;
+    if (Math.acos(Math.max(-1, Math.min(1, Cartesian3.dot(toP, toCentre)))) < disc + 0.03) return Infinity;
     const s = SceneTransforms.worldToWindowCoordinates(scene, P, scratchW);
-    if (!s || s.x < 0.04 * w || s.x + o.labelPx > Math.min(0.96 * w, w - 12) || s.y < 0.07 * h || s.y > 0.93 * h) continue;
-    const d = Math.hypot(s.x / w - o.prefer.x, (s.y / h - o.prefer.y) * 0.7);
-    if (d < bestD) { bestD = d; best = P; }
+    if (!s || s.x < 0.04 * w || s.x + o.labelPx > Math.min(0.96 * w, w - 12) || s.y < 0.07 * h || s.y > 0.93 * h) return Infinity;
+    return Math.hypot(s.x / w - o.prefer.x, (s.y / h - o.prefer.y) * 0.7);
+  };
+  const N = 240, step = (Math.PI * 2) / N;
+  let bestI = -1, bestD = Infinity;
+  for (let i = 0; i < N; i++) {
+    const d = cost(i * step);
+    if (d < bestD) { bestD = d; bestI = i; }
   }
-  return best;
+  if (bestI < 0) return null;
+  const fine = refineMin(cost, (bestI - 1) * step, (bestI + 1) * step);
+  const th = fine.c <= bestD ? fine.t : bestI * step;
+  return new Cartesian3(a * Math.cos(th), a * Math.sin(th), 0);
 }
 
 function updateOrbits() {
