@@ -15,7 +15,7 @@ const at = (o: unknown, ...path: string[]): unknown => path.reduce<unknown>((acc
 /** Plain names for the research method codes. Codes stay reachable as technical terms. */
 export const METHOD_NAMES: Record<string, { name: string; short: string; note?: string }> = {
   M0_baseline: { name: "Direct comparison", short: "Direct", note: "no correction" },
-  M1_qweights: { name: "Coverage-weighted", short: "Coverage-weighted", note: "retired" },
+  M1_qweights: { name: "Observed-fraction weighting", short: "Observed-fraction", note: "retired" },
   M3_debias_global: { name: "Constant bias correction", short: "Constant bias" },
   M3_debias_perEZ: { name: "Per-site bias correction", short: "Per-site bias" },
   M2_OOM: { name: "Observation-operator matching", short: "OOM", note: "deployed" },

@@ -5,7 +5,9 @@ import { PlanetMark, StatusMark, type StatusKind } from "../../components/marks"
 import { Button, cx, Spinner } from "../../components/ui";
 import { G5, zoneName } from "../../lib/glossary";
 import { useDatasets, useEvidence, type DatasetsResponse } from "../../services/api";
+import { useGisStatus } from "../../services/gis";
 import { useApp } from "../../store/app";
+import { gisRows, liveSentence } from "./gisRows";
 import { searchTarget } from "../../store/searchTarget";
 import { AbstentionSplit, FalsificationChart, InterpolatorChart, MethodChart, Stat, SupportStrip } from "./charts";
 import { MiniScale } from "./chartKit";
@@ -321,7 +323,7 @@ function Body({ m, ds, dsLoading, dsError, targetSite }: { m: EvidenceModel; ds?
         <dl className="grid gap-px border border-line bg-line sm:grid-cols-3">
           <Stat cell label="Global screen · land cells" value={fmtInt(m.coverage.tier1Cells)} sub={joinParts(m.coverage.tier1Km !== null ? `${m.coverage.tier1Km} km cells` : "cell size not given", m.coverage.tier1Source ?? "source not given", "as measured")} />
           <Stat cell label="Research comparison · Earth windows" value={fmtInt(m.coverage.tier2Windows)} sub={joinParts(m.coverage.tier2Km !== null ? `${m.coverage.tier2Km} km windows` : "window size not given", m.coverage.tier2Source, m.coverage.tier2Scope)} />
-          <Stat cell label="Mars targets with full evidence" value={fmtInt(m.coverage.marsTargets)} sub={m.coverage.marsScope ?? undefined} />
+          <Stat cell label="Mars research zones measured · terrain + observation support" value={fmtInt(m.coverage.marsTargets)} sub={m.coverage.marsScope ?? undefined} />
         </dl>
         <Note label="Scale">{G5.scale}.</Note>
         {m.novelty.wording && (
@@ -347,7 +349,7 @@ function Body({ m, ds, dsLoading, dsError, targetSite }: { m: EvidenceModel; ds?
 
       <p className="mt-20 max-w-[78ch] border-t border-line pt-5 text-caption text-faint">
         {/* "Measured value", not "number": section and figure numbers are document structure, and FIG 01 is a drawing. */}
-        Every measured value on this page is read from the research package served by <span className="num text-muted">/api/evidence</span> and <span className="num text-muted">/api/datasets</span>; the FIG {sectionNo("ev-process")} drawings are schematic. Gate thresholds and verdict cut-offs are working hypotheses.
+        Every measured value on this page is read from the research package served by <span className="num text-muted">/api/evidence</span> and <span className="num text-muted">/api/datasets</span>; the FIG {sectionNo("ev-process")} drawings are schematic. Gate thresholds and verdict cut-offs are working assumptions.
       </p>
     </>
   );
@@ -569,24 +571,46 @@ function Provenance({ ds, loading, error }: { ds?: DatasetsResponse; loading: bo
               </dl>
             </>
           )}
-          {ds.live_refinement && (
-            <div className="mt-8">
-              <h3 className="m-0 border-b border-line pb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-ink">Live research comparison</h3>
-              <p className="mt-3 flex items-baseline gap-2 text-caption text-muted">
-                <StatusMark state={ds.live_refinement.status === "available" ? "on" : "struck"} className="relative top-[-1px]" />
-                {ds.live_refinement.status === "available" ? "Available" : "Not available — research comparisons come from the published research record."}
-              </p>
-              {ds.live_refinement.missing_inputs.length > 0 && (
-                <Disclosure summary="What it still needs" className="mt-2">
-                  <ul className="list-none p-0">
-                    {ds.live_refinement.missing_inputs.map((x) => <li key={x} className="border-t border-line py-1.5 font-mono text-[11px] text-muted">{x}</li>)}
-                  </ul>
-                </Disclosure>
-              )}
-            </div>
-          )}
+          <GisIntegration ds={ds} />
         </div>
       </div>
+    </div>
+  );
+}
+
+/** GIS integration readout: what the GIS workstream serves right now (contract, grids, context layers,
+ *  live discovery worker) and whether the two MOLA inputs are connected. All values come from
+ *  /api/gis/status and /api/datasets; nothing here is a similarity input. */
+function GisIntegration({ ds }: { ds: DatasetsResponse }) {
+  const gis = useGisStatus();
+  const rows = gisRows(gis.data, ds.datasets);
+  return (
+    <div className="mt-8">
+      <h3 className="m-0 flex items-baseline justify-between gap-3 border-b border-line pb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-ink">
+        GIS integration
+        <span className="num text-num-sm font-normal normal-case tracking-normal text-faint">/api/gis/status</span>
+      </h3>
+      {gis.isLoading && <div className="py-3"><Spinner label="Loading GIS status" /></div>}
+      {gis.isError && (
+        <p className="mt-3 flex items-baseline gap-2 text-caption text-muted"><StatusMark state="fault" className="-translate-y-px" />GIS status could not be loaded.</p>
+      )}
+      {rows.length > 0 && (
+        <dl className="mt-1 grid grid-cols-[minmax(7.5rem,auto)_minmax(0,1fr)] text-caption">
+          {rows.map((r, i) => (
+            <Fragment key={r.key}>
+              <dt className={cx("py-2 pr-3 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-faint", i > 0 && "border-t border-line")}>{r.label}</dt>
+              <dd className={cx("m-0 min-w-0 py-2", i > 0 && "border-t border-line")}>
+                <span className={cx("inline-flex items-baseline gap-2", r.state === "on" ? "text-ink" : "text-muted")}>
+                  <StatusMark state={r.state} className="relative top-[-1px]" />{r.value}
+                </span>
+                {r.detail && <span className="num mt-0.5 block break-words text-num-sm text-faint">{r.detail}</span>}
+              </dd>
+            </Fragment>
+          ))}
+        </dl>
+      )}
+      <h3 className="m-0 mt-8 border-b border-line pb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-ink">Live research comparison</h3>
+      <p className="mt-3 text-caption text-muted">{liveSentence(gis.data)}</p>
     </div>
   );
 }

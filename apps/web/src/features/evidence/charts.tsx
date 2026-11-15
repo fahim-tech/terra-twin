@@ -13,19 +13,19 @@ const fmtAxis = (v: number) => (v === 0 || v === 1 ? String(v) : v.toFixed(1));
 /** Gap between a row label and its status tag: a breakable en space, so the tag moves to the next line whole. */
 const EN_SPACE = "\u2002";
 
-/** Ranked square markers with 95 % bootstrap intervals for the five methods. */
+/** Ranked square markers with bootstrap intervals for the five methods. The research package does not state the interval level, so none is printed. */
 export function MethodChart({ m, fig }: { m: EvidenceModel; fig?: string }) {
   const n = m.synthetic.nTwins;
   return (
     <Chart fig={fig}
       title="Twin recovery by method"
-      basis={<>Mean reciprocal rank (<Gloss k="mrr" />) of the true twin among {fmtInt(n)} synthetic twins, with 95 % bootstrap intervals. 1 = the twin is always ranked first.</>}
+      basis={<>Mean reciprocal rank (<Gloss k="mrr" />) of the true twin among {fmtInt(n)} synthetic twins, with bootstrap intervals (level not stated in the research package). 1 = the twin is always ranked first.</>}
       legend={<>
         <Key swatch={<SolidSwatch />}>Deployed method</Key>
         <Key swatch={<SolidSwatch className="bg-muted" />}>Alternative</Key>
         <Key swatch={<RingSwatch />}>Direct comparison</Key>
         <Key swatch={<StruckSwatch />}>Retired</Key>
-        <Key swatch={<IntervalSwatch />}>95 % interval</Key>
+        <Key swatch={<IntervalSwatch />}>Bootstrap interval</Key>
       </>}
     >
       <ol className="list-none p-0">
@@ -38,12 +38,12 @@ export function MethodChart({ m, fig }: { m: EvidenceModel; fig?: string }) {
             <Row key={r.code} emphasis={deployed}
               label={<>{r.name}{r.note && <>{EN_SPACE}<span className={cx("whitespace-nowrap font-mono text-[10.5px] uppercase tracking-[0.06em]", deployed ? "text-ink" : "text-faint")}>{r.note}</span></>}</>}
               value={<>
-                MRR {fmtNum(r.mrr)}
-                {r.lo !== null && r.hi !== null && <span className="hidden sm:inline"> [{fmtNum(r.lo)}–{fmtNum(r.hi)}]</span>}
-                {r.top1 !== null && <> · top-1 {fmtPct(r.top1)}</>}
-                {r.lo !== null && r.hi !== null && <span className="block sm:hidden">95% CI{" "}{fmtNum(r.lo)}–{fmtNum(r.hi)}</span>}
+                <span className="whitespace-nowrap">MRR {fmtNum(r.mrr)}</span>
+                {r.lo !== null && r.hi !== null && <span className="hidden whitespace-nowrap sm:inline"> [{fmtNum(r.lo)}–{fmtNum(r.hi)}]</span>}
+                {r.top1 !== null && <> · <span className="whitespace-nowrap">top-1 {fmtPct(r.top1)}</span></>}
+                {r.lo !== null && r.hi !== null && <span className="block whitespace-nowrap sm:hidden">Interval {fmtNum(r.lo)}–{fmtNum(r.hi)}</span>}
               </>}
-              srText={r.lo !== null && r.hi !== null ? `95% interval ${fmtNum(r.lo)} to ${fmtNum(r.hi)}.` : undefined}
+              srText={r.lo !== null && r.hi !== null ? `Bootstrap interval ${fmtNum(r.lo)} to ${fmtNum(r.hi)}, level not stated.` : undefined}
             >
               <Grid s={mrrAxis} />
               {r.lo !== null && r.hi !== null && <Seg a={mrrAxis.at(r.lo)} b={mrrAxis.at(r.hi)} caps className={deployed ? "bg-ink/80" : "bg-muted/80"} />}
