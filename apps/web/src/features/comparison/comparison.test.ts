@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { G5 } from "../../lib/glossary";
 import type { AnalogSearch } from "../../types/contracts";
 import type { CandidateView } from "../analogs/candidates";
-import { basisFor, compareTargets, earthName, keepFigures, poolKindLabel, verdictFor } from "./model";
+import { basisFor, compareTargets, earthName, keepFigures, poolKindLabel, VERDICT_MARK, verdictFor } from "./model";
 import { deltaPos, groupRows, ratioPos, ratioRow, S_AT_TOLERANCE } from "./science";
 
 describe("ratio chart geometry", () => {
@@ -84,20 +84,34 @@ describe("verdict", () => {
     expect(v.detail).toBe(G5.leader);
   });
 
-  it("never presents a tie member as a winner", () => {
-    const s = search({ type: "tied_set", members: ["rand_d8_233", "rand_d8_217", "rand_d8_224"], rotations_checked: 4, label: G5.tied });
+  it("never presents a tie member as a winner, or gives it a position in the set", () => {
+    const members = ["rand_d8_233", "rand_d8_217", "rand_d8_224"];
+    const s = search({ type: "tied_set", members, rotations_checked: 4, label: G5.tied });
     const v = verdictFor(s, t2cand("rand_d8_217", 0.703));
     expect(v.kind).toBe("tie_member");
-    // Numbered in the shared unordered display order (here by name: no located candidates), never by S.
-    expect(v.headline).toBe("Member of a tie (1 of 3)");
+    expect(v.mark).toBe("tie");
+    // The app's one tie wording: the set and its size, never "2 of 3" (which reads as a rank).
+    expect(v.headline).toBe("One of 3 tied windows (listed west to east)");
+    expect(v.short).toBe("One of 3 tied windows");
+    expect(v.headline).not.toMatch(/\d+ of \d+/);
     expect(v.headline.toLowerCase()).not.toContain("leader");
     expect(v.detail).toBe(G5.tied);
+    // Every member reads the same, whatever its S or its place in the west-to-east list.
+    expect(new Set(members.map((id, i) => verdictFor(s, t2cand(id, 0.6 + i / 10)).headline)).size).toBe(1);
+  });
+
+  it("draws one outcome mark per verdict, a tie never as a caution", () => {
+    expect(VERDICT_MARK).toEqual({ leader: "leader", tie_member: "tie", not_member: "none", screening: "screening", no_convincing: "none", insufficient: "none" });
+    const leader = search({ type: "named_leader", members: ["Atacama Yungay"], rotations_checked: 4, label: G5.leader });
+    expect(verdictFor(leader, t2cand("Atacama Yungay", 0.614)).mark).toBe("leader");
+    expect(verdictFor(leader, t2cand("rand_d3_12", 0.5)).mark).toBe("none");
   });
 
   it("labels tier-1 cells as screening, not a decision", () => {
     const c: CandidateView = { id: "t1:gmted25k:1", tier: 1, rank: 3, lat: 0, lon: 0, label: "Cell 1", score: 0.9, coverage: 1 };
     const v = verdictFor(search({ type: "named_leader", members: ["Atacama Yungay"], rotations_checked: 4, label: null }), c);
     expect(v.kind).toBe("screening");
+    expect(v.mark).toBe("screening");
     expect(v.headline).toContain("not a decision");
     expect(basisFor(c)).toContain("Global screen");
     // No cell size in the record → no size in the basis line (never a default).
@@ -109,6 +123,8 @@ describe("verdict", () => {
     const v = verdictFor(search({ type: "insufficient_evidence", members: [], rotations_checked: 0, label: null }), t2cand("x", 0));
     expect(v.kind).toBe("insufficient");
     expect(v.headline).toBe("Not enough evidence");
+    // Abstention is a result, drawn as "no analog named", not as missing data or a fault.
+    expect(v.mark).toBe("none");
   });
 });
 

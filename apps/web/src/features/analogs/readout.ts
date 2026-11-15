@@ -21,12 +21,27 @@ export function measuresText(coverage: number | null | undefined, total: number)
 }
 
 /**
- * The note a selected research window carries when it belongs to a tied set: it names the set and its size,
- * never a position in it (“2 of 3” would read as a rank the research does not support), so every member gets
- * the same words. Null when the decision is not a tie or the window is not one of its members. `short` drops
- * the noun, for a line that already names the window (the phone footer).
+ * The app's one wording for a research window that belongs to a tied set: it names the set and its size,
+ * never a position in it (“2 of 3” would read as a rank the research does not support), so every member
+ * gets the same words. Every view that names a tie member says this.
  */
-export function tieNote(decision: { type: string; members: readonly string[] }, windowId: string | null | undefined, short = false): string | null {
+export function tiedWindows(n: number): string {
+  return `One of ${n} tied windows`;
+}
+
+/** How every view lists a tied set: unordered, by position. */
+export const TIE_ORDER = "listed west to east";
+
+/** The full form, where there is room for the listing order: “One of 3 tied windows (listed west to east)”. */
+export function tiedWindowsListed(n: number): string {
+  return `${tiedWindows(n)} (${TIE_ORDER})`;
+}
+
+/**
+ * The note a selected research window carries when it belongs to a tied set (tiedWindows). Null when the
+ * decision is not a tie or the window is not one of its members.
+ */
+export function tieNote(decision: { type: string; members: readonly string[] }, windowId: string | null | undefined): string | null {
   if (decision.type !== "tied_set" || !windowId || !decision.members.includes(windowId)) return null;
-  return `One of ${decision.members.length} tied${short ? "" : " windows"}`;
+  return tiedWindows(decision.members.length);
 }

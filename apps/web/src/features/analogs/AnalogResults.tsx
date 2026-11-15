@@ -1,6 +1,7 @@
 import { ArrowRight } from "lucide-react";
 import { useMemo, useRef } from "react";
 import { useLayout } from "../../app/useLayout";
+import { OutcomeMark, PlanetMark, SFigure, StatusMark } from "../../components/marks";
 import { Disclosure, PanelBody, PanelFooter, PanelHeader, Tabs, Tag, Term } from "../../components/primitives";
 import { Button, cx, Spinner } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
@@ -9,12 +10,12 @@ import { useMissions } from "../../services/api";
 import { useApp } from "../../store/app";
 import { resultsAreStale, searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
-import { type CandidateView, candidateList, measuresOf, prettyWindow, researchWindowKm, screenCellKm, selectedCandidate, T1_MEASURES, T2_MEASURES } from "./candidates";
+import { type CandidateView, candidateList, coord, measuresOf, prettyWindow, researchWindowKm, screenCellKm, selectedCandidate, T1_MEASURES, T2_MEASURES } from "./candidates";
 import { EarthLookup } from "./EarthLookup";
 import { GlobalStage } from "./GlobalStage";
-import { Readout, Readouts, StatusMark } from "./instruments";
+import { Readout, Readouts } from "./instruments";
 import { NoResult, NoResultFooter } from "./NoResult";
-import { sText, tieNote } from "./readout";
+import { tieNote } from "./readout";
 import { ResearchStage } from "./ResearchStage";
 import { switchTier } from "./tierMemory";
 import { useSheetFit } from "./useSheetFit";
@@ -79,9 +80,10 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
     ) : null;
   }
   const isT2 = current.tier === 2;
-  // A tie member belongs to an unordered set: say so without a position ("2 of 3" would read as a rank).
-  // Phones print the short form in the basis line ("… · one of 3 tied"), so the line stays on one row.
-  const tie = isT2 ? tieNote(d, current.t2!.id, phone) : null;
+  // A tie member belongs to an unordered set: the app's one tie wording names the set, never a position in it
+  // ("2 of 3" would read as a rank), beside the tie's outcome mark.
+  const tie = isT2 ? tieNote(d, current.t2!.id) : null;
+  const tieLine = tie && <span className="inline-flex items-center gap-2"><OutcomeMark kind="tie" />{tie}</span>;
   const n = isT2 ? measuresOf(current.coverage, T2_MEASURES) : current.t1?.n_features_used ?? null;
   const total = isT2 ? T2_MEASURES : T1_MEASURES;
   const winKm = isT2 ? researchWindowKm(search, current.t2) : null;
@@ -89,26 +91,28 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
   return (
     <PanelFooter className="border-t border-line pt-3.5 max-md:pt-3">
       {/* Phones drop the caption row (the word stays for screen readers) so the decision above stays in view at
-          half height; the tie note moves into the basis line. */}
+          half height; the tie note moves under the basis line. */}
       {phone ? <span className="sr-only">Selected: </span> : (
         <div className="kicker mb-2 flex items-center justify-between gap-3">
           <span>Selected</span>
-          {tie && <span className="!text-ink/80">{tie}</span>}
+          {tieLine && <span className="!text-ink/85">{tieLine}</span>}
         </div>
       )}
       <div className="relative pl-3">
         <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-earth" />
         <div className="flex items-baseline justify-between gap-3">
-          <span className={cx("truncate text-earth", isT2 ? "text-label" : "num text-num")}>{isT2 ? prettyWindow(current.t2!.id) : `${formatLat(current.lat, 2)} ${formatLon(current.lon, 2)}`}</span>
-          <span className="num shrink-0 text-num text-ink">S {sText(current.score)} <span className="text-faint">· {n ?? "—"}/{total}</span></span>
+          <span className={cx("truncate text-earth", isT2 ? "text-label" : "num text-num")}>{isT2 ? prettyWindow(current.t2!.id) : coord(current.lat, current.lon)}</span>
+          <span className="shrink-0 text-num text-ink">
+            <SFigure value={current.score} /> <span className="num text-faint">· {n ?? "—"}/{total}</span>
+          </span>
         </div>
         {/* The representation is the basis of S: never truncated; phones drop the stage name instead. */}
         <p className="mt-0.5 text-caption text-muted">
           {isT2
             ? `${phone ? "" : "Research comparison · "}${winKm !== null ? `${winKm} km ` : ""}window · as MOLA would observe it`
             : `${phone ? "" : "Global screen · "}${cellKm !== null ? `${cellKm} km ` : ""}cell · as measured`}
-          {phone && tie && <> · <span className="text-ink/85">{tie.toLowerCase()}</span></>}
         </p>
+        {phone && tieLine && <p className="mt-1 text-caption text-ink/85">{tieLine}</p>}
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Button variant="outline" onClick={() => { go("compare"); set({ whyOpen: true }); }}>Why this analog?</Button>
@@ -147,7 +151,7 @@ export function AnalogResults() {
       <PanelHeader className="pb-0 max-md:pt-2">
         {/* Focus lands here after a stage change (screen readers announce it); the heading is not interactive, so no ring. */}
         <h2 data-stage-heading="earth" tabIndex={-1} style={{ outline: "none" }} className="flex items-baseline gap-x-2.5 md:block">
-          <span className="kicker flex shrink-0 items-center gap-2"><StatusMark state="on" tone="mars" />Results for</span>
+          <span className="kicker flex shrink-0 items-center gap-2"><PlanetMark planet="mars" />Results for</span>
           {/* A toponym is a place name: an off-zone point is "Selected point", its coordinates stay in mono below. */}
           <span className="toponym text-toponym-sm text-ink md:mt-1.5 md:block md:text-toponym">{target.siteId ? zoneName(target.siteId) : "Selected point"}</span>
         </h2>

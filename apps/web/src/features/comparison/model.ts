@@ -3,48 +3,67 @@
  * search target (searchTarget(search)), never the live Mars selection, and introduces no new
  * thresholds or values.
  */
+import type { OutcomeKind } from "../../components/marks";
 import { decisionG5Label, GLOSSARY, zoneName } from "../../lib/glossary";
 import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
-import { type CandidateView, memberOrder, screenCellKm } from "../analogs/candidates";
+import { type CandidateView, screenCellKm } from "../analogs/candidates";
+import { tiedWindows, tiedWindowsListed } from "../analogs/readout";
 
 export type VerdictKind = "leader" | "tie_member" | "not_member" | "screening" | "no_convincing" | "insufficient";
 
+/**
+ * The outcome mark each verdict draws (components/marks.tsx): a window the decision does not name, and a
+ * decision that names none, both draw the hollow square; a screening cell is not a decision at all.
+ */
+export const VERDICT_MARK: Record<VerdictKind, OutcomeKind> = {
+  leader: "leader",
+  tie_member: "tie",
+  not_member: "none",
+  screening: "screening",
+  no_convincing: "none",
+  insufficient: "none",
+};
+
 export interface Verdict {
   kind: VerdictKind;
-  /** ■ stable leader, ▣ tie member, □ screening, — no decision (the shapes of marks.tsx VerdictMark). Always paired with words. */
-  glyph: string;
+  /** The drawn outcome mark that sits beside the headline (never instead of it). */
+  mark: OutcomeKind;
   headline: string;
+  /** The headline for one-line readouts: the same words without the listing note. */
+  short: string;
   /** The verbatim G5 label or the plain explanation that goes with the headline. */
   detail: string;
 }
 
-/** The research decision as it applies to the candidate being compared. Ties never read as a win. */
+const verdict = (kind: VerdictKind, headline: string, detail: string, short = headline): Verdict => ({ kind, mark: VERDICT_MARK[kind], headline, short, detail });
+
+/**
+ * The research decision as it applies to the candidate being compared. Ties never read as a win, and a
+ * tied window is never given a position in its set: every member reads "One of 3 tied windows".
+ */
 export function verdictFor(search: AnalogSearch, c: CandidateView): Verdict {
   if (c.tier === 1) {
-    return {
-      kind: "screening", glyph: "□",
-      headline: `Screening cell${c.rank ? ` #${c.rank}` : ""} — not a decision`,
-      detail: `A global-screen cell (${screenCellKm(search) !== null ? `${screenCellKm(search)} km, ` : ""}Earth as measured). Screening ranks are a wide net, not a research decision.`,
-    };
+    const km = screenCellKm(search);
+    return verdict("screening", `Screening cell${c.rank ? ` #${c.rank}` : ""} — not a decision`,
+      `A global-screen cell (${km !== null ? `${km} km, ` : ""}Earth as measured). Screening ranks are a wide net, not a research decision.`);
   }
   const d = search.tier2.decision;
-  const id = c.t2?.id ?? "";
-  const k = memberOrder(search.tier2).indexOf(id);
+  const member = !!c.t2 && d.members.includes(c.t2.id);
   if (d.type === "named_leader") {
-    return k >= 0
-      ? { kind: "leader", glyph: "■", headline: "Stable leader", detail: decisionG5Label(d)! }
-      : { kind: "not_member", glyph: "—", headline: "Research window — not the stable leader", detail: `The stable leader for this zone is ${d.members[0] ? windowName(d.members[0]) : "another window"}.` };
+    return member
+      ? verdict("leader", "Stable leader", decisionG5Label(d)!)
+      : verdict("not_member", "Research window — not the stable leader", `The stable leader for this zone is ${d.members[0] ? windowName(d.members[0]) : "another window"}.`);
   }
   if (d.type === "tied_set") {
-    return k >= 0
-      ? { kind: "tie_member", glyph: "▣", headline: `Member of a tie (${k + 1} of ${d.members.length})`, detail: decisionG5Label(d)! }
-      : { kind: "not_member", glyph: "—", headline: "Research window — outside the tied set", detail: decisionG5Label(d)! };
+    return member
+      ? verdict("tie_member", tiedWindowsListed(d.members.length), decisionG5Label(d)!, tiedWindows(d.members.length))
+      : verdict("not_member", "Research window — outside the tied set", decisionG5Label(d)!);
   }
   if (d.type === "no_convincing_analog") {
-    return { kind: "no_convincing", glyph: "—", headline: "No convincing analog", detail: d.label ?? "The research record does not name an Earth window for this zone." };
+    return verdict("no_convincing", "No convincing analog", d.label ?? "The research record does not name an Earth window for this zone.");
   }
-  return { kind: "insufficient", glyph: "—", headline: GLOSSARY.notEnough.label, detail: d.label ?? GLOSSARY.notEnough.definition };
+  return verdict("insufficient", GLOSSARY.notEnough.label, d.label ?? GLOSSARY.notEnough.definition);
 }
 
 /** How many descriptors carried the score, e.g. "8/8 measures". */
