@@ -94,6 +94,11 @@ describe("helpers", () => {
     expect(fmtStamp("2026-11-15T00:40:51+00:00")).toBe("2026-11-15 00:40 UTC");
     expect(fmtStamp("2026-11-15T06:10:00+05:30")).toBe("2026-11-15 00:40 UTC");
   });
+  it("reads a stamp without an offset as UTC, whatever the viewer's time zone", () => {
+    expect(fmtStamp("2026-11-15T00:40:51")).toBe("2026-11-15 00:40 UTC");
+    expect(fmtStamp("2026-11-15 00:40")).toBe("2026-11-15 00:40 UTC");
+    expect(fmtStamp("2026-11-15T23:59:59.5")).toBe("2026-11-15 23:59 UTC");
+  });
   it("shows a missing stamp as a dash and an unreadable one as given", () => {
     expect(fmtStamp(null)).toBe("—");
     expect(fmtStamp("")).toBe("—");

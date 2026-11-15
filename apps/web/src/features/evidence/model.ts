@@ -225,10 +225,15 @@ export const fmtPct = (v: number | null | undefined, d = 0) => (v === null || v 
 export const fmtNum = (v: number | null | undefined, d = 3) => (v === null || v === undefined ? "—" : v.toFixed(d));
 export const fmtInt = (v: number | null | undefined) => (v === null || v === undefined ? "—" : v.toLocaleString("en-US"));
 
-/** ISO timestamp → "2026-11-15 00:40 UTC" (any offset converted to UTC). Unparseable input is shown as given; missing as "—". */
+/**
+ * ISO timestamp → "2026-11-15 00:40 UTC" (any offset converted to UTC). A date-time without an offset is
+ * read as UTC, as the importer writes it, never as the viewer's local time (which would shift it by the
+ * viewer's zone and still be labelled UTC). Unparseable input is shown as given; missing as "—".
+ */
 export function fmtStamp(iso: string | null | undefined): string {
   if (!iso) return "—";
-  const t = Date.parse(iso);
+  const naive = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(iso.trim());
+  const t = Date.parse(naive ? `${iso.trim().replace(" ", "T")}Z` : iso);
   if (Number.isNaN(t)) return iso;
   return `${new Date(t).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 }
