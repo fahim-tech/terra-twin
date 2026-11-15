@@ -9,12 +9,12 @@ import { useMissions } from "../../services/api";
 import { useApp } from "../../store/app";
 import { resultsAreStale, searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
-import { type CandidateView, candidateList, decisionMembers, measuresOf, prettyWindow, researchWindowKm, screenCellKm, selectedCandidate, T1_MEASURES, T2_MEASURES, unorderedMembers } from "./candidates";
+import { type CandidateView, candidateList, measuresOf, prettyWindow, researchWindowKm, screenCellKm, selectedCandidate, T1_MEASURES, T2_MEASURES } from "./candidates";
 import { EarthLookup } from "./EarthLookup";
 import { GlobalStage } from "./GlobalStage";
 import { Readout, Readouts, StatusMark } from "./instruments";
 import { NoResult } from "./NoResult";
-import { sText } from "./readout";
+import { sText, tieNote } from "./readout";
 import { ResearchStage } from "./ResearchStage";
 import { switchTier } from "./tierMemory";
 import { useSheetFit } from "./useSheetFit";
@@ -77,8 +77,8 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
     ) : null;
   }
   const isT2 = current.tier === 2;
-  // Position in the west-to-east listing, never in the API order (which is by S and would read as a rank).
-  const tieIdx = isT2 && d.type === "tied_set" ? unorderedMembers(decisionMembers(search.tier2)).findIndex((m) => m.id === current.t2!.id) : -1;
+  // A tie member belongs to an unordered set: say so without a position ("2 of 3" would read as a rank).
+  const tie = isT2 ? tieNote(d, current.t2!.id) : null;
   const n = isT2 ? measuresOf(current.coverage, T2_MEASURES) : current.t1?.n_features_used ?? null;
   const total = isT2 ? T2_MEASURES : T1_MEASURES;
   const winKm = isT2 ? researchWindowKm(search, current.t2) : null;
@@ -87,7 +87,7 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
     <PanelFooter className="border-t border-line pt-3.5">
       <div className="kicker mb-2 flex items-center justify-between gap-3">
         <span>Selected</span>
-        {tieIdx >= 0 && <span className="!text-ink/80">Tie member {tieIdx + 1} of {d.members.length}</span>}
+        {tie && <span className="!text-ink/80">{tie}</span>}
       </div>
       <div className="relative pl-3">
         <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-earth" />
