@@ -28,6 +28,7 @@ interface AppState {
   earthLayer: string;
   whyOpen: boolean;
   hover: { planet: "mars" | "earth"; lat: number; lon: number } | null;
+  knownFilter: "all" | "not_in_reference_set" | "near_documented_analog";
 
   set: (p: Partial<AppState>) => void;
   go: (stage: Stage) => void;
@@ -52,6 +53,7 @@ export const useApp = create<AppState>((set, get) => ({
   earthLayer: "blue_marble_relief",
   whyOpen: false,
   hover: null,
+  knownFilter: "all",
 
   set: (p) => set(p),
   go: (stage) => set({ previousStage: get().stage, stage, whyOpen: false }),

@@ -13,7 +13,7 @@ export class ApiError extends Error {
 async function request<T>(path: string, schema: z.ZodType<T> | null, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } });
+    res = await fetch(`${API_BASE}${path}`, init?.body ? { ...init, headers: { "Content-Type": "application/json", ...(init.headers ?? {}) } } : init);
   } catch {
     throw new ApiError("Scientific API is not reachable", 0);
   }
