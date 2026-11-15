@@ -1,4 +1,4 @@
-import { formatLat, formatLon } from "../../lib/geodesy";
+import { R_MARS_M, distanceKm, formatLat, formatLon } from "../../lib/geodesy";
 import { zoneName } from "../../lib/glossary";
 import { nearestSite } from "../../lib/instruments";
 import type { Selection } from "../../store/app";
@@ -48,6 +48,29 @@ export function readZone(sites: MarsSite[] | undefined, lat: number, lon: number
 export function selectionFor(sites: MarsSite[] | undefined, lat: number, lon: number): Selection {
   const site = siteContaining(sites, lat, lon);
   return { lat, lon, siteId: site?.id ?? null, label: site ? zoneName(site.id) : formatCoord(lat, lon) };
+}
+
+/**
+ * A zone's outline as the globe draws it (a box of parallels and meridians), as eight points: corners and edge
+ * midpoints, going round from the north-west corner. Tracked on screen, they let a label keep off the outline.
+ */
+export function zoneRing(site: MarsSite): { lat: number; lon: number }[] {
+  const { lon_min: w, lon_max: e, lat_min: s, lat_max: n } = site.bbox;
+  const mLat = (s + n) / 2, mLon = (w + e) / 2;
+  return [
+    { lat: n, lon: w }, { lat: n, lon: mLon }, { lat: n, lon: e }, { lat: mLat, lon: e },
+    { lat: s, lon: e }, { lat: s, lon: mLon }, { lat: s, lon: w }, { lat: mLat, lon: w },
+  ];
+}
+
+/** Zones whose centres lie within `km` of a point, nearest first. */
+export function zonesNear(sites: MarsSite[] | undefined, lat: number, lon: number, km: number): MarsSite[] {
+  if (!sites) return [];
+  return sites
+    .map((s) => ({ s, d: distanceKm(lat, lon, s.lat, s.lon, R_MARS_M) }))
+    .filter((x) => x.d <= km)
+    .sort((a, b) => a.d - b.d)
+    .map((x) => x.s);
 }
 
 /** Selection for a zone's centre. */

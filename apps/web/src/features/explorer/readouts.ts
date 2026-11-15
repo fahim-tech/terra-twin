@@ -109,16 +109,20 @@ export const LEADER_DX = 44;
 /** Where a leader leaves its point: the edge of a square mark (half size, px) or of a round globe marker (radius, px). */
 export type CalloutStart = { square: number } | { circle: number };
 
+/** Length of the level shelf at the end of a leader that carries the label, px. */
+const SHELF = LEADER_DX * 0.45;
+
 /**
  * A callout's leader: a dogleg from the point to a short shelf that carries the label. `dy` is the
- * vertical reach (the shared `leaderDy`). The leader starts on the edge of whatever marks the point, so
+ * vertical reach (the shared `leaderDy`) and `dx` the horizontal one, to the shelf's end; a longer `dx`
+ * lengthens the slanted run, never the shelf. The leader starts on the edge of whatever marks the point, so
  * it never crosses the mark (and never past the elbow, however large that mark is).
  */
-export function calloutGeometry(a: Pt, side: CalloutSide, dy: number, from: CalloutStart = { square: 4.5 }) {
+export function calloutGeometry(a: Pt, side: CalloutSide, dy: number, from: CalloutStart = { square: 4.5 }, dx = LEADER_DX) {
   const sx = side.endsWith("e") ? 1 : -1;
   const sy = side.startsWith("n") ? -1 : 1;
-  const elbow = { x: a.x + sx * LEADER_DX * 0.55, y: a.y + sy * dy };
-  const end = { x: a.x + sx * LEADER_DX, y: elbow.y };
+  const elbow = { x: a.x + sx * (Math.max(dx, LEADER_DX) - SHELF), y: a.y + sy * dy };
+  const end = { x: a.x + sx * Math.max(dx, LEADER_DX), y: elbow.y };
   const vx = elbow.x - a.x, vy = elbow.y - a.y;
   const t = Math.min(0.85, "circle" in from
     ? from.circle / Math.max(Math.hypot(vx, vy), 1e-9)
@@ -193,28 +197,134 @@ export function placeCallout(a: Pt, preferred: CalloutSide, bounds: Bounds, dy: 
   return { side: `${ns}${ew}` as CalloutSide, maxW, dy: reach };
 }
 
-/**
- * A label's reach, adjusted so its plate (half height `halfH`) keeps `gap` px clear of lines that cross the
- * screen near the point — a zone outline's edges, at rows `edgeYs` — instead of a line running into the plate
- * along its leader shelf, where it reads as part of the leader. The plate moves out past the line while that
- * stays inside the bounds; else back short of it while that keeps `minDy`; else it stays where it was.
- */
-export function dodgeEdges(y: number, side: CalloutSide, reach: number, edgeYs: number[],
-  o: { halfH: number; gap: number; minDy: number; top: number; bottom: number }): number {
-  const sy = side.startsWith("n") ? -1 : 1;
-  let r = reach;
-  for (let pass = 0; pass < 3; pass++) {
-    const row = y + sy * r;
-    const hit = edgeYs.find((e) => Number.isFinite(e) && e > row - o.halfH - o.gap && e < row + o.halfH + o.gap);
-    if (hit === undefined) return r;
-    const outRow = hit + sy * (o.halfH + o.gap);
-    const fits = sy < 0 ? outRow - o.halfH >= o.top + CALLOUT_EDGE : outRow + o.halfH <= o.bottom - CALLOUT_EDGE;
-    if (fits && sy * (outRow - y) > r) { r = sy * (outRow - y); continue; }
-    const inRow = hit - sy * (o.halfH + o.gap);
-    if (sy * (inRow - y) >= o.minDy && sy * (inRow - y) < r) { r = sy * (inRow - y); continue; }
-    return reach;
+/** A rectangle on screen, px. */
+export interface Box { x0: number; y0: number; x1: number; y1: number }
+
+/** Whether the segment a–b meets the box (Liang–Barsky clipping). */
+export function segmentMeetsBox(a: Pt, b: Pt, r: Box): boolean {
+  let t0 = 0, t1 = 1;
+  const dx = b.x - a.x, dy = b.y - a.y;
+  // Each edge of the box as p·t ≤ q; the segment survives while t0 ≤ t1.
+  for (const [p, q] of [[-dx, a.x - r.x0], [dx, r.x1 - a.x], [-dy, a.y - r.y0], [dy, r.y1 - a.y]]) {
+    if (p === 0) {
+      if (q < 0) return false;
+      continue;
+    }
+    const t = q / p;
+    if (p < 0) { if (t > t1) return false; if (t > t0) t0 = t; }
+    else { if (t < t0) return false; if (t < t1) t1 = t; }
   }
-  return r;
+  return t0 <= t1;
+}
+
+/** Whether a point lies inside a closed ring of screen points (even–odd rule). */
+export function insideRing(p: Pt, ring: Pt[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i], b = ring[j];
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * What a callout plate must keep off, on screen. `rings` are outlines as closed rings of points (null where a
+ * point is not on screen, which breaks the ring there); `own` marks the outline of the zone the label names,
+ * which the plate may sit inside but not across. `marks` are other glyphs the plate must not cover.
+ */
+export interface CalloutObstacles { rings: { pts: (Pt | null)[]; own: boolean }[]; marks: Pt[] }
+
+/** Clearance between a plate and the lines and marks around it, px (any less and the plate seems to sit on the line). */
+const CLEAR_GAP = 10;
+/** Further vertical reaches tried on a side, px beyond the reach it needs. */
+const REACH_STEPS = [0, 12, 24, 36, 48, 64, 80, 96];
+/** Further horizontal reaches tried, px beyond the standard leader: a label can step sideways out of a zone. */
+const SIDE_STEPS = [0, 44, 88, 132];
+const flipEW = (s: CalloutSide) => `${s[0]}${s[1] === "e" ? "w" : "e"}` as CalloutSide;
+const flipNS = (s: CalloutSide) => `${s[0] === "n" ? "s" : "n"}${s[1]}` as CalloutSide;
+
+/** A placement: side, vertical reach `dy` and horizontal reach `dx` (to the shelf's end), the width cap, the steps taken past the start, and how many lines and marks the plate still meets. */
+export interface CalloutChoice { side: CalloutSide; dy: number; dx: number; maxW: number; extra: number; extraX: number; hits: number }
+
+/**
+ * A callout placement whose plate keeps clear of the outlines and marks around it. Over imagery dense with
+ * zone outlines, a plate sitting on a line reads as part of it — across a neighbouring zone's corner it seems to
+ * name that zone, and a line along its leader shelf reads as the leader. Starting from the placement the bounds
+ * allow (`start`, from placeCallout), this tries each side at the reach it needs and a few steps further out
+ * and further aside, and keeps the one that crosses no line, sits inside no other zone and covers no other
+ * glyph, preferring the start side, then the same north/south side, then the shortest leader. `prev` (the last
+ * choice) is kept against a clean place one step nearer, so a label does not flicker while the camera moves.
+ * Nothing to avoid: `start` as is.
+ */
+export function clearCallout(a: Pt, start: { side: CalloutSide; dy: number; maxW: number }, bounds: Bounds, dy: { n: number; s: number },
+  plate: { w: number; h: number }, ob: CalloutObstacles,
+  opts: { minDy: number; prev?: { side: CalloutSide; extra: number; extraX?: number } | null }): CalloutChoice {
+  const segs: [Pt, Pt][] = [];
+  const foreign: Pt[][] = [];
+  for (const ring of ob.rings) {
+    const n = ring.pts.length;
+    for (let i = 0; i < n; i++) {
+      const p = ring.pts[i], q = ring.pts[(i + 1) % n];
+      if (p && q) segs.push([p, q]);
+    }
+    if (!ring.own && n > 2 && ring.pts.every(Boolean)) foreign.push(ring.pts as Pt[]);
+  }
+  const first: CalloutChoice = { ...start, dx: LEADER_DX, extra: 0, extraX: 0, hits: 0 };
+  if (!segs.length && !ob.marks.length) return first;
+  const halfH = plate.h / 2;
+  const fitsAt = (sy: number, r: number) => (sy < 0 ? a.y - r - halfH >= bounds.top + CALLOUT_EDGE : a.y + r + halfH <= bounds.bottom - CALLOUT_EDGE);
+  const prev = opts.prev ? { ...opts.prev, extraX: opts.prev.extraX ?? 0 } : null;
+  let best: (CalloutChoice & { score: number }) | null = null;
+  for (const side of [start.side, flipEW(start.side), flipNS(start.side), flipNS(flipEW(start.side))]) {
+    const sx = side[1] === "e" ? 1 : -1, sy = side[0] === "n" ? -1 : 1;
+    const own = side === start.side;
+    const room = sx > 0 ? bounds.right - CALLOUT_EDGE - (a.x + LEADER_DX + LABEL_GAP) : a.x - LEADER_DX - LABEL_GAP - (bounds.left + CALLOUT_EDGE);
+    // Another side is tried only when the label fits there without running off the frame or under a panel.
+    if (!own && room + CALLOUT_EDGE / 2 < Math.min(plate.w, CALLOUT_MIN_W)) continue;
+    let r0 = own ? start.dy : dy[side[0] as "n" | "s"];
+    if (!own && !fitsAt(sy, r0)) {
+      r0 = Math.max(opts.minDy, r0 - (sy < 0 ? bounds.top + CALLOUT_EDGE - (a.y - r0 - halfH) : a.y + r0 + halfH - (bounds.bottom - CALLOUT_EDGE)));
+      if (!fitsAt(sy, r0)) continue;
+    }
+    for (const extraX of SIDE_STEPS) {
+      // Stepping aside never makes the label wrap: it is tried only where the whole plate still fits.
+      if (extraX > 0 && room - extraX + CALLOUT_EDGE / 2 < plate.w) break;
+      const maxW = own && extraX === 0 ? start.maxW : Math.max(CALLOUT_MIN_W, Math.floor(room - extraX + CALLOUT_EDGE / 2));
+      const w = Math.min(plate.w, maxW);
+      const dx = LEADER_DX + extraX;
+      for (const extra of REACH_STEPS) {
+        const r = r0 + extra;
+        if (extra > 0 && !fitsAt(sy, r)) break;
+        const row = a.y + sy * r;
+        const end = a.x + sx * dx, elbow = end - sx * SHELF;
+        const x0 = sx > 0 ? end + LABEL_GAP : end - LABEL_GAP - w;
+        const box = { x0: x0 - CLEAR_GAP, y0: row - halfH - CLEAR_GAP, x1: x0 + w + CLEAR_GAP, y1: row + halfH + CLEAR_GAP };
+        const shelf = { x0: Math.min(elbow, end), y0: row - 3, x1: Math.max(elbow, end), y1: row + 3 };
+        let hits = 0;
+        for (const [p, q] of segs) {
+          if (segmentMeetsBox(p, q, box)) hits++;
+          // A line running along the shelf (within 20° of level) reads as part of the leader.
+          else if (Math.abs(q.y - p.y) <= 0.36 * Math.abs(q.x - p.x) && segmentMeetsBox(p, q, shelf)) hits++;
+        }
+        for (const m of ob.marks) if (m.x >= box.x0 && m.x <= box.x1 && m.y >= box.y0 && m.y <= box.y1) hits++;
+        const centre = { x: x0 + w / 2, y: row };
+        for (const ring of foreign) if (insideRing(centre, ring)) hits++;
+        const held = !!prev && prev.side === side && prev.extra === extra && prev.extraX === extraX;
+        // A slanted run flatter than 25° starts to read like an outline edge (same colour): it costs more the
+        // flatter it is, so a label stepping far aside also rises.
+        const slant = (Math.atan2(r, Math.max(1, dx - SHELF)) * 180) / Math.PI;
+        // Each 44 px aside costs as much as 22 px further out; the last place is kept against a clean place up to
+        // one step nearer, never against a better side.
+        const score = hits * 10 + (side[1] !== start.side[1] ? 1.5 : 0) + (side[0] !== start.side[0] ? 2 : 0) + extra / 48 + extraX / 88
+          + Math.max(0, 25 - slant) / 10 - (held ? 0.3 : 0);
+        if (!best || score < best.score) best = { side, dy: r, dx, maxW, extra, extraX, hits, score };
+        // Further out at this offset only costs more once the run is steep enough (unless the last place is
+        // further out still).
+        if (hits === 0 && slant >= 25 && !(prev && prev.side === side && prev.extraX === extraX && prev.extra > extra)) break;
+      }
+    }
+  }
+  return best ? { side: best.side, dy: best.dy, dx: best.dx, maxW: best.maxW, extra: best.extra, extraX: best.extraX, hits: best.hits } : first;
 }
 
 const D2R = Math.PI / 180;

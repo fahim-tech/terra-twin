@@ -8,7 +8,14 @@ import { useGlobes } from "../../store/globes";
 import { Callouts, type Callout } from "./Callouts";
 import { useExplorer } from "./explorerStore";
 import { KmFigure, Mark } from "./parts";
-import { formatCoord, readZone } from "./zones";
+import { formatCoord, readZone, zoneRing, zonesNear } from "./zones";
+
+/**
+ * Zones whose outlines a callout keeps clear of: those whose centres lie within this distance of its point. A
+ * label sits within a couple of hundred pixels of its point, which at site scale (about 900 km up) is a small
+ * fraction of this; zones farther away cannot reach it.
+ */
+const NEAR_KM = 900;
 
 /**
  * Callout label: a dark plate with corner brackets, condensed caps name over a mono coordinate. The name
@@ -47,6 +54,16 @@ export function MarsOverlay() {
       ? (ns === "n" ? zone.bbox.lat_max - selection.lat : selection.lat - zone.bbox.lat_min) * pxPerDegLat : 0;
     return Math.min(260, Math.max(aoiHalfPx, zonePx));
   };
+  // The zone outlines around a callout's point, and the other zones' centre glyphs: its plate keeps clear of
+  // them, so it never sits across a line (a plate on a neighbouring zone's corner seems to name that zone) or
+  // covers another zone's mark. Only zones near enough to share the screen with the label are tracked.
+  const around = (lat: number, lon: number, ownId: string | null) => {
+    const near = zonesNear(sites.data, lat, lon, NEAR_KM);
+    return {
+      outlines: near.map((s) => ({ pts: zoneRing(s), own: s.id === ownId })),
+      marks: near.filter((s) => s.id !== ownId).map((s) => ({ lat: s.lat, lon: s.lon })),
+    };
+  };
   // Preferred sides only: the callout layer moves a label that would leave the free part of the frame.
   const items: Callout[] = [];
   if (selection) {
@@ -56,15 +73,14 @@ export function MarsOverlay() {
       // from the glyph the globe stands on a stem above the point.
       id: "selection", lat: selection.lat, lon: selection.lon, tone: "mars", side: "ne",
       clear: { n: clearFor("n"), s: clearFor("s") }, markerR: 11, boxPx: aoiHalfPx,
-      // The zone outline's north and south edges cross the screen above and below the point: the plate keeps
-      // clear of them, so an edge never runs into it along the leader.
-      edges: zone ? [{ lat: zone.bbox.lat_max, lon: selection.lon }, { lat: zone.bbox.lat_min, lon: selection.lon }] : undefined,
+      ...around(selection.lat, selection.lon, zone?.id ?? null),
       content: <Plate tone="mars" title={selection.siteId ? zoneName(selection.siteId) : "Selected point"} coord={formatCoord(selection.lat, selection.lon)} />,
     });
   }
   if (origin && selection && (origin.lat !== selection.lat || origin.lon !== selection.lon)) {
     items.push({
       id: "origin", lat: origin.lat, lon: origin.lon, tone: "neutral", side: "sw",
+      ...around(origin.lat, origin.lon, null),
       content: (side) => <Plate tone="neutral" title="Your point" coord={formatCoord(origin.lat, origin.lon)} align={side.endsWith("w") ? "right" : "left"} />,
     });
   }

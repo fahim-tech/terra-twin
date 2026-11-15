@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { MarsSite } from "../../types/contracts";
 import {
-  availabilityItems, baselineFromExplanation, CALLOUT_MIN_W, calloutGeometry, graticulePaths, gridMetres, LEADER_DX, nextActive, orthographic,
-  dodgeEdges, placeCallout, reachFromGlyph, revealDelta, scalesFromEvidence, underCover,
+  availabilityItems, baselineFromExplanation, CALLOUT_MIN_W, calloutGeometry, clearCallout, graticulePaths, gridMetres, insideRing,
+  LEADER_DX, nextActive, orthographic, placeCallout, reachFromGlyph, revealDelta, scalesFromEvidence, segmentMeetsBox, underCover,
 } from "./readouts";
+import { zoneRing, zonesNear } from "./zones";
 
 describe("orthographic", () => {
   it("puts the view centre at the disc centre and the limb at the radius", () => {
@@ -198,34 +200,143 @@ describe("placeCallout", () => {
   });
 });
 
-describe("callout plates keep off crossing lines", () => {
-  const o = { halfH: 21, gap: 4, minDy: 38, top: 56, bottom: 848 };
-  it("moves a plate out past a zone edge that would run into it along the leader", () => {
-    // 1440 × 900, 3D view: the glyph at y 424, the label row 38 px above it, the zone's north edge at y 392.
-    const r = dodgeEdges(424, "ne", 38, [392], o);
-    const row = 424 - r;
-    expect(row + 21 + 4).toBeLessThanOrEqual(392);
-    expect(r).toBe(424 - (392 - 25));
+describe("screen geometry for callouts", () => {
+  const box = { x0: 10, y0: 10, x1: 20, y1: 20 };
+  it("finds segments that cross, touch or lie inside a box, and only those", () => {
+    expect(segmentMeetsBox({ x: 0, y: 15 }, { x: 30, y: 15 }, box)).toBe(true); // straight through
+    expect(segmentMeetsBox({ x: 12, y: 12 }, { x: 18, y: 18 }, box)).toBe(true); // inside
+    expect(segmentMeetsBox({ x: 0, y: 0 }, { x: 10, y: 10 }, box)).toBe(true); // touches a corner
+    expect(segmentMeetsBox({ x: 0, y: 25 }, { x: 30, y: 25 }, box)).toBe(false); // passes below
+    expect(segmentMeetsBox({ x: 0, y: 30 }, { x: 30, y: 0 }, { x0: 0, y0: 0, x1: 5, y1: 5 })).toBe(false); // misses the corner
+    expect(segmentMeetsBox({ x: 15, y: 0 }, { x: 15, y: 5 }, box)).toBe(false); // stops short
   });
 
-  it("leaves a plate alone when no edge crosses its rows", () => {
-    // 1920 × 1080: the edge passes 5 px above the plate.
-    expect(dodgeEdges(519, "ne", 38, [455], o)).toBe(38);
-    expect(dodgeEdges(519, "ne", 38, [], o)).toBe(38);
+  it("tells inside from outside a ring", () => {
+    const ring = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 12, y: 10 }, { x: -2, y: 10 }];
+    expect(insideRing({ x: 5, y: 5 }, ring)).toBe(true);
+    expect(insideRing({ x: 11.5, y: 2 }, ring)).toBe(false);
+    expect(insideRing({ x: 5, y: 12 }, ring)).toBe(false);
+  });
+});
+
+describe("callout plates keep clear of zone outlines and other glyphs", () => {
+  const desktop = { left: 0, top: 56, right: 1036, bottom: 848 };
+  const reaches = { n: 38, s: 98 };
+  const plate = { w: 125, h: 42 };
+  const glyph = { x: 516, y: 424 };
+  const start = placeCallout(glyph, "ne", desktop, reaches, { minDy: 38 });
+  /** A zone outline as eight screen points (corners and edge midpoints), from its corners. */
+  const ring = (x0: number, y0: number, x1: number, y1: number) => [
+    { x: x0, y: y0 }, { x: (x0 + x1) / 2, y: y0 }, { x: x1, y: y0 }, { x: x1, y: (y0 + y1) / 2 },
+    { x: x1, y: y1 }, { x: (x0 + x1) / 2, y: y1 }, { x: x0, y: y1 }, { x: x0, y: (y0 + y1) / 2 },
+  ];
+  /** The plate's box for a choice (the shelf ends `dx` out; the plate starts 2 px past it). */
+  const plateBox = (c: { side: string; dy: number; dx?: number }) => {
+    const sx = c.side.endsWith("e") ? 1 : -1, row = glyph.y + (c.side.startsWith("n") ? -c.dy : c.dy);
+    const dx = c.dx ?? LEADER_DX;
+    const x0 = sx > 0 ? glyph.x + dx + 2 : glyph.x - dx - 2 - plate.w;
+    return { x0, y0: row - plate.h / 2, x1: x0 + plate.w, y1: row + plate.h / 2 };
+  };
+  const clearOf = (b: { x0: number; y0: number; x1: number; y1: number }, r: { x: number; y: number }[]) =>
+    r.every((p, i) => !segmentMeetsBox(p, r[(i + 1) % r.length], b));
+
+  it("keeps the placement the bounds chose when nothing is near", () => {
+    const c = clearCallout(glyph, start, desktop, reaches, plate, { rings: [], marks: [] }, { minDy: 38 });
+    expect(c).toMatchObject({ side: start.side, dy: start.dy, dx: LEADER_DX, maxW: start.maxW, extra: 0, hits: 0 });
+    // Outlines far away change nothing either.
+    const far = clearCallout(glyph, start, desktop, reaches, plate, { rings: [{ pts: ring(800, 600, 950, 760), own: false }], marks: [] }, { minDy: 38 });
+    expect(far).toMatchObject({ side: start.side, dy: start.dy, extra: 0, hits: 0 });
   });
 
-  it("pulls the plate in short of the edge when out past it would leave the frame", () => {
-    // Near the top: out past the edge would put the plate under the navigator.
-    const r = dodgeEdges(170, "ne", 70, [100], o);
-    expect(r).toBe(170 - (100 + 25));
-    expect(r).toBeGreaterThanOrEqual(o.minDy);
+  it("moves a plate off a neighbouring zone, so it never seems to name it", () => {
+    // Hellas3 at 1440 × 900: Ausonia's outline starts just where the north-east plate would go.
+    const own = ring(400, 390, 650, 578);
+    const neighbour = ring(560, 258, 795, 410);
+    const ob = { rings: [{ pts: own, own: true }, { pts: neighbour, own: false }], marks: [{ x: 674, y: 326 }] };
+    const c = clearCallout(glyph, start, desktop, reaches, plate, ob, { minDy: 38 });
+    expect(c.hits).toBe(0);
+    const b = plateBox(c);
+    expect(insideRing({ x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 }, neighbour)).toBe(false);
+    expect(clearOf(b, neighbour)).toBe(true);
+    expect(clearOf(b, own)).toBe(true);
+    // It keeps to the north (the side the bounds preferred) and moves west, just past the zone's own edge.
+    expect(c.side).toBe("nw");
+    expect(c.dy).toBeGreaterThan(start.dy);
   });
 
-  it("works below the point too, and stays put when neither move is possible", () => {
-    const r = dodgeEdges(400, "se", 40, [445], o);
-    expect(400 + r - 25).toBeGreaterThanOrEqual(445);
-    // Edge right at the minimum reach with no room either way: unchanged.
-    expect(dodgeEdges(820, "se", 38, [858], o)).toBe(38);
+  it("steps a label sideways out of a zone hemmed in by a neighbour, rising so its leader stays steep", () => {
+    // Jezero at 1440 × 900: Nili's outline lies just north, so neither shelf above the glyph is clear in the gap.
+    const own = ring(390, 390, 645, 575);
+    const nili = ring(435, 230, 650, 353);
+    const c = clearCallout(glyph, start, desktop, reaches, plate, { rings: [{ pts: own, own: true }, { pts: nili, own: false }], marks: [] }, { minDy: 38 });
+    expect(c).toMatchObject({ side: "ne", hits: 0 });
+    expect(c.dx).toBeGreaterThan(LEADER_DX);
+    const b = plateBox(c);
+    expect(b.x0).toBeGreaterThan(650);
+    expect(clearOf(b, own) && clearOf(b, nili)).toBe(true);
+    // The slanted run is no flatter than 25°.
+    expect((Math.atan2(c.dy, c.dx - LEADER_DX * 0.45) * 180) / Math.PI).toBeGreaterThanOrEqual(25);
+    // The leader is drawn to that shelf: the slanted run lengthens, the shelf keeps its length.
+    const g = calloutGeometry(glyph, c.side, c.dy, { square: 13 }, c.dx);
+    expect(g.end.x - glyph.x).toBe(c.dx);
+    expect(g.end.x - g.elbow.x).toBeCloseTo(LEADER_DX * 0.45);
+  });
+
+  it("does not let a line run along the leader's shelf, where it reads as part of the leader", () => {
+    // A level outline edge 2 px under the shelf, clear of the plate's box but for the gap.
+    const shelfY = glyph.y - start.dy;
+    const ob = { rings: [{ pts: [{ x: 540, y: shelfY + 2 }, { x: 572, y: shelfY + 2 }, { x: 572, y: shelfY + 3 }, { x: 540, y: shelfY + 3 }], own: false }], marks: [] };
+    const c = clearCallout(glyph, start, desktop, reaches, plate, ob, { minDy: 38 });
+    expect(c.hits).toBe(0);
+    expect(c.side === start.side && c.dy === start.dy && c.dx === LEADER_DX).toBe(false);
+  });
+
+  it("keeps the plate off other zones' glyphs", () => {
+    const b = plateBox(start);
+    const c = clearCallout(glyph, start, desktop, reaches, plate, { rings: [], marks: [{ x: (b.x0 + b.x1) / 2, y: (b.y0 + b.y1) / 2 }] }, { minDy: 38 });
+    expect(c.hits).toBe(0);
+    expect(c).not.toMatchObject({ side: start.side, dy: start.dy });
+  });
+
+  it("holds its last place while that is as good as any, so a label does not flicker", () => {
+    const own = ring(400, 390, 650, 578);
+    const neighbour = ring(560, 258, 795, 410);
+    const ob = { rings: [{ pts: own, own: true }, { pts: neighbour, own: false }], marks: [] };
+    const first = clearCallout(glyph, start, desktop, reaches, plate, ob, { minDy: 38 });
+    // A place one step further out on the same side is as clean; the last choice keeps it.
+    const held = clearCallout(glyph, start, desktop, reaches, plate, ob, { minDy: 38, prev: { side: first.side, extra: first.extra + 12 } });
+    expect(held).toMatchObject({ side: first.side, extra: first.extra + 12, hits: 0 });
+    // …but not two steps out: then the label moves back in.
+    const back = clearCallout(glyph, start, desktop, reaches, plate, ob, { minDy: 38, prev: { side: first.side, extra: first.extra + 24 } });
+    expect(back).toMatchObject({ side: first.side, extra: first.extra, hits: 0 });
+  });
+
+  it("takes the place with the fewest crossings when none is clear, and breaks rings where points are off screen", () => {
+    // A grid of level lines every 20 px across the whole frame: every place crosses some.
+    const lines = Array.from({ length: 40 }, (_, i) => ({ pts: [{ x: 0, y: 60 + i * 20 }, { x: 1036, y: 60 + i * 20 }], own: false }));
+    const c = clearCallout(glyph, start, desktop, reaches, plate, { rings: lines, marks: [] }, { minDy: 38 });
+    expect(c.hits).toBeGreaterThan(0);
+    // A ring whose only points are off screen draws no segments, so nothing is avoided.
+    const gone = clearCallout(glyph, start, desktop, reaches, plate, { rings: [{ pts: [null, null, null, null], own: false }], marks: [] }, { minDy: 38 });
+    expect(gone).toMatchObject({ side: start.side, dy: start.dy, hits: 0 });
+  });
+});
+
+describe("zone outlines near a point", () => {
+  const site = (id: string, lat: number, lon: number, half = 1.7) =>
+    ({ id, name: id, lat, lon, bbox: { lon_min: lon - half, lon_max: lon + half, lat_min: lat - half, lat_max: lat + half } }) as unknown as MarsSite;
+  it("rings a zone with its corners and edge midpoints, from the north-west corner", () => {
+    const r = zoneRing(site("Jezero", 17.68, 77.01));
+    expect(r).toHaveLength(8);
+    expect(r[0]).toEqual({ lat: 17.68 + 1.7, lon: 77.01 - 1.7 });
+    expect(r[4]).toEqual({ lat: 17.68 - 1.7, lon: 77.01 + 1.7 });
+    expect(r[1].lon).toBeCloseTo(77.01);
+    expect(r[3].lat).toBeCloseTo(17.68);
+  });
+  it("lists only the zones close enough to share the screen with a label, nearest first", () => {
+    const sites = [site("Far", -40, -10), site("Nili", 22.08, 77.01), site("Jezero", 17.68, 77.01)];
+    expect(zonesNear(sites, 17.68, 77.01, 900).map((s) => s.id)).toEqual(["Jezero", "Nili"]);
+    expect(zonesNear(undefined, 0, 0, 900)).toEqual([]);
   });
 });
 
