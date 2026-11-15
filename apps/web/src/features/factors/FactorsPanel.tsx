@@ -67,17 +67,16 @@ export function FactorsStrip({ lat, lon, className }: { lat: number; lon: number
   const on = (q.data?.factors ?? []).filter((f) => factorValue(f) !== null);
   if (on.length === 0) return null;
   return (
-    <div className={cx("text-caption", className)} aria-label="Mars target, planetary context">
-      <span className="kicker mr-2 text-[10px] text-faint">Mars context</span>
-      {on.map((f, i) => (
+    <div className={cx("flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-caption", className)} aria-label="Mars target, planetary context">
+      <span className="kicker whitespace-nowrap text-[10px] text-faint">Mars context</span>
+      {on.map((f) => (
         <span key={f.factor_id} className="whitespace-nowrap">
-          {i > 0 && <span aria-hidden className="mx-1.5 text-faint">·</span>}
           <span className="text-muted">{factorShortLabel(f)} </span>
           <span className="num text-num-sm text-ink">{typeof f.value === "number" ? f.value.toLocaleString("en-US", { maximumFractionDigits: Math.abs(f.value) >= 10 ? 0 : 2 }) : f.value}</span>
           {compactUnit(f.unit) && <span className="text-faint"> {compactUnit(f.unit)}</span>}
         </span>
       ))}
-      <span className="ml-1.5 text-faint">· characterization only, not in the score</span>
+      <span className="basis-full text-faint">Characterization only, not in the score.</span>
     </div>
   );
 }

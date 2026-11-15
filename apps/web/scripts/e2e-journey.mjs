@@ -46,10 +46,29 @@ await step("intro loads with API figures", async () => {
   await text(/249,165/);
   return "249,165 cells shown";
 });
+await step("intro tells problem, method and finding", async () => {
+  await text(/Problem/); await text(/Atacama Yungay, S 0\.614/); return "finding from /api/research/summary";
+});
 await step("start with Jezero", async () => { await click(/Start with Jezero/i); await text(/JEZERO/i); });
+await step("planetary context factors shown", async () => {
+  await text(/Planetary context/i); await text(/available/i);
+  const n = await page.getByText(/\d\/6 available/).filter({ visible: true }).first().textContent().catch(() => null);
+  return n ?? "";
+});
+await step("no factor listed as missing while available", async () => {
+  const missing = await page.locator('[aria-label="Evidence availability"]').innerText().catch(() => "");
+  const after = missing.split("Missing")[1] ?? "";
+  if (/Thermal|Geology|Rocks|Solar|Climate|Ice/.test(after)) throw new Error(`still missing: ${after.slice(0, 120)}`);
+});
 await step("Mars terrain measurements", async () => { await text(/mean slope/i); await text(/463 m/i); });
 await step("find Earth analogs", async () => { await click(/Find Earth analogs/i); await text(/Results for/i, 30000); });
 await step("research comparison decision", async () => { await text(/stable leader|tie|no convincing|not enough evidence/i); });
+await step("Earth header shows Mars context", async () => { if (W >= 768) await text(/Mars context/i); });
+await step("discovery opens the cached run", async () => {
+  const t = page.getByRole("tab", { name: /discovery/i }).first(); await t.click();
+  await text(/Opened the latest verified run/i, 30000);
+  return "cached run auto-opened";
+});
 await step("global screen tab", async () => {
   const t = page.getByRole("tab", { name: /screen/i }).first(); await t.click(); await text(/249,165|cells/i);
   await page.getByRole("tab", { name: /research/i }).first().click();
@@ -68,6 +87,7 @@ await step("evidence page", async () => {
 await step("report page", async () => {
   await click(/^\s*Report\s*$/i); await text(/dossier|key figures/i, 30000);
 });
+await step("report has Mars planetary context", async () => { await text(/Mars planetary context/i, 30000); });
 for (const kind of ["JSON", "CSV"]) {
   await step(`report ${kind} download`, async () => {
     const [d] = await Promise.all([page.waitForEvent("download", { timeout: 15000 }), click(new RegExp(`Download ${kind}`, "i"))]);
