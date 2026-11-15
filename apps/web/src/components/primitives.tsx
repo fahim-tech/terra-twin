@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown, X } from "lucide-react";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { GLOSSARY, keepsTermCase, type GlossaryEntry, type GlossaryKey } from "../lib/glossary";
-import { termPopoverShift } from "../lib/popover";
+import { termPopoverPlacement, type PopoverPlacement } from "../lib/popover";
 import { cx } from "./ui";
 
 export const SPRING = { type: "spring" as const, bounce: 0, duration: 0.35 };
@@ -53,10 +54,6 @@ export function Figure({ label, value, unit, digits, basis, tone, className }: {
 }
 
 /**
- * Plain label with the technical term and definition on demand (hover, focus or tap).
- * Keeps jargon out of primary text without deleting it.
- */
-/**
  * Open/close handlers for a term popover: hover opens only for a mouse, keyboard focus opens, and a tap
  * or click toggles. (On touch, the compat mouseenter/focus that precede the click would otherwise open
  * the popover and the click would close it again.)
@@ -95,43 +92,69 @@ export function radioGroupKeys<T>(values: readonly T[], current: T, select: (v: 
   };
 }
 
+/**
+ * Plain label with the technical term and its definition on demand (hover, focus or tap): keeps jargon out
+ * of primary text without deleting it. The popover is
+ * rendered in a portal at a fixed position (lib/popover.ts): a scrolling panel, the phone sheet or a clipped
+ * strip can never cut it, it opens below the term when there is no room above, and it stays inside the
+ * viewport. It follows the term while the page or a panel scrolls.
+ */
 export function Term({ k, children, className }: { k: GlossaryKey; children?: ReactNode; className?: string }) {
   const g: GlossaryEntry = GLOSSARY[k];
   const [open, setOpen] = useState(false);
   const triggers = useTermTriggers(setOpen);
   const id = useId();
-  const ref = useRef<HTMLSpanElement>(null);
-  // Keep the popover inside the viewport: shift it left when the term sits near the right edge.
-  const [shift, setShift] = useState(0);
-  useLayoutEffect(() => {
-    if (!open || !ref.current) return;
-    setShift(termPopoverShift(ref.current.getBoundingClientRect().left, document.documentElement.clientWidth));
-  }, [open]);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const pop = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<PopoverPlacement | null>(null);
+  const place = useCallback(() => {
+    const t = trigger.current?.getBoundingClientRect();
+    const p = pop.current;
+    if (!t || !p) return;
+    const next = termPopoverPlacement(t, { w: p.offsetWidth, h: p.offsetHeight }, { w: document.documentElement.clientWidth, h: window.innerHeight });
+    setPos((prev) => (prev && prev.left === next.left && prev.top === next.top && prev.below === next.below ? prev : next));
+  }, []);
+  useLayoutEffect(() => { if (open) place(); else setPos(null); }, [open, place]);
   useEffect(() => {
     if (!open) return;
-    const close = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const close = (e: PointerEvent) => {
+      const n = e.target as Node;
+      if (!trigger.current?.contains(n) && !pop.current?.contains(n)) setOpen(false);
+    };
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") { e.preventDefault(); setOpen(false); } };
     window.addEventListener("pointerdown", close);
     window.addEventListener("keydown", esc, true);
-    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", esc, true); };
-  }, [open]);
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("keydown", esc, true);
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [open, place]);
   return (
-    <span ref={ref} className={cx("relative inline", className)} {...triggers.wrapper}>
-      <button type="button" aria-describedby={open ? id : undefined} aria-expanded={open} {...triggers.button}
+    <span className={cx("relative inline", className)} {...triggers.wrapper}>
+      <button ref={trigger} type="button" aria-describedby={open ? id : undefined} aria-expanded={open} {...triggers.button}
         className="term-hit cursor-help underline decoration-faint/70 decoration-dotted underline-offset-[3px] hover:decoration-ink">
         {children ?? g.label}
       </button>
-      <AnimatePresence>
-        {open && (
-          <motion.span id={id} role="tooltip" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.14 }} style={{ left: shift }}
-            className="surface-solid frame absolute bottom-[calc(100%+8px)] left-0 z-50 block w-[min(320px,80vw)] whitespace-normal rounded-control p-3 text-left font-sans text-caption font-normal normal-case tracking-normal text-muted">
-            {/* Caps like every label, except terms with Greek symbols, which stay as written (ρ, κ). */}
-            <span className={cx("mb-1.5 block text-ink", keepsTermCase(g.term) ? "text-label font-semibold" : "label-caps")}>{g.term}</span>
-            {g.definition}
-            {g.source ? <span className="mt-1.5 block font-mono text-[11px] text-faint">{g.source}</span> : null}
-          </motion.span>
-        )}
-      </AnimatePresence>
+      {typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {open && (
+            <motion.span ref={pop} id={id} role="tooltip"
+              initial={{ opacity: 0, y: pos?.below ? -4 : 4 }} animate={{ opacity: pos ? 1 : 0, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }}
+              style={{ position: "fixed", left: pos?.left ?? -9999, top: pos?.top ?? 0 }}
+              className="surface-solid frame z-[60] block w-[min(320px,calc(100vw-24px))] whitespace-normal rounded-control p-3 text-left font-sans text-caption font-normal normal-case tracking-normal text-muted [--frame-l:8px]">
+              {/* Caps like every label, except terms with Greek symbols, which stay as written (ρ, κ). */}
+              <span className={cx("mb-1.5 block text-ink", keepsTermCase(g.term) ? "text-label font-semibold" : "label-caps")}>{g.term}</span>
+              {g.definition}
+              {g.source ? <span className="mt-1.5 block font-mono text-[11px] text-faint">{g.source}</span> : null}
+            </motion.span>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </span>
   );
 }
