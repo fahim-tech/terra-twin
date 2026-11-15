@@ -2,20 +2,30 @@
  * Globe iframe entry. One planet per JS realm (Ellipsoid.default is global mutable state).
  * Query string: ?planet=mars|earth. The parent sends `init` (with optional ion token) after `boot`.
  *
- * Besides rendering, this realm reports camera telemetry (altitude, ground scale, heading) and the
+ * Besides rendering, this realm reports camera telemetry (altitude, ground scale, heading, pitch) and the
  * projected screen positions of tracked points, so the React shell can draw map instruments and
  * leader-line annotations in HTML without reaching into Cesium.
+ *
+ * 3D: site flights end in an oblique view pitched about −50° (geometry in camera.ts) and the TILT control
+ * or the T key switches top-down ⇄ oblique around the point under the reticle. Footprints are drawn as
+ * scan volumes whose walls appear only when the camera is tilted; the selection, the selected marker and
+ * leaders stand on stems; Phobos and Deimos orbits ring Mars at true scale in whole-planet views; the real
+ * Tycho-2 star field sits dimmed behind both planets.
  */
 import {
   ArcType,
+  buildModuleUrl,
   Cartesian2,
   Cartesian3,
   Cartographic,
+  CallbackPositionProperty,
   CallbackProperty,
   Cesium3DTileset,
   CesiumTerrainProvider,
   Color,
+  ColorMaterialProperty,
   Credit,
+  CubeMapPanorama,
   CustomDataSource,
   DirectionalLight,
   EasingFunction,
@@ -27,19 +37,28 @@ import {
   Globe,
   HeightReference,
   HorizontalOrigin,
+  ImageMaterialProperty,
   ImageryLayer,
   Ion,
+  type Label,
+  LabelCollection,
   LabelStyle,
+  Material,
   Math as CMath,
+  Matrix3,
   NearFarScalar,
   PerspectiveFrustum,
   PolygonHierarchy,
+  type Polyline,
+  PolylineCollection,
   Rectangle,
   SceneTransforms,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
   SingleTileImageryProvider,
   SkyAtmosphere,
+  SkyBox,
+  Transforms,
   UrlTemplateImageryProvider,
   VerticalOrigin,
   Viewer,
@@ -47,7 +66,14 @@ import {
   defined,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
-import { MARS_IAU2000, R_EARTH_MEAN_M, R_MARS_M, centricToGraphic, distanceKm, graphicToCentric, normLon, squareFootprint } from "../lib/geodesy";
+import { MARS_IAU2000, R_EARTH_MEAN_M, R_MARS_M, centricToGraphic, distanceKm, graphicToCentric, normLon } from "../lib/geodesy";
+import {
+  OBLIQUE_PITCH_DEG, attitudeAt, exactNadir, fitDepth, flightPitchDeg, focusOf, isTilted, nadirFor, poseAt, stemHeightM, tiltWeight,
+  type Enu, type Vec3, type View,
+} from "./camera";
+import { footprintCorners, outlineRing, scanHeightM } from "./footprints";
+import { GLYPH_EARTH, GLYPH_INK, GLYPH_KINDS, GLYPH_MARS, GLYPH_SPACE, glyph, wallGradient } from "./glyphs";
+import { MARS_MOONS, orbitFade, orbitLabel, orbitRing } from "./moons";
 import {
   type AnchorPosition,
   type AnchorRequest,
@@ -57,11 +83,13 @@ import {
   type GlobeToParent,
   type LayerInfo,
   type MarkerGroupOptions,
+  type MarkerKind,
   type ParentToGlobe,
   type Planet,
   isEnvelope,
   wrap,
 } from "./protocol";
+import { icrfToMarsFixed } from "./sky";
 
 (window as unknown as { CESIUM_BASE_URL: string }).CESIUM_BASE_URL = CESIUM_BASE_URL;
 
@@ -131,8 +159,14 @@ let ellipsoid: Ellipsoid;
 let mode: "ion" | "fallback" = "fallback";
 let baseLayer: ImageryLayer | null = null;
 let spinning = false;
+/** Intro attract mode (setSpin on): a stronger three-quarter light. Outlives the spin, which stops on any touch. */
+let attract = false;
+/** 0 = working light (hemisphere in view lit), 1 = intro three-quarter light; eased between. */
+let lightMix = 0;
 let moving = false;
 let selectedId: string | null = null;
+/** The user's choice for site flights: end in the 3D view (default) or look straight down. */
+let tiltPref = true;
 const groups = new Map<string, CustomDataSource>();
 const overlays = new Map<string, ImageryLayer>();
 let graticule: CustomDataSource | null = null;
@@ -142,8 +176,17 @@ let lastTelemetry = "";
 let lastTelemetryAt = 0;
 const meanR = planet === "mars" ? R_MARS_M : R_EARTH_MEAN_M;
 let insets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/**
+ * A camera framing: a ground target on the free area's centre, seen from `depthKm` with a pitch and heading.
+ * `exact` refines a top-down placement to the pixel (user actions that must keep the target where it is);
+ * programmatic flights keep the original north-up aim that callers plan around (phone framing).
+ */
+interface Placement { lat: number; lon: number; depthKm: number; pitchDeg: number; headingDeg: number; exact?: boolean }
 /** Last programmatic framing target; re-aimed when insets change, forgotten once the user moves the camera. */
-let lastTarget: { lat: number; lon: number; heightKm: number } | null = null;
+let lastTarget: Placement | null = null;
+/** Keep rendering until this time (ms), so geometry built off-thread appears without a camera move. */
+let settleUntil = 0;
 
 let occluder: EllipsoidalOccluder | null = null;
 
@@ -173,20 +216,38 @@ function pos(lat: number, lon: number, h = 0) {
 function requestRender() {
   viewer?.scene.requestRender();
 }
+function settle(ms = 1500) {
+  settleUntil = Math.max(settleUntil, performance.now() + ms);
+  requestRender();
+}
 
+const toVec = (c: Cartesian3): Vec3 => [c.x, c.y, c.z];
+const toCart = (v: Vec3) => new Cartesian3(v[0], v[1], v[2]);
+/** Local east / north / up axes at a surface point (columns of Cesium's column-major ENU matrix). */
+function enuAt(world: Cartesian3): Enu {
+  const m = Transforms.eastNorthUpToFixedFrame(world, ellipsoid) as unknown as ArrayLike<number>;
+  return { east: [m[0], m[1], m[2]], north: [m[4], m[5], m[6]], up: [m[8], m[9], m[10]] };
+}
+
+/**
+ * Home framing: the whole planet with the north pole tipped towards the camera, so the moons' orbital plane
+ * (Mars's equator) opens into rings around the planet instead of lying edge-on.
+ */
 const HOME = planet === "mars"
-  ? { lat: 12, lon: 70, heightKm: 9_200 }
+  ? { lat: 24, lon: 70, heightKm: 10_400 }
   : { lat: 18, lon: 10, heightKm: 17_500 };
 
 const css = (c: string) => Color.fromCssColorString(c);
-const STYLE: Record<GlobeMarker["kind"], { color: Color; size: number; outline: Color; outlineWidth: number }> = {
-  research_site: { color: css("#F2EEE8").withAlpha(0.7), size: 5, outline: css("#07090C").withAlpha(0.65), outlineWidth: 1 },
-  selection: { color: css("#E8835F"), size: 9, outline: css("#FFF6EE"), outlineWidth: 2 },
-  candidate: { color: css("#5CC4B6").withAlpha(0.9), size: 6, outline: css("#07090C").withAlpha(0.7), outlineWidth: 1 },
-  leader: { color: css("#F4F1EA"), size: 10, outline: css("#5CC4B6"), outlineWidth: 2.5 },
-  pool: { color: css("#C9D3DC").withAlpha(0.32), size: 3.5, outline: css("#07090C").withAlpha(0.4), outlineWidth: 0.5 },
-  reference: { color: css("#D9B07A"), size: 6, outline: css("#07090C"), outlineWidth: 1 },
-  control: { color: css("#8E99A6").withAlpha(0.6), size: 5, outline: css("#07090C"), outlineWidth: 1 },
+const INK = css(GLYPH_INK);
+const SPACE = css(GLYPH_SPACE);
+const MARS = css(GLYPH_MARS);
+const EARTH = css(GLYPH_EARTH);
+
+/** Data points stay true circles; places and the user's point are HUD glyphs (glyphs.ts). */
+const POINT: Partial<Record<MarkerKind, { color: Color; size: number; outline: Color; outlineWidth: number }>> = {
+  candidate: { color: EARTH.withAlpha(0.9), size: 6, outline: SPACE.withAlpha(0.7), outlineWidth: 1 },
+  leader: { color: INK, size: 10, outline: EARTH, outlineWidth: 2.5 },
+  pool: { color: css("#C9D3DC").withAlpha(0.32), size: 3.5, outline: SPACE.withAlpha(0.4), outlineWidth: 0.5 },
 };
 
 function dataSource(group: string, opts: MarkerGroupOptions = {}): CustomDataSource {
@@ -214,15 +275,15 @@ function styleCluster(entities: Entity[], cluster: { billboard: { show: boolean 
   cluster.billboard.show = false;
   cluster.point.show = true;
   cluster.point.pixelSize = 16 + Math.min(18, Math.round(Math.sqrt(entities.length) * 3));
-  cluster.point.color = css("#5CC4B6").withAlpha(0.22);
-  cluster.point.outlineColor = css("#5CC4B6").withAlpha(0.95);
+  cluster.point.color = EARTH.withAlpha(0.22);
+  cluster.point.outlineColor = EARTH.withAlpha(0.95);
   cluster.point.outlineWidth = 1.25;
   cluster.point.disableDepthTestDistance = Number.POSITIVE_INFINITY;
   cluster.label.show = true;
   cluster.label.text = String(entities.length);
   cluster.label.font = "600 11px 'IBM Plex Mono', ui-monospace, monospace";
   cluster.label.fillColor = css("#EAF7F4");
-  cluster.label.outlineColor = css("#07090C");
+  cluster.label.outlineColor = SPACE;
   cluster.label.outlineWidth = 2;
   cluster.label.style = LabelStyle.FILL_AND_OUTLINE;
   cluster.label.horizontalOrigin = HorizontalOrigin.CENTER;
@@ -231,53 +292,167 @@ function styleCluster(entities: Entity[], cluster: { billboard: { show: boolean 
   cluster.label.disableDepthTestDistance = Number.POSITIVE_INFINITY;
 }
 
+// ---------------------------------------------------------------- markers and stems
+interface MarkerRec extends GlobeMarker {
+  group: string;
+  labels: "none" | "selected" | "all";
+  ground: Cartesian3;
+  up: Cartesian3;
+}
+/** Every marker on the globe, keyed `group::id`. */
+const markerRecs = new Map<string, MarkerRec>();
+let stems: CustomDataSource | null = null;
+
+/** Drawn on a stem (standing off the ground in the 3D view): the user's point, leaders and the selected marker. */
+function isStemmed(m: { kind: MarkerKind; id: string }) {
+  return m.kind === "selection" || m.kind === "leader" || m.id === selectedId;
+}
+
+/** Drawn over the imagery (no depth test) but hidden, and unpickable, when behind the planet. */
+function onNearSide(world: Cartesian3) {
+  return !occluder || occluder.isPointVisible(world);
+}
+
+function hudLabel(m: GlobeMarker, show: CallbackProperty, dx: number) {
+  return {
+    text: (m.rank ? `${m.rank}  ${m.label}` : m.label!).toUpperCase(),
+    font: "600 12px 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif",
+    fillColor: INK,
+    outlineColor: SPACE.withAlpha(0.9),
+    outlineWidth: 3,
+    style: LabelStyle.FILL_AND_OUTLINE,
+    horizontalOrigin: HorizontalOrigin.LEFT,
+    verticalOrigin: VerticalOrigin.CENTER,
+    pixelOffset: new Cartesian2(dx, 0),
+    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    show,
+  };
+}
+
 function setMarkers(group: string, markers: GlobeMarker[], opts: MarkerGroupOptions = {}) {
   if (!viewer) return;
   const ds = dataSource(group, opts);
   ds.entities.suspendEvents();
   ds.entities.removeAll();
+  for (const key of [...markerRecs.keys()]) if (key.startsWith(`${group}::`)) markerRecs.delete(key);
   const labels = opts.labels ?? "selected";
   for (const m of markers) {
-    const st = STYLE[m.kind];
-    const id = m.id;
-    const isSel = () => selectedId === id;
-    const world = pos(m.lat, m.lon);
-    // Drawn over the imagery (no depth test) but hidden, and unpickable, when behind the planet.
-    const visible = () => !occluder || occluder.isPointVisible(world);
+    const ground = pos(m.lat, m.lon);
+    const rec: MarkerRec = { ...m, group, labels, ground, up: ellipsoid.geodeticSurfaceNormal(ground, new Cartesian3()) };
+    markerRecs.set(`${group}::${m.id}`, rec);
+    // A stemmed marker is drawn by its stem; the ground glyph stands down meanwhile.
+    const shown = new CallbackProperty(() => onNearSide(ground) && !isStemmed(rec), false);
+    const g = GLYPH_KINDS.has(m.kind) ? glyph(m.kind, false) : null;
+    const pt = POINT[m.kind];
     ds.entities.add({
-      id: `${group}::${id}`,
-      position: world,
-      point: {
-        show: new CallbackProperty(visible, false),
-        pixelSize: new CallbackProperty(() => (isSel() ? st.size + 5 : st.size), false),
-        color: st.color,
-        outlineColor: new CallbackProperty(() => (isSel() ? Color.WHITE : st.outline), false),
-        outlineWidth: new CallbackProperty(() => (isSel() ? 2.5 : st.outlineWidth), false),
+      id: `${group}::${m.id}`,
+      position: ground,
+      billboard: g ? { image: g.url, width: g.size, height: g.size, show: shown, disableDepthTestDistance: Number.POSITIVE_INFINITY } : undefined,
+      point: !g && pt ? {
+        show: shown,
+        pixelSize: pt.size,
+        color: pt.color,
+        outlineColor: pt.outline,
+        outlineWidth: pt.outlineWidth,
         heightReference: HeightReference.NONE,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
         scaleByDistance: new NearFarScalar(1e5, 1.25, 2.5e7, 0.8),
-      },
-      label: m.label && labels !== "none" ? {
-        text: m.rank ? `${m.rank}  ${m.label}` : m.label,
-        font: "600 12px 'Barlow Semi Condensed', 'Barlow', system-ui, sans-serif",
-        fillColor: css("#F2EEE8"),
-        outlineColor: css("#07090C").withAlpha(0.9),
-        outlineWidth: 3,
-        style: LabelStyle.FILL_AND_OUTLINE,
-        verticalOrigin: VerticalOrigin.BOTTOM,
-        pixelOffset: new Cartesian2(0, -12),
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        show: new CallbackProperty(() => visible() && (labels === "all" || isSel() || m.kind === "selection" || m.kind === "leader"), false),
       } : undefined,
+      label: m.label && labels === "all" ? hudLabel(m, shown, (g?.size ?? pt?.size ?? 8) / 2 + 5) : undefined,
     });
   }
   ds.entities.resumeEvents();
+  rebuildStems();
+}
+
+/** Stem height above a ground point for the current camera (0 when looking straight down). Visual only. */
+function stemHeight(ground: Cartesian3): number {
+  if (!viewer) return 0;
+  const cam = viewer.camera;
+  const fovy = (cam.frustum as PerspectiveFrustum).fovy ?? CMath.toRadians(60);
+  return stemHeightM(Cartesian3.distance(cam.positionWC, ground), viewer.scene.canvas.clientHeight, fovy, CMath.toDegrees(cam.pitch));
+}
+const scratchStem = new Cartesian3();
+function stemTop(m: { ground: Cartesian3; up: Cartesian3 }, result = new Cartesian3()) {
+  return Cartesian3.add(m.ground, Cartesian3.multiplyByScalar(m.up, stemHeight(m.ground), scratchStem), result);
+}
+
+const STEM_COLOR: Partial<Record<MarkerKind, Color>> = { selection: MARS, leader: EARTH, candidate: EARTH };
+
+/**
+ * One entity per stemmed marker: a hairline from the ground point up to the glyph. In a top-down view the
+ * stem has no height and the glyph sits on its ground point; tilted, it stands about 30 px off the surface.
+ */
+function rebuildStems() {
+  if (!viewer) return;
+  if (!stems) {
+    stems = new CustomDataSource("stems");
+    void viewer.dataSources.add(stems);
+  }
+  stems.entities.suspendEvents();
+  stems.entities.removeAll();
+  for (const m of markerRecs.values()) {
+    if (!isStemmed(m)) continue;
+    const g = glyph(m.kind, m.id === selectedId);
+    const near = new CallbackProperty(() => onNearSide(m.ground), false);
+    stems.entities.add({
+      // `stem:<group>::<id>` keeps the marker id after "::", so a click on the glyph reports the marker.
+      id: `stem:${m.group}::${m.id}`,
+      position: new CallbackPositionProperty((_t, result) => stemTop(m, result), false),
+      billboard: { image: g.url, width: g.size, height: g.size, show: near, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+      polyline: {
+        positions: new CallbackProperty(() => [m.ground, stemTop(m)], false),
+        width: 1.25,
+        arcType: ArcType.NONE,
+        material: (STEM_COLOR[m.kind] ?? INK).withAlpha(0.9),
+        show: new CallbackProperty(() => onNearSide(m.ground) && stemHeight(m.ground) > 0, false),
+      },
+      label: m.label && m.labels !== "none" ? hudLabel(m, near, g.size / 2 + 3) : undefined,
+    });
+  }
+  stems.entities.resumeEvents();
   requestRender();
 }
 
-const FOOT_COLOR: Record<GlobeFootprint["kind"], string> = {
-  aoi: "#E8835F", cell: "#5CC4B6", window: "#F4F1EA", research_bbox: "#E8835F",
+/** The stemmed marker drawn at a tracked anchor's coordinates, if any. */
+function stemAt(lat: number, lon: number): MarkerRec | null {
+  for (const m of markerRecs.values()) {
+    if (isStemmed(m) && Math.abs(m.lat - lat) < 1e-6 && Math.abs(m.lon - lon) < 1e-6) return m;
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------- footprints as scan volumes
+const FOOT: Record<GlobeFootprint["kind"], { color: Color; fill: number; line: number; width: number; wall: number; edge: number; posts: boolean }> = {
+  aoi: { color: MARS, fill: 0.1, line: 0.95, width: 1.5, wall: 0.42, edge: 0.85, posts: true },
+  cell: { color: EARTH, fill: 0.1, line: 0.95, width: 1.5, wall: 0.42, edge: 0.85, posts: true },
+  window: { color: INK, fill: 0.05, line: 0.95, width: 1.5, wall: 0.3, edge: 0.75, posts: true },
+  research_bbox: { color: MARS, fill: 0.04, line: 0.5, width: 1, wall: 0.12, edge: 0.32, posts: false },
 };
+
+/** How much of the 3D-only drawing to show: 0 looking straight down, 1 once tilted. */
+function volumeWeight() {
+  return viewer ? tiltWeight(CMath.toDegrees(viewer.camera.pitch)) : 0;
+}
+
+/** Shared per kind, so every volume of a kind batches into one primitive. */
+const volumeStyles = new Map<GlobeFootprint["kind"], { wall: ImageMaterialProperty; edge: ColorMaterialProperty; show: CallbackProperty }>();
+function volumeStyle(kind: GlobeFootprint["kind"]) {
+  let v = volumeStyles.get(kind);
+  if (!v) {
+    const st = FOOT[kind];
+    v = {
+      wall: new ImageMaterialProperty({
+        image: wallGradient(), transparent: true,
+        color: new CallbackProperty(() => st.color.withAlpha(st.wall * volumeWeight()), false),
+      }),
+      edge: new ColorMaterialProperty(new CallbackProperty(() => st.color.withAlpha(st.edge * volumeWeight()), false)),
+      show: new CallbackProperty(() => volumeWeight() > 0.01, false),
+    };
+    volumeStyles.set(kind, v);
+  }
+  return v;
+}
 
 function setFootprints(group: string, fps: GlobeFootprint[]) {
   if (!viewer) return;
@@ -285,29 +460,56 @@ function setFootprints(group: string, fps: GlobeFootprint[]) {
   ds.entities.suspendEvents();
   ds.entities.removeAll();
   for (const f of fps) {
-    let corners: { lat: number; lon: number }[];
-    if (f.bbox) {
-      const [w, s, e, n] = f.bbox;
-      corners = [{ lat: s, lon: w }, { lat: s, lon: e }, { lat: n, lon: e }, { lat: n, lon: w }];
-    } else {
-      corners = squareFootprint(f.lat, f.lon, f.km ?? 25, meanR);
-    }
-    const ring = corners.map((c) => pos(c.lat, normLon(c.lon)));
-    const color = css(FOOT_COLOR[f.kind]);
-    const faint = f.kind === "research_bbox";
+    const st = FOOT[f.kind];
+    const vol = volumeStyle(f.kind);
+    const corners = footprintCorners(f, meanR).map((c) => ({ lat: c.lat, lon: normLon(c.lon) }));
+    // Densified outline (footprints.ts explains the gaps a few long chords left in the window outline).
+    const ring = outlineRing(f, meanR);
+    // Scan-volume wall height: visual only, it gives the outline depth in the 3D view and is never a
+    // measurement (a footprint is a ground area).
+    const H = scanHeightM(f, meanR);
+    // The base outline floats a hair above the surface so it never z-fights the imagery tiles.
+    const lift = 20 + H * 0.002;
+    const id = `fp:${group}::${f.id}`;
     ds.entities.add({
-      id: `fp:${group}::${f.id}`,
-      polygon: { hierarchy: new PolygonHierarchy(ring), material: color.withAlpha(faint ? 0.04 : 0.12), outline: false },
-      polyline: {
-        positions: [...ring, ring[0]],
-        width: faint ? 1 : 1.5,
-        material: color.withAlpha(faint ? 0.5 : 0.95),
-        arcType: ArcType.GEODESIC,
+      id,
+      polygon: { hierarchy: new PolygonHierarchy(corners.map((c) => pos(c.lat, c.lon))), material: st.color.withAlpha(st.fill), outline: false },
+      polyline: { positions: ring.map((p) => pos(p.lat, p.lon, lift)), width: st.width, material: st.color.withAlpha(st.line), arcType: ArcType.NONE },
+    });
+    ds.entities.add({
+      id: `${id}::wall`,
+      wall: {
+        positions: ring.map((p) => pos(p.lat, p.lon)),
+        minimumHeights: ring.map(() => 0),
+        maximumHeights: ring.map(() => H),
+        material: vol.wall,
+        outline: false,
+        show: vol.show,
       },
     });
+    ds.entities.add({
+      id: `${id}::top`,
+      polyline: { positions: ring.map((p) => pos(p.lat, p.lon, H)), width: 1, material: vol.edge, arcType: ArcType.NONE, show: vol.show },
+    });
+    if (st.posts) {
+      corners.forEach((c, i) => ds.entities.add({
+        id: `${id}::post${i}`,
+        polyline: { positions: [pos(c.lat, c.lon, lift), pos(c.lat, c.lon, H)], width: 1, material: vol.edge, arcType: ArcType.NONE, show: vol.show },
+      }));
+    }
   }
   ds.entities.resumeEvents();
-  requestRender();
+  settle();
+}
+
+// ---------------------------------------------------------------- graticule
+let graticuleLabels: LabelCollection | null = null;
+let graticuleStep = 30;
+
+function graticuleText(v: number, axis: "lat" | "lon") {
+  const a = Math.abs(v);
+  if (a === 0 || (axis === "lon" && a === 180)) return `${a}°`;
+  return `${a}°${axis === "lat" ? (v > 0 ? "N" : "S") : v > 0 ? "E" : "W"}`;
 }
 
 function setGraticule(on: boolean, stepDeg = 30) {
@@ -317,22 +519,207 @@ function setGraticule(on: boolean, stepDeg = 30) {
     void viewer.dataSources.add(graticule);
   }
   graticule.entities.removeAll();
+  graticuleLabels?.removeAll();
+  graticuleStep = stepDeg;
   if (on) {
-    const material = Color.WHITE.withAlpha(0.13);
+    // Hairlines sampled every 0.25° and lifted 30 m, so no chord dips under the imagery tiles.
+    const material = INK.withAlpha(0.16);
+    const lift = 30;
     for (let lat = -90 + stepDeg; lat < 90; lat += stepDeg) {
       const positions: Cartesian3[] = [];
-      for (let lon = -180; lon <= 180; lon += 3) positions.push(pos(lat, lon));
-      graticule.entities.add({ polyline: { positions, width: lat === 0 ? 1.2 : 0.8, material, arcType: ArcType.RHUMB } });
+      for (let lon = -180; lon <= 180; lon += 0.25) positions.push(pos(lat, lon, lift));
+      graticule.entities.add({ polyline: { positions, width: lat === 0 ? 1.25 : 1, material, arcType: ArcType.NONE } });
     }
     for (let lon = -180; lon < 180; lon += stepDeg) {
       const positions: Cartesian3[] = [];
-      for (let lat = -88; lat <= 88; lat += 2) positions.push(pos(lat, lon));
-      graticule.entities.add({ polyline: { positions, width: lon === 0 ? 1.2 : 0.8, material, arcType: ArcType.GEODESIC } });
+      for (let lat = -88; lat <= 88; lat += 0.25) positions.push(pos(lat, lon, lift));
+      graticule.entities.add({ polyline: { positions, width: lon === 0 ? 1.25 : 1, material, arcType: ArcType.NONE } });
     }
+    if (!graticuleLabels) {
+      graticuleLabels = new LabelCollection();
+      viewer.scene.primitives.add(graticuleLabels);
+    }
+    // Latitudes sit above-right of their intersection, longitudes below-right, so the pair that shares the
+    // intersection nearest the view centre never overlaps.
+    const label = (text: string, below: boolean) => graticuleLabels!.add({
+      position: Cartesian3.ZERO.clone(),
+      text, font: "500 10px 'IBM Plex Mono', ui-monospace, monospace",
+      fillColor: INK.withAlpha(0.62), outlineColor: SPACE.withAlpha(0.85), outlineWidth: 3, style: LabelStyle.FILL_AND_OUTLINE,
+      horizontalOrigin: HorizontalOrigin.LEFT,
+      verticalOrigin: below ? VerticalOrigin.TOP : VerticalOrigin.BOTTOM,
+      pixelOffset: new Cartesian2(4, below ? 3 : -3),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    });
+    for (let lat = -90 + stepDeg; lat < 90; lat += stepDeg) {
+      const l = label(graticuleText(lat, "lat"), false);
+      (l as Label & { _grid: { lat: number } })._grid = { lat };
+    }
+    for (let lon = -180; lon < 180; lon += stepDeg) {
+      const l = label(graticuleText(lon, "lon"), true);
+      (l as Label & { _grid: { lon: number } })._grid = { lon };
+    }
+    placeGraticuleLabels();
+  }
+  settle(600);
+}
+
+/** Grid labels sit at the intersections nearest the view centre: latitudes along one meridian, longitudes along one parallel. */
+function placeGraticuleLabels() {
+  if (!viewer || !graticuleLabels || graticuleLabels.length === 0) return;
+  const c = currentCenter() ?? (() => {
+    const p = viewer!.camera.positionCartographic;
+    return { lat: fromRender(CMath.toDegrees(p.latitude)), lon: normLon(CMath.toDegrees(p.longitude)) };
+  })();
+  const step = graticuleStep;
+  const lonM = normLon(Math.round(c.lon / step) * step);
+  const latP = Math.max(-90 + step, Math.min(90 - step, Math.round(c.lat / step) * step));
+  for (let i = 0; i < graticuleLabels.length; i++) {
+    const l = graticuleLabels.get(i) as Label & { _grid?: { lat?: number; lon?: number } };
+    const g = l._grid;
+    if (!g) continue;
+    l.position = g.lat !== undefined ? pos(g.lat, lonM, 30) : pos(latP, g.lon!, 30);
   }
   requestRender();
 }
 
+function updateGraticuleLabels() {
+  if (!graticuleLabels) return;
+  for (let i = 0; i < graticuleLabels.length; i++) {
+    const l = graticuleLabels.get(i);
+    l.show = onNearSide(l.position);
+  }
+}
+
+// ---------------------------------------------------------------- moons (Mars)
+interface OrbitDraw { aKm: number; line: Polyline; label: Label; labelPx: number; prefer: { x: number; y: number } }
+const orbitDraws: OrbitDraw[] = [];
+
+function initOrbits() {
+  if (!viewer || planet !== "mars") return;
+  const scene = viewer.scene;
+  const lines = new PolylineCollection();
+  const labels = new LabelCollection();
+  scene.primitives.add(lines);
+  scene.primitives.add(labels);
+  MARS_MOONS.forEach((m, i) => {
+    const line = lines.add({
+      positions: orbitRing(m.aKm, 720).map(toCart), width: 1, show: false,
+      material: Material.fromType("Color", { color: INK.withAlpha(0) }),
+    });
+    const label = labels.add({
+      position: new Cartesian3(m.aKm * 1000, 0, 0),
+      text: orbitLabel(m), show: false,
+      font: "500 10.5px 'IBM Plex Mono', ui-monospace, monospace",
+      fillColor: INK, outlineColor: SPACE, outlineWidth: 3, style: LabelStyle.FILL_AND_OUTLINE,
+      horizontalOrigin: HorizontalOrigin.LEFT, verticalOrigin: VerticalOrigin.BOTTOM, pixelOffset: new Cartesian2(6, -6),
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+    });
+    // Preferred label spots (fractions of the frame): right of the planet, Deimos above Phobos. The label
+    // runs right from its point, about 6.3 px per mono character.
+    orbitDraws.push({ aKm: m.aKm, line, label, labelPx: orbitLabel(m).length * 6.3 + 6, prefer: i === 0 ? { x: 0.68, y: 0.44 } : { x: 0.66, y: 0.2 } });
+  });
+  scene.preRender.addEventListener(updateOrbits);
+}
+
+const scratchA = new Cartesian3();
+const scratchB = new Cartesian3();
+const scratchW = new Cartesian2();
+/**
+ * A point on the orbit to hang its label from: in front of space (not over or behind the planet's disc),
+ * on screen, and as close as possible to the preferred spot.
+ */
+function orbitLabelSpot(o: OrbitDraw): Cartesian3 | null {
+  const scene = viewer!.scene;
+  const cam = viewer!.camera;
+  const w = scene.canvas.clientWidth, h = scene.canvas.clientHeight;
+  const C = cam.positionWC;
+  const disc = Math.asin(Math.min(1, ellipsoid.maximumRadius / Cartesian3.magnitude(C)));
+  const toCentre = Cartesian3.normalize(Cartesian3.negate(C, scratchA), scratchA);
+  let best: Cartesian3 | null = null, bestD = Infinity;
+  const a = o.aKm * 1000;
+  for (let i = 0; i < 240; i++) {
+    const th = (i / 240) * Math.PI * 2;
+    const P = new Cartesian3(a * Math.cos(th), a * Math.sin(th), 0);
+    const toP = Cartesian3.normalize(Cartesian3.subtract(P, C, scratchB), scratchB);
+    if (Math.acos(Math.max(-1, Math.min(1, Cartesian3.dot(toP, toCentre)))) < disc + 0.03) continue;
+    const s = SceneTransforms.worldToWindowCoordinates(scene, P, scratchW);
+    if (!s || s.x < 0.04 * w || s.x + o.labelPx > Math.min(0.96 * w, w - 12) || s.y < 0.07 * h || s.y > 0.93 * h) continue;
+    const d = Math.hypot(s.x / w - o.prefer.x, (s.y / h - o.prefer.y) * 0.7);
+    if (d < bestD) { bestD = d; best = P; }
+  }
+  return best;
+}
+
+function updateOrbits() {
+  if (!viewer) return;
+  const k = orbitFade(viewer.camera.positionCartographic.height / 1000);
+  // On a narrow screen the intro's copy sits over the planet: the rings stay, their labels stand down.
+  const labels = !(attract && viewer.scene.canvas.clientWidth < 640);
+  for (const o of orbitDraws) {
+    o.line.show = k > 0.005;
+    o.label.show = false;
+    if (!o.line.show) continue;
+    o.line.material.uniforms.color = INK.withAlpha(0.34 * k);
+    const spot = labels ? orbitLabelSpot(o) : null;
+    if (spot) {
+      o.label.position = spot;
+      o.label.fillColor = INK.withAlpha(0.74 * k);
+      o.label.outlineColor = SPACE.withAlpha(0.9 * k);
+      o.label.show = true;
+    }
+  }
+}
+
+// ---------------------------------------------------------------- stars
+/** Brightness of the star field (Tycho-2 cube map) relative to Cesium's default: a quiet backdrop. */
+const STAR_BRIGHTNESS = 0.5;
+let marsSky: Matrix3 | null = null;
+
+async function initSky() {
+  if (!viewer) return;
+  const faces = [["positiveX", "px"], ["negativeX", "mx"], ["positiveY", "py"], ["negativeY", "my"], ["positiveZ", "pz"], ["negativeZ", "mz"]] as const;
+  const dimmed = await Promise.all(faces.map(async ([, f]) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = buildModuleUrl(`Assets/Textures/SkyBox/tycho2t3_80_${f}.jpg`);
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const ctx = c.getContext("2d")!;
+    ctx.drawImage(img, 0, 0);
+    ctx.globalAlpha = 1 - STAR_BRIGHTNESS;
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, c.width, c.height);
+    return c;
+  }));
+  if (!viewer) return;
+  const sources = Object.fromEntries(faces.map(([key], i) => [key, dimmed[i]]));
+  if (planet === "earth") {
+    // Cesium orients its sky box for Earth (TEME axes at the scene time).
+    viewer.scene.skyBox = new SkyBox({ sources });
+  } else {
+    // Behind Mars the same stars are rotated into Mars's body-fixed axes (sky.ts). The panorama is drawn
+    // through the scene's sky-box slot so the atmosphere limb still renders over it.
+    marsSky = Matrix3.fromRowMajorArray(icrfToMarsFixed(new Date()));
+    const options = { sources, transform: marsSky, returnCommand: true };
+    const panorama = new CubeMapPanorama(options);
+    viewer.scene.skyBox = {
+      update: (frameState: unknown, hdr: boolean) => (panorama as unknown as { update: (f: unknown, h: boolean) => unknown }).update(frameState, hdr),
+      isDestroyed: () => false,
+      destroy: () => { panorama.destroy(); },
+      show: true,
+    } as unknown as SkyBox;
+    // Mars turns 0.24° a minute: keep the sky in step with the real rotation.
+    setInterval(() => {
+      if (marsSky) Matrix3.fromRowMajorArray(icrfToMarsFixed(new Date()), marsSky);
+      requestRender();
+    }, 60_000);
+  }
+  requestRender();
+}
+
+// ---------------------------------------------------------------- overlays
 async function setOverlay(id: string, url: string | null, alpha = 1) {
   if (!viewer) return;
   const prev = overlays.get(id);
@@ -356,12 +743,17 @@ async function setOverlay(id: string, url: string | null, alpha = 1) {
   }
 }
 
+// ---------------------------------------------------------------- camera
 /** Centre of the frame area not covered by shell UI, in CSS pixels. */
 function focusPoint() {
   const c = viewer!.scene.canvas;
-  const freeW = Math.max(40, c.clientWidth - insets.left - insets.right);
-  const freeH = Math.max(40, c.clientHeight - insets.top - insets.bottom);
-  return { x: insets.left + freeW / 2, y: insets.top + freeH / 2, freeW, freeH, w: c.clientWidth, h: c.clientHeight };
+  return { ...focusOf(c.clientWidth, c.clientHeight, insets), w: c.clientWidth, h: c.clientHeight };
+}
+
+function view(): View {
+  const f = focusPoint();
+  const fovy = (viewer!.camera.frustum as PerspectiveFrustum).fovy ?? CMath.toRadians(60);
+  return { w: f.w, h: f.h, fovy, focus: { x: f.x, y: f.y } };
 }
 
 function currentCenter(): { lat: number; lon: number } | null {
@@ -377,16 +769,69 @@ function mppAtHeight(heightM: number) {
   return (2 * heightM * Math.tan(fovy / 2)) / viewer!.scene.canvas.clientHeight;
 }
 
-/** Camera nadir point that puts (lat, lon) at the focus point of the free area (heading 0). */
-function aimFor(lat: number, lon: number, heightM: number) {
-  const f = focusPoint();
-  const m = mppAtHeight(heightM);
-  const north = (f.y - f.h / 2) * m;
-  const east = -(f.x - f.w / 2) * m;
-  const dLat = (north / meanR) * (180 / Math.PI);
-  const dLon = (east / (meanR * Math.max(Math.cos((lat * Math.PI) / 180), 0.05))) * (180 / Math.PI);
-  return { lat: Math.max(-89.5, Math.min(89.5, lat + dLat)), lon: normLon(lon + dLon) };
+/** Camera position and orientation for a placement. */
+function cameraFor(p: Placement) {
+  const v = view();
+  if (p.pitchDeg <= -89.5) {
+    // Straight down from above the nadir that puts the target on the focus point.
+    const heightM = p.depthKm * 1000, mpp = mppAtHeight(heightM);
+    const n = p.exact
+      ? exactNadir(toVec(pos(p.lat, p.lon)), p.lat, p.lon, heightM, mpp, v, p.headingDeg, meanR, (la, lo) => {
+        const g = pos(la, lo);
+        return { ground: toVec(g), enu: enuAt(g) };
+      })
+      : nadirFor(p.lat, p.lon, mpp, v, p.headingDeg, meanR);
+    return {
+      destination: pos(n.lat, n.lon, p.depthKm * 1000),
+      orientation: { heading: CMath.toRadians(p.headingDeg), pitch: -CMath.PI_OVER_TWO, roll: 0 },
+    };
+  }
+  const target = pos(p.lat, p.lon);
+  const pose = poseAt(toVec(target), enuAt(target), p.depthKm * 1000, p.pitchDeg, p.headingDeg, v);
+  return { destination: toCart(pose.position), orientation: { direction: toCart(pose.direction), up: toCart(pose.up) } };
 }
+
+function place(p: Placement, durationS: number, opts: { remember?: boolean; easing?: EasingFunction.Callback } = {}) {
+  if (!viewer) return;
+  spinning = false;
+  if (opts.remember ?? true) lastTarget = p;
+  const c = cameraFor(p);
+  if (durationS <= 0) {
+    viewer.camera.cancelFlight();
+    viewer.camera.setView(c);
+    requestRender();
+    return;
+  }
+  viewer.camera.flyTo({ ...c, duration: durationS, easingFunction: opts.easing ?? EasingFunction.QUADRATIC_IN_OUT });
+}
+
+/**
+ * The current framing: the ground point under the centre of the free area, how far it is in front of the
+ * camera, and the camera's pitch and heading in that point's frame. Looking past the limb at the focus
+ * point falls back to the frame centre; null when the planet is not under either.
+ */
+function viewTarget(): Placement | null {
+  if (!viewer) return null;
+  const cam = viewer.camera;
+  const f = focusPoint();
+  const world = cam.pickEllipsoid(new Cartesian2(f.x, f.y), ellipsoid) ?? cam.pickEllipsoid(new Cartesian2(f.w / 2, f.h / 2), ellipsoid);
+  if (!world) return null;
+  const c = Cartographic.fromCartesian(world, ellipsoid);
+  if (!c) return null;
+  const depth = Cartesian3.dot(Cartesian3.subtract(world, cam.positionWC, scratchA), cam.directionWC);
+  const topDown = cam.pitch < CMath.toRadians(-88.5);
+  const att = attitudeAt(toVec(cam.directionWC), toVec(cam.upWC), enuAt(world));
+  return {
+    lat: fromRender(CMath.toDegrees(c.latitude)),
+    lon: normLon(CMath.toDegrees(c.longitude)),
+    depthKm: Math.max(1, depth / 1000),
+    pitchDeg: topDown ? -90 : Math.min(-10, att.pitchDeg),
+    headingDeg: topDown ? CMath.toDegrees(cam.heading) : att.headingDeg,
+    exact: true,
+  };
+}
+
+const MAX_DEPTH_KM = planet === "mars" ? 40_000 : 80_000;
 
 function fitBounds(west: number, south: number, east: number, north: number, padding = 0.18, minKm = 30, maxKm?: number, durationS?: number) {
   if (!viewer) return;
@@ -399,9 +844,28 @@ function fitBounds(west: number, south: number, east: number, north: number, pad
   const mpp = Math.max(groundW / f.freeW, groundH / f.freeH) * (1 + 2 * padding);
   const fr = viewer.camera.frustum as PerspectiveFrustum;
   const fovy = fr.fovy ?? CMath.toRadians(60);
+  const max = maxKm ?? (planet === "mars" ? 30_000 : 60_000);
   let heightKm = (mpp * viewer.scene.canvas.clientHeight) / (2 * Math.tan(fovy / 2)) / 1000;
-  heightKm = Math.max(minKm, Math.min(maxKm ?? (planet === "mars" ? 30_000 : 60_000), heightKm));
-  flyTo(lat, lon, heightKm, durationS);
+  heightKm = Math.max(minKm, Math.min(max, heightKm));
+  const pitch = flightPitchDeg(planet, heightKm, tiltPref);
+  if (pitch <= -89.5) {
+    place({ lat, lon, depthKm: heightKm, pitchDeg: -90, headingDeg: 0 }, durationS ?? autoDuration(lat, lon, heightKm));
+    return;
+  }
+  // Tilted, the box's far edge recedes and its near edge grows: fit its projected outline to the free area
+  // (the same padding share on every side) instead of its ground size.
+  const outline: Vec3[] = [];
+  for (let i = 0; i <= 8; i++) {
+    const t = i / 8;
+    for (const [la, lo] of [[south, west + span * t], [north, west + span * t], [south + (north - south) * t, west], [south + (north - south) * t, west + span]]) {
+      outline.push(toVec(pos(la, normLon(lo))));
+    }
+  }
+  const k = padding / (1 + 2 * padding);
+  const box = { x0: insets.left + f.freeW * k, x1: insets.left + f.freeW * (1 - k), y0: insets.top + f.freeH * k, y1: insets.top + f.freeH * (1 - k) };
+  const target = pos(lat, lon);
+  const depthKm = fitDepth(outline, toVec(target), enuAt(target), pitch, 0, view(), box, minKm * 1000, max * 1000) / 1000;
+  place({ lat, lon, depthKm, pitchDeg: pitch, headingDeg: 0 }, durationS ?? autoDuration(lat, lon, depthKm));
 }
 
 /** Flight duration grows with angular distance and altitude change; reduced motion jumps. */
@@ -411,20 +875,24 @@ function autoDuration(lat: number, lon: number, heightKm: number) {
   const h0 = (viewer?.camera.positionCartographic.height ?? heightKm * 1000) / 1000;
   const ang = from ? distanceKm(from.lat, from.lon, lat, lon, meanR) / (Math.PI * meanR / 1000) : 0.5;
   const zoom = Math.abs(Math.log10(Math.max(heightKm, 1) / Math.max(h0, 1)));
-  return Math.min(2.1, Math.max(0.7, 0.7 + 1.1 * ang + 0.35 * zoom));
+  return Math.min(2.4, Math.max(0.8, 0.8 + 1.1 * ang + 0.4 * zoom));
 }
 
 function flyTo(lat: number, lon: number, heightKm = planet === "mars" ? 1_400 : 2_200, durationS?: number) {
   if (!viewer) return;
-  spinning = false;
-  lastTarget = { lat, lon, heightKm };
-  const aim = aimFor(lat, lon, heightKm * 1000);
-  viewer.camera.flyTo({
-    destination: pos(aim.lat, aim.lon, heightKm * 1000),
-    orientation: { heading: 0, pitch: -CMath.PI_OVER_TWO, roll: 0 },
-    duration: durationS ?? autoDuration(lat, lon, heightKm),
-    easingFunction: EasingFunction.QUADRATIC_IN_OUT,
-  });
+  // Site-scale flights end in the oblique approach; wider framings look straight down (camera.ts).
+  const pitchDeg = flightPitchDeg(planet, heightKm, tiltPref);
+  place({ lat, lon, depthKm: heightKm, pitchDeg, headingDeg: 0 }, durationS ?? autoDuration(lat, lon, heightKm));
+}
+
+/** Switch top-down ⇄ 3D around the point under the reticle, at the same ground scale. */
+function setTilt(on: boolean) {
+  if (!viewer) return;
+  tiltPref = on;
+  const t = viewTarget();
+  if (!t) return; // looking past the planet: nothing to turn about (the choice still applies to later flights)
+  place({ ...t, pitchDeg: on ? OBLIQUE_PITCH_DEG : -90 }, reducedMotion ? 0 : 0.9, { easing: EasingFunction.CUBIC_IN_OUT });
+  post({ t: "tilt", on });
 }
 
 let currentLayerId: string | null = null;
@@ -469,57 +937,54 @@ function setLayer(id: string) {
   setTimeout(() => requestAnimationFrame(step), 250);
 }
 
+/** Zoom towards the point under the reticle, keeping it there and keeping the view's pitch and heading. */
 function zoom(direction: "in" | "out") {
   if (!viewer) return;
   const cam = viewer.camera;
-  const h = cam.positionCartographic.height;
-  const target = direction === "in" ? h * 0.55 : h / 0.55;
-  const c = currentCenter();
-  if (!c) { direction === "in" ? cam.zoomIn(h * 0.45) : cam.zoomOut(h * 0.8); requestRender(); return; }
-  cam.flyTo({
-    destination: pos(c.lat, c.lon, Math.min(Math.max(target, 25_000), planet === "mars" ? 40_000_000 : 80_000_000)),
-    orientation: { heading: cam.heading, pitch: cam.pitch, roll: 0 },
-    duration: reducedMotion ? 0 : 0.45,
-    easingFunction: EasingFunction.QUADRATIC_OUT,
-  });
+  lastTarget = null;
+  const t = viewTarget();
+  if (!t) {
+    const h = cam.positionCartographic.height;
+    if (direction === "in") cam.zoomIn(h * 0.45); else cam.zoomOut(h * 0.8);
+    requestRender();
+    return;
+  }
+  const depthKm = Math.min(Math.max(direction === "in" ? t.depthKm * 0.55 : t.depthKm / 0.55, 25), MAX_DEPTH_KM);
+  place({ ...t, depthKm }, reducedMotion ? 0 : 0.45, { remember: false, easing: EasingFunction.QUADRATIC_OUT });
 }
 
 /** Pan by a fraction of the frame (dx, dy in −1..1), keeping altitude. Keyboard alternative to dragging. */
 function panBy(dx: number, dy: number) {
   if (!viewer) return;
-  const c = currentCenter();
-  if (!c) return;
+  lastTarget = null;
+  const t = viewTarget();
+  if (!t) return;
   const canvas = viewer.scene.canvas;
   const mpp = metersPerPixel() ?? (viewer.camera.positionCartographic.height / canvas.clientHeight);
-  const heading = viewer.camera.heading;
+  const heading = CMath.toRadians(t.headingDeg);
   const ex = dx * canvas.clientWidth * mpp;
   const ny = -dy * canvas.clientHeight * mpp;
   const north = ny * Math.cos(heading) - ex * Math.sin(heading);
   const east = ny * Math.sin(heading) + ex * Math.cos(heading);
   const dLat = (north / meanR) * (180 / Math.PI);
-  const dLon = (east / (meanR * Math.max(Math.cos((c.lat * Math.PI) / 180), 0.05))) * (180 / Math.PI);
-  const lat = Math.max(-89.5, Math.min(89.5, c.lat + dLat));
-  viewer.camera.flyTo({
-    destination: pos(lat, normLon(c.lon + dLon), viewer.camera.positionCartographic.height),
-    orientation: { heading, pitch: viewer.camera.pitch, roll: 0 },
-    duration: reducedMotion ? 0 : 0.35,
-    easingFunction: EasingFunction.QUADRATIC_OUT,
-  });
+  const dLon = (east / (meanR * Math.max(Math.cos((t.lat * Math.PI) / 180), 0.05))) * (180 / Math.PI);
+  const lat = Math.max(-89.5, Math.min(89.5, t.lat + dLat));
+  place({ ...t, lat, lon: normLon(t.lon + dLon) }, reducedMotion ? 0 : 0.35, { remember: false, easing: EasingFunction.QUADRATIC_OUT });
 }
 
+/** Face north, turning about the point under the reticle. */
 function resetHeading() {
   if (!viewer) return;
-  const cam = viewer.camera;
-  cam.flyTo({
-    destination: cam.positionWC.clone(),
-    orientation: { heading: 0, pitch: cam.pitch, roll: 0 },
-    duration: reducedMotion ? 0 : 0.4,
-  });
+  const t = viewTarget();
+  if (!t) return;
+  place({ ...t, headingDeg: 0 }, reducedMotion ? 0 : 0.4);
 }
 
 function metersPerPixel(): number | null {
   if (!viewer) return null;
   const f = focusPoint();
+  // Horizontal through the focus point: in a tilted view that row has no foreshortening, so this is the
+  // ground scale at the reticle (perspective makes it larger below and smaller above).
   const a = viewer.camera.pickEllipsoid(new Cartesian2(f.x - 50, f.y), ellipsoid);
   const b = viewer.camera.pickEllipsoid(new Cartesian2(f.x + 50, f.y), ellipsoid);
   if (!a || !b) return null;
@@ -534,11 +999,19 @@ function emitTelemetry(force = false) {
   if (!force && now - lastTelemetryAt < 90) return;
   const cam = viewer.camera;
   const center = currentCenter();
+  // Heading as the compass should read it: which way north lies at the reticle. (The camera's own heading
+  // differs slightly when the reticle is off the frame centre in a tilted view.) Pitch stays the camera's
+  // own, so a top-down camera always reads −90° however far the reticle sits from the frame centre.
+  const f = focusPoint();
+  const at = cam.pickEllipsoid(new Cartesian2(f.x, f.y), ellipsoid);
+  const heading = at && cam.pitch > CMath.toRadians(-88.5)
+    ? attitudeAt(toVec(cam.directionWC), toVec(cam.upWC), enuAt(at)).headingDeg
+    : CMath.toDegrees(cam.heading);
   const t: CameraTelemetry = {
     heightKm: Math.round(cam.positionCartographic.height / 10) / 100,
     center: center ? { lat: Math.round(center.lat * 1e4) / 1e4, lon: Math.round(center.lon * 1e4) / 1e4 } : null,
     metersPerPixel: (() => { const m = metersPerPixel(); return m === null ? null : Math.round(m * 10) / 10; })(),
-    headingDeg: Math.round(CMath.toDegrees(cam.heading) * 10) / 10 % 360,
+    headingDeg: Math.round(heading * 10) / 10 % 360,
     pitchDeg: Math.round(CMath.toDegrees(cam.pitch) * 10) / 10,
     moving,
   };
@@ -558,12 +1031,17 @@ function emitAnchors() {
     const world = pos(a.lat, a.lon);
     const win = SceneTransforms.worldToWindowCoordinates(scene, world);
     const onScreen = !!win && win.x >= -20 && win.y >= -20 && win.x <= w + 20 && win.y <= h + 20;
-    return {
+    const res: AnchorPosition = {
       id: a.id,
       x: win ? Math.round(win.x * 2) / 2 : -1,
       y: win ? Math.round(win.y * 2) / 2 : -1,
       visible: onScreen && occluder.isPointVisible(world),
     };
+    // A marker on a stem: report where its glyph is drawn, so the label meets the glyph.
+    const stem = stemAt(a.lat, a.lon);
+    const top = stem && win ? SceneTransforms.worldToWindowCoordinates(scene, stemTop(stem)) : undefined;
+    if (top) res.top = { x: Math.round(top.x * 2) / 2, y: Math.round(top.y * 2) / 2 };
+    return res;
   });
   const key = JSON.stringify(out);
   if (key === lastAnchors) return;
@@ -579,6 +1057,7 @@ async function snapshot(requestId: string, lat: number, lon: number, heightKm: n
   const wasSpinning = spinning;
   spinning = false;
   try {
+    // Plates are always top-down (no scan-volume walls or stems: both have zero height when not tilted).
     cam.setView({ destination: pos(lat, lon, heightKm * 1000), orientation: { heading: 0, pitch: -CMath.PI_OVER_TWO, roll: 0 } });
     const t0 = performance.now();
     // Wait (bounded) for imagery tiles of the new view to load.
@@ -620,18 +1099,42 @@ async function snapshot(requestId: string, lat: number, lon: number, heightKm: n
   }
 }
 
-// Light from just above-left of the camera so the hemisphere in view is always lit, with a soft terminator.
+// ---------------------------------------------------------------- light
+/**
+ * A presentation light tied to the camera (not the Sun's true direction — the app has no solar ephemeris
+ * for either body). Working views: light from just above-left of the camera, so the hemisphere in view is
+ * lit. Intro: a three-quarter light from the upper left with a soft terminator and a lit limb.
+ */
+const LIGHT = { work: { right: 0.32, up: -0.24 }, intro: { right: 1.25, up: -0.62 } };
 function updateLight() {
   if (!viewer) return;
   const cam = viewer.camera;
+  const k = lightMix * lightMix * (3 - 2 * lightMix);
+  const r = LIGHT.work.right + (LIGHT.intro.right - LIGHT.work.right) * k;
+  const u = LIGHT.work.up + (LIGHT.intro.up - LIGHT.work.up) * k;
   const dir = Cartesian3.clone(cam.directionWC);
-  const right = Cartesian3.multiplyByScalar(cam.rightWC, 0.55, new Cartesian3());
-  const up = Cartesian3.multiplyByScalar(cam.upWC, -0.35, new Cartesian3());
-  Cartesian3.add(dir, right, dir);
-  Cartesian3.add(dir, up, dir);
+  Cartesian3.add(dir, Cartesian3.multiplyByScalar(cam.rightWC, r, scratchA), dir);
+  Cartesian3.add(dir, Cartesian3.multiplyByScalar(cam.upWC, u, scratchA), dir);
   Cartesian3.normalize(dir, dir);
   (viewer.scene.light as DirectionalLight).direction = dir;
 }
+
+// ---------------------------------------------------------------- init
+/**
+ * Label fonts must be loaded before Cesium rasterises the first glyph (it caches glyphs per font), so
+ * `ready` — after which the shell's label-bearing messages arrive — waits for them, briefly. Started at
+ * load so it overlaps the boot handshake; the shell has usually fetched the same files already.
+ */
+const fontsReady = (() => {
+  const faces = [
+    "600 12px 'Barlow Semi Condensed'",
+    "500 10.5px 'IBM Plex Mono'",
+    "500 10px 'IBM Plex Mono'",
+    "600 11px 'IBM Plex Mono'",
+  ];
+  const all = Promise.all(faces.map((f) => document.fonts.load(f))).then(() => undefined, () => undefined);
+  return Promise.race([all, new Promise<void>((r) => setTimeout(r, 1500))]);
+})();
 
 async function init(ionToken: string | null) {
   if (viewer) return;
@@ -652,36 +1155,41 @@ async function init(ionToken: string | null) {
     baseLayerPicker: false, geocoder: false, homeButton: false, sceneModePicker: false, timeline: false,
     animation: false, navigationHelpButton: false, fullscreenButton: false, infoBox: false,
     selectionIndicator: false, msaaSamples: 4,
+    // No default sky box, Sun or Moon: the light is a presentation light, not the Sun, and the star field
+    // is added below (dimmed, and oriented for Mars behind Mars).
+    skyBox: false,
     // Cesium's default sky atmosphere is WGS84-sized; give each planet a shell of its own radius.
     skyAtmosphere: new SkyAtmosphere(ellipsoid),
     // Render only when something changes (camera, tiles, data, messages): saves GPU and battery.
     requestRenderMode: true, maximumRenderTimeChange: Infinity,
   });
   const scene = viewer.scene;
-  scene.backgroundColor = css("#05070A");
+  scene.backgroundColor = SPACE;
   scene.light = new DirectionalLight({ direction: new Cartesian3(1, 0, 0), intensity: 2.2 });
   scene.postUpdate.addEventListener(updateLight);
   occluder = new EllipsoidalOccluder(ellipsoid, viewer.camera.positionWC);
   scene.preUpdate.addEventListener(() => { if (occluder && viewer) occluder.cameraPosition = viewer.camera.positionWC; });
+  scene.preRender.addEventListener(updateGraticuleLabels);
   scene.postRender.addEventListener(() => { emitTelemetry(); emitAnchors(); });
   placeCredits();
   scene.screenSpaceCameraController.minimumZoomDistance = 20_000;
   scene.screenSpaceCameraController.maximumZoomDistance = planet === "mars" ? 40_000_000 : 80_000_000;
   viewer.camera.moveStart.addEventListener(() => { moving = true; emitTelemetry(true); });
-  viewer.camera.moveEnd.addEventListener(() => { moving = false; emitTelemetry(true); emitAnchors(); });
+  viewer.camera.moveEnd.addEventListener(() => { moving = false; emitTelemetry(true); emitAnchors(); placeGraticuleLabels(); });
 
   if (scene.skyAtmosphere) {
     scene.skyAtmosphere.show = true;
     if (planet === "mars") {
-      // Thin, dusty limb: red-weighted scattering, more Mie (dust) than Rayleigh, dimmer overall.
+      // Thin, dusty limb: warm, red-weighted scattering with more Mie (suspended dust) than Rayleigh.
+      // Scale heights near Mars's own (~11 km gas, a few km of dust haze), so the glow stays a thin ring.
       const sa = scene.skyAtmosphere;
-      sa.atmosphereRayleighCoefficient = new Cartesian3(26.0e-6, 11.0e-6, 3.5e-6);
-      sa.atmosphereMieCoefficient = new Cartesian3(34.0e-6, 22.0e-6, 12.0e-6);
-      sa.atmosphereRayleighScaleHeight = 11_000;
-      sa.atmosphereMieScaleHeight = 2_400;
-      sa.atmosphereLightIntensity = 26;
-      sa.saturationShift = 0.1;
-      sa.brightnessShift = -0.38;
+      sa.atmosphereRayleighCoefficient = new Cartesian3(24.0e-6, 15.0e-6, 8.0e-6);
+      sa.atmosphereMieCoefficient = new Cartesian3(40.0e-6, 30.0e-6, 20.0e-6);
+      sa.atmosphereRayleighScaleHeight = 14_000;
+      sa.atmosphereMieScaleHeight = 4_000;
+      sa.atmosphereLightIntensity = 32;
+      sa.saturationShift = 0;
+      sa.brightnessShift = -0.16;
     } else {
       scene.skyAtmosphere.brightnessShift = -0.15;
     }
@@ -691,9 +1199,15 @@ async function init(ionToken: string | null) {
     const g = scene.globe;
     g.baseColor = css(planet === "mars" ? "#3a1f17" : "#0d1a26");
     g.enableLighting = true;
-    g.dynamicAtmosphereLighting = false;
+    // The limb glow follows the scene light, so it brightens on the lit side and fades past the terminator.
+    g.dynamicAtmosphereLighting = true;
+    g.dynamicAtmosphereLightingFromSun = false;
     g.showGroundAtmosphere = planet === "earth";
     g.atmosphereLightIntensity = 6;
+    // Shading fades out as the camera nears the surface (everything lit at working altitudes) and is full
+    // in whole-planet views; distances are from the planet's centre, scaled to each planet.
+    g.lightingFadeOutDistance = meanR + (planet === "mars" ? 2_000_000 : 3_500_000);
+    g.lightingFadeInDistance = meanR + (planet === "mars" ? 5_000_000 : 9_000_000);
     g.maximumScreenSpaceError = 1.6;
     g.tileCacheSize = 200;
     setLayer(LAYERS[0].id);
@@ -733,7 +1247,7 @@ async function init(ionToken: string | null) {
       }
       return;
     }
-    if (defined(picked) && picked.id instanceof Entity && typeof picked.id.id === "string" && picked.id.point) {
+    if (defined(picked) && picked.id instanceof Entity && typeof picked.id.id === "string" && (picked.id.point || picked.id.billboard)) {
       const [, id] = picked.id.id.split("::");
       if (id) { post({ t: "markerClick", id }); return; }
     }
@@ -754,18 +1268,31 @@ async function init(ionToken: string | null) {
   }
   scene.canvas.addEventListener("pointerleave", () => post({ t: "hover", lat: null, lon: null }));
 
-  // Idle spin (stops on interaction; never with reduced motion). Drives its own frames in request-render mode.
+  // One animation loop drives the idle spin, the light easing and settle renders (request-render mode
+  // otherwise renders only when something changes). Spin never runs with reduced motion.
   let prev = performance.now();
-  const spin = (now: number) => {
+  const tick = (now: number) => {
     const dt = Math.min(0.05, (now - prev) / 1000);
     prev = now;
-    if (spinning && !reducedMotion && viewer) {
-      viewer.camera.rotate(Cartesian3.UNIT_Z, -0.035 * dt);
-      scene.requestRender();
+    if (viewer) {
+      if (spinning && !reducedMotion) {
+        viewer.camera.rotate(Cartesian3.UNIT_Z, -0.035 * dt);
+        scene.requestRender();
+      }
+      const goal = attract ? 1 : 0;
+      if (lightMix !== goal) {
+        lightMix = reducedMotion ? goal : goal > lightMix ? Math.min(goal, lightMix + dt / 1.4) : Math.max(goal, lightMix - dt / 1.4);
+        scene.requestRender();
+      }
+      if (now < settleUntil) scene.requestRender();
     }
-    requestAnimationFrame(spin);
+    requestAnimationFrame(tick);
   };
-  requestAnimationFrame(spin);
+  requestAnimationFrame(tick);
+
+  void initSky().catch((err) => post({ t: "error", message: `star field unavailable: ${String(err)}` }));
+  await fontsReady;
+  initOrbits();
 
   post({
     t: "ready", planet, mode,
@@ -773,7 +1300,8 @@ async function init(ionToken: string | null) {
     ellipsoid: planet === "earth" ? "WGS84" : ionToken ? `Mars IAU 2000 (${MARS_IAU2000.a}/${MARS_IAU2000.b} m)` : `Mars sphere R = ${R_MARS_M} m`,
   });
   emitTelemetry(true);
-  if (import.meta.env.DEV) Object.assign(window, { __globe: { viewer, groups, occluder: () => occluder, pos } });
+  settle();
+  if (import.meta.env.DEV) Object.assign(window, { __globe: { viewer, groups, occluder: () => occluder, pos, markers: markerRecs, place, viewTarget } });
 }
 
 function pickCarto(p: Cartesian2): { lat: number; lon: number } | null {
@@ -802,8 +1330,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
         insets = { top: m.top, right: m.right, bottom: m.bottom, left: m.left };
         placeCredits();
         lastTelemetry = "";
-        if (lastTarget) flyTo(lastTarget.lat, lastTarget.lon, lastTarget.heightKm, reducedMotion ? 0 : 0.6);
-
+        if (lastTarget) place(lastTarget, reducedMotion ? 0 : 0.6);
         break;
       case "setView":
         viewer?.camera.setView({ destination: pos(m.lat, m.lon, m.heightKm * 1000), orientation: { heading: 0, pitch: -CMath.PI_OVER_TWO, roll: 0 } });
@@ -814,7 +1341,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
         break;
       case "setMarkers": setMarkers(m.group, m.markers, m.options); break;
       case "setFootprints": setFootprints(m.group, m.footprints); break;
-      case "select": selectedId = m.id; break;
+      case "select": selectedId = m.id; rebuildStems(); break;
       case "setLayer": setLayer(m.layer); break;
       case "setOverlay": void setOverlay(m.id, m.url, m.alpha); break;
       case "setGraticule": setGraticule(m.on, m.stepDeg); break;
@@ -823,8 +1350,9 @@ window.addEventListener("message", (ev: MessageEvent) => {
       case "panBy": panBy(m.dx, m.dy); break;
       case "resetHeading": resetHeading(); break;
       case "snapshot": void snapshot(m.requestId, m.lat, m.lon, m.heightKm, m.maxWidth); break;
-      case "setSpin": spinning = m.on; break;
+      case "setSpin": spinning = m.on; attract = m.on; break;
       case "resize": viewer?.resize(); break;
+      case "setTilt": setTilt(m.on); break;
     }
     requestRender();
   } catch (err) {
@@ -845,6 +1373,7 @@ window.addEventListener("keydown", (e: KeyboardEvent) => {
     case "+": case "=": zoom("in"); break;
     case "-": case "_": zoom("out"); break;
     case "n": case "N": resetHeading(); break;
+    case "t": case "T": setTilt(!isTilted(CMath.toDegrees(viewer.camera.pitch))); break;
     case "Enter": case " ": {
       const c = currentCenter();
       if (c) post({ t: "pick", lat: c.lat, lon: c.lon });
@@ -855,7 +1384,6 @@ window.addEventListener("keydown", (e: KeyboardEvent) => {
   }
   if (handled) {
     e.preventDefault();
-    if (e.key !== "Enter" && e.key !== " " && e.key !== "Escape") lastTarget = null;
     spinning = false;
     post({ t: "interaction" });
   }
