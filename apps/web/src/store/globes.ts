@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AnchorPosition, CameraTelemetry, Planet } from "../globes/protocol";
+import type { AnchorPosition, CameraTelemetry, ImagerySource, Planet } from "../globes/protocol";
 
 /**
  * High-frequency globe state (camera telemetry, projected anchors) kept apart from the app store,
@@ -27,6 +27,15 @@ interface GlobeState {
   setCamera: (p: Planet, c: CameraTelemetry) => void;
   setAnchors: (p: Planet, a: AnchorPosition[]) => void;
   setReady: (p: Planet) => void;
+  /**
+   * The base imagery each globe says it draws (its `ready` and `imagery` messages): credits are built from this,
+   * never from fixed text, so they stay right when the layer or the ion/fallback mode changes.
+   */
+  source: Record<Planet, ImagerySource | null>;
+  setSource: (p: Planet, s: ImagerySource) => void;
+  /** Recent data-layer tile failures per planet (null = none reported). */
+  dataLayerFault: Record<Planet, { id: string; failures: number; at: number } | null>;
+  reportDataLayer: (p: Planet, id: string, failures: number) => void;
 }
 
 export const useGlobes = create<GlobeState>((set) => ({
@@ -44,4 +53,8 @@ export const useGlobes = create<GlobeState>((set) => ({
   setCamera: (p, c) => set((s) => ({ camera: { ...s.camera, [p]: c } })),
   setAnchors: (p, a) => set((s) => ({ anchors: { ...s.anchors, [p]: Object.fromEntries(a.map((x) => [x.id, x])) } })),
   setReady: (p) => set((s) => ({ ready: { ...s.ready, [p]: true } })),
+  source: { mars: null, earth: null },
+  setSource: (p, src) => set((s) => ({ source: { ...s.source, [p]: src } })),
+  dataLayerFault: { mars: null, earth: null },
+  reportDataLayer: (p, id, failures) => set((s) => ({ dataLayerFault: { ...s.dataLayerFault, [p]: { id, failures, at: Date.now() } } })),
 }));

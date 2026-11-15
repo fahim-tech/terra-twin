@@ -3,8 +3,8 @@
  *
  * Each planet runs CesiumJS in its own iframe because Cesium's `Ellipsoid.default` is shared
  * mutable module state: a Mars viewer and an Earth viewer in one JS realm would corrupt each
- * other's geodesy. All coordinates crossing this boundary are planetocentric latitude and
- * east-positive longitude in degrees (-180..180), for both bodies.
+ * other's geodesy. All coordinates crossing this boundary are latitude and east-positive longitude in
+ * degrees (-180..180): planetocentric latitude on Mars, geodetic (WGS84) latitude on Earth.
  */
 export type Planet = "mars" | "earth";
 
@@ -92,13 +92,19 @@ export function tiltAnnouncement(on: boolean, turned = true): string {
   return turned ? viewName(on) : `${viewName(on)} applies from the next site flight: there is no ground under the centre of the view to turn about.`;
 }
 
-/** A geographic box, degrees (planetocentric latitude, east-positive longitude). West > east when it crosses ±180°. */
+/**
+ * A geographic box, degrees (planetocentric latitude on Mars, geodetic WGS84 on Earth; east-positive longitude).
+ * West > east when it crosses ±180°.
+ */
 export interface GroundBox { west: number; south: number; east: number; north: number }
 
 export interface CameraTelemetry {
   /** Camera height above the reference surface, km. */
   heightKm: number;
-  /** Surface point under the frame centre (planetocentric, east-positive), or null when looking past the limb. */
+  /**
+   * Surface point under the frame centre (planetocentric on Mars, geodetic WGS84 on Earth; east-positive), or null
+   * when looking past the limb.
+   */
   center: { lat: number; lon: number } | null;
   /**
    * The ground actually visible in the free area: the box around the free area's border projected on the planet
@@ -119,6 +125,41 @@ export interface CameraTelemetry {
    */
   pitchDeg: number;
   moving: boolean;
+}
+
+/**
+ * One gridded data layer drawn as map tiles over the base imagery and under the app's drawings (markers,
+ * footprints, labels) and overlays. `url` is a tile template with {z}/{x}/{y} on the geographic tiling scheme
+ * (level z has 2^(z+1) x 2^z tiles, x east from -180, y south from +90) on this globe's own body. Tiles are drawn
+ * with nearest sampling, so a grid cell stays a crisp cell and no value is invented between cells.
+ */
+export interface DataLayerSpec {
+  /** Names the layer (for error reports); a new id or url replaces the drawn layer. */
+  id: string;
+  url: string;
+  /** Deepest tile level the server has; Cesium enlarges that level's tiles beyond it. */
+  maximumLevel: number;
+  /** Tile edge, px (square tiles). */
+  tileSize: number;
+  /** 0-1. */
+  alpha: number;
+  /**
+   * Draw a pixel only where a second tile set of the same grid (`url`, same template and levels) has one of the
+   * `keep` colours (#rrggbb): e.g. a terrain layer only over land cells of the surface-class layer, so cells
+   * without a terrain value (ocean) are left undrawn instead of painted as the ramp's low end. A tile whose mask
+   * cannot be read is not drawn at all.
+   */
+  mask?: { url: string; keep: string[] };
+}
+
+/** The base imagery a globe is drawing, as it says it: its source, the active layer and that layer's note. */
+export interface ImagerySource {
+  mode: "ion" | "fallback";
+  /** Active base layer id (LayerInfo.id), or null when the Cesium Mars 3D tiles replace the globe's imagery. */
+  layer: string | null;
+  label: string;
+  note: string;
+  credit: string;
 }
 
 export type ParentToGlobe =
@@ -146,6 +187,11 @@ export type ParentToGlobe =
   | { t: "select"; id: string | null }
   | { t: "setLayer"; layer: string }
   | { t: "setOverlay"; id: string; url: string | null; alpha?: number }
+  /**
+   * Draw one gridded data layer (DataLayerSpec), replacing any drawn before, or clear it with null. Only one
+   * data layer is drawn at a time; a change of `alpha` alone keeps the loaded tiles. Hidden in clean snapshots.
+   */
+  | { t: "setDataLayer"; layer: DataLayerSpec | null }
   | { t: "setGraticule"; on: boolean; stepDeg?: number }
   | { t: "trackAnchors"; anchors: AnchorRequest[] }
   | { t: "zoom"; direction: "in" | "out" }
@@ -187,7 +233,11 @@ export type LightMode = "work" | "intro";
 
 export type GlobeToParent =
   | { t: "boot"; planet: Planet }
-  | { t: "ready"; planet: Planet; mode: "ion" | "fallback"; layers: LayerInfo[]; ellipsoid: string }
+  | { t: "ready"; planet: Planet; mode: "ion" | "fallback"; layers: LayerInfo[]; ellipsoid: string; imagery?: ImagerySource }
+  /** The base imagery now drawn: sent after `ready` and on every change of base layer or of ion/fallback mode. */
+  | { t: "imagery"; imagery: ImagerySource }
+  /** Tiles of a data layer failing to load (throttled, like imageryStatus); `failures` counts since the previous report. */
+  | { t: "dataLayerStatus"; id: string; failures: number }
   | { t: "pick"; lat: number; lon: number }
   | { t: "hover"; lat: number | null; lon: number | null }
   | { t: "markerClick"; id: string }

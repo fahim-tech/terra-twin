@@ -114,3 +114,28 @@ export function orbitFade(heightKm: number): number {
   const t = Math.min(1, Math.max(0, (heightKm - 2_800) / (6_000 - 2_800)));
   return t * t * (3 - 2 * t);
 }
+
+/** Split a closed ring of samples into arcs of `per` segments each (consecutive arcs share their end sample). */
+export function ringArcs<T>(ring: readonly T[], per: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < ring.length - 1; i += per) out.push(ring.slice(i, Math.min(ring.length, i + per + 1)));
+  return out;
+}
+
+/**
+ * How much of an orbit arc to draw near a block of copy (the intro's title column): none where the arc's points
+ * come within `clear` px of the box, fading in over the next `fade` px. A ring through the title reads as a stray
+ * rule through the wordmark. Points are the arc's samples on screen (null when not projected).
+ */
+export function arcClearOfBox(points: readonly ({ x: number; y: number } | null)[], box: ScreenRect | null, clear = 16, fade = 48): number {
+  if (!box) return 1;
+  let d = Infinity;
+  for (const p of points) {
+    if (!p) continue;
+    const dx = Math.max(box.x0 - p.x, 0, p.x - box.x1);
+    const dy = Math.max(box.y0 - p.y, 0, p.y - box.y1);
+    d = Math.min(d, Math.hypot(dx, dy));
+  }
+  if (d === Infinity) return 1;
+  return Math.max(0, Math.min(1, (d - clear) / fade));
+}

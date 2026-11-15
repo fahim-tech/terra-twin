@@ -7,7 +7,21 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600&family=Barlow+Semi+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
-    <style>html,body,#globe{margin:0;width:100%;height:100%;overflow:hidden;background:#020304}</style>
+    <style>
+      html,body,#globe{margin:0;width:100%;height:100%;overflow:hidden;background:#020304}
+      /* The canvas is the globe's tab stop: an ink ring inside the frame, never the browser's blue. */
+      #globe canvas{outline:none}
+      #globe canvas:focus-visible{outline:2px solid rgb(242 244 245 / .9);outline-offset:-2px}
+      /* Every credit is drawn on screen in the strip; Cesium's stock expander and lightbox are retired. */
+      .cesium-credit-expand-link,.cesium-credit-lightbox-overlay{display:none!important}
+      /* Key legend while the globe has keyboard focus (globe-entry initKeyboardSurface). */
+      .tt-keys{position:absolute;z-index:2;transform:translateX(-50%);display:none;flex-wrap:wrap;justify-content:center;gap:4px 14px;
+        max-width:calc(100% - 140px);padding:6px 10px;background:rgb(2 3 4 / .78);box-shadow:inset 0 0 0 1px rgb(242 244 245 / .18);border-radius:2px;
+        font:500 10px/1.3 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:rgb(242 244 245 / .72);pointer-events:none}
+      .tt-keys.on{display:flex}
+      .tt-keys span{white-space:nowrap}
+      .tt-keys b{font-weight:600;color:#f2f4f5;margin-right:6px}
+    </style>
   </head>
   <body>
     <div id="globe"></div>

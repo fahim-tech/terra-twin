@@ -96,12 +96,19 @@ export const GlobeFrame = forwardRef<GlobeHandle, Props>(function GlobeFrame({ p
         ready.current = true;
         setLoaded(true);
         useGlobes.getState().setReady(planet);
+        if (msg.imagery) useGlobes.getState().setSource(planet, msg.imagery);
         for (const m of queue.current.splice(0)) deliver(m);
       } else if (msg.t === "camera") {
         useGlobes.getState().setCamera(planet, msg.camera);
         return;
       } else if (msg.t === "anchors") {
         useGlobes.getState().setAnchors(planet, msg.anchors);
+        return;
+      } else if (msg.t === "imagery") {
+        useGlobes.getState().setSource(planet, msg.imagery);
+        return;
+      } else if (msg.t === "dataLayerStatus") {
+        useGlobes.getState().reportDataLayer(planet, msg.id, msg.failures);
         return;
       } else if (msg.t === "imageryStatus") {
         useGlobes.getState().reportImagery(planet, msg.layer, msg.failures);

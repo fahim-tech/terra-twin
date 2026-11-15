@@ -61,6 +61,8 @@ import {
   SingleTileImageryProvider,
   SkyAtmosphere,
   SkyBox,
+  TextureMagnificationFilter,
+  TextureMinificationFilter,
   Transforms,
   UrlTemplateImageryProvider,
   VerticalOrigin,
@@ -78,15 +80,17 @@ import { SETTLE_START, SNAPSHOT_SETTLE, type SettleVerdict, captureSse, serialRu
 import { footprintCorners, footprintSideKm, hasScanVolume, outlineRing, scanHeightM, volumeSizeWeight } from "./footprints";
 import { GLYPH_EARTH, GLYPH_INK, GLYPH_KINDS, GLYPH_MARS, GLYPH_SPACE, glyph, wallGradient } from "./glyphs";
 import { borderSamples, groundBox, horizonAlong } from "./ground";
-import { MARS_MOONS, clearOfDisc, easeToward, orbitFade, orbitLabel, orbitRing, refineMin, visibleColumns } from "./moons";
+import { MARS_MOONS, arcClearOfBox, clearOfDisc, easeToward, orbitFade, orbitLabel, orbitRing, refineMin, ringArcs, visibleColumns, type ScreenRect } from "./moons";
 import {
   type AnchorPosition,
   type AnchorRequest,
   type CameraTelemetry,
   type GlobeFootprint,
   type GlobeMarker,
+  type DataLayerSpec,
   type GlobeToParent,
   type GroundBox,
+  type ImagerySource,
   type LayerInfo,
   type LightMode,
   type MarkerGroupOptions,
@@ -97,6 +101,7 @@ import {
   wrap,
 } from "./protocol";
 import { icrfToMarsFixed } from "./sky";
+import { applyMask, dataLayerChange, hexRgb } from "./dataLayer";
 
 (window as unknown as { CESIUM_BASE_URL: string }).CESIUM_BASE_URL = CESIUM_BASE_URL;
 
@@ -113,6 +118,8 @@ const TREK = "https://trek.nasa.gov/tiles/Mars/EQ";
 const GIBS = "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best";
 
 interface LayerDef extends LayerInfo {
+  /** The data credit, drawn in the globe's own credit strip (on screen, never only in a lightbox). */
+  credit: string;
   make: (ellipsoid: Ellipsoid) => UrlTemplateImageryProvider;
 }
 
@@ -120,19 +127,21 @@ const MARS_LAYERS: LayerDef[] = [
   {
     id: "viking_color", label: "Viking colour mosaic", kind: "imagery",
     note: "NASA Mars Trek · Viking MDIM 2.1 colour, 232 m. Visualization only.",
+    credit: "NASA/JPL-Caltech/USGS · Mars Trek Viking MDIM 2.1",
     make: (e) => new UrlTemplateImageryProvider({
       url: `${TREK}/Mars_Viking_MDIM21_ClrMosaic_global_232m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg`,
       tilingScheme: new GeographicTilingScheme({ ellipsoid: e }), maximumLevel: 7,
-      credit: new Credit("NASA/JPL-Caltech/USGS · Mars Trek Viking MDIM 2.1"),
+      credit: new Credit("NASA/JPL-Caltech/USGS · Mars Trek Viking MDIM 2.1", true),
     }),
   },
   {
     id: "mola_shade", label: "MOLA colour shaded relief", kind: "imagery",
     note: "NASA Mars Trek · MOLA elevation colour shaded relief, 463 m. Colour encodes elevation; visualization only.",
+    credit: "NASA/JPL/GSFC · MOLA shaded relief via Mars Trek",
     make: (e) => new UrlTemplateImageryProvider({
       url: `${TREK}/Mars_MGS_MOLA_ClrShade_merge_global_463m/1.0.0/default/default028mm/{z}/{y}/{x}.jpg`,
       tilingScheme: new GeographicTilingScheme({ ellipsoid: e }), maximumLevel: 7,
-      credit: new Credit("NASA/JPL/GSFC · MOLA shaded relief via Mars Trek"),
+      credit: new Credit("NASA/JPL/GSFC · MOLA shaded relief via Mars Trek", true),
     }),
   },
 ];
@@ -141,30 +150,60 @@ const EARTH_LAYERS: LayerDef[] = [
   {
     id: "blue_marble_relief", label: "Blue Marble shaded relief", kind: "imagery",
     note: "NASA GIBS · Blue Marble shaded relief + bathymetry, 500 m. Visualization only.",
+    credit: "NASA Earth Observatory · Blue Marble via GIBS",
     make: (e) => new UrlTemplateImageryProvider({
       url: `${GIBS}/BlueMarble_ShadedRelief_Bathymetry/default/2004-08/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg`,
       tilingScheme: new WebMercatorTilingScheme({ ellipsoid: e }), maximumLevel: 8,
-      credit: new Credit("NASA Earth Observatory · Blue Marble via GIBS"),
+      credit: new Credit("NASA Earth Observatory · Blue Marble via GIBS", true),
     }),
   },
   {
     id: "blue_marble_ng", label: "Blue Marble next generation", kind: "imagery",
     note: "NASA GIBS · Blue Marble Next Generation true colour, 500 m. Visualization only.",
+    credit: "NASA Earth Observatory · Blue Marble NG via GIBS",
     make: (e) => new UrlTemplateImageryProvider({
       url: `${GIBS}/BlueMarble_NextGeneration/default/2004-08/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg`,
       tilingScheme: new WebMercatorTilingScheme({ ellipsoid: e }), maximumLevel: 8,
-      credit: new Credit("NASA Earth Observatory · Blue Marble NG via GIBS"),
+      credit: new Credit("NASA Earth Observatory · Blue Marble NG via GIBS", true),
     }),
   },
 ];
 
 const LAYERS = planet === "mars" ? MARS_LAYERS : EARTH_LAYERS;
 
+/** What replaces the imagery when the Cesium Mars 3D tiles are drawn (ion token set). */
+const MARS_ION_SOURCE = {
+  label: "Cesium Mars 3D Tiles",
+  note: "Cesium ion asset 3644333 (Cesium Mars 3D Tiles). Visualization only.",
+  credit: "Cesium ion · Cesium Mars",
+};
+
+/**
+ * A plain sphere of the planet's tone under the remote imagery, so the planet (and everything drawn on it) shows
+ * from the first frame instead of markers and rings floating in black until the first NASA tile arrives. Cesium
+ * draws a tile as soon as any of its imagery layers is ready, and this one is a local image. It is one flat
+ * colour: it carries no data and is covered as the imagery loads.
+ */
+const PLACEHOLDER_TONE = planet === "mars" ? "#6a4130" : "#10273a";
+function placeholderProvider(): SingleTileImageryProvider {
+  const c = document.createElement("canvas");
+  c.width = 4;
+  c.height = 2;
+  const ctx = c.getContext("2d")!;
+  ctx.fillStyle = PLACEHOLDER_TONE;
+  ctx.fillRect(0, 0, 4, 2);
+  return new SingleTileImageryProvider({ url: c.toDataURL("image/png"), tileWidth: 4, tileHeight: 2, rectangle: Rectangle.fromDegrees(-180, -90, 180, 90), ellipsoid });
+}
+
 // ---------------------------------------------------------------- state
 let viewer: Viewer | null = null;
 let ellipsoid: Ellipsoid;
 let mode: "ion" | "fallback" = "fallback";
 let baseLayer: ImageryLayer | null = null;
+/** The flat placeholder under the base imagery (PLACEHOLDER_TONE). */
+let placeholderLayer: ImageryLayer | null = null;
+/** The gridded data layer (setDataLayer), drawn above the base imagery and below overlays and drawings. */
+let dataLayer: { spec: DataLayerSpec; layer: ImageryLayer } | null = null;
 /** The Cesium Mars 3D tileset, when an ion token is set (it then replaces the globe and its imagery). */
 let marsTiles: Cesium3DTileset | null = null;
 let spinning = false;
@@ -224,14 +263,72 @@ function placeCredits() {
   const el = viewer?.cesiumWidget.creditContainer as HTMLElement | undefined;
   if (!el) return;
   const narrow = (viewer?.scene.canvas.clientWidth ?? 0) < 640;
+  // Narrow: right-aligned and wrapping clear of the scale readout in the bottom-left (its box is ~130 px wide).
   const across = narrow
-    ? `left:auto;right:${insets.right + 8}px;transform:scale(.8);transform-origin:100% 100%;`
+    ? `left:auto;right:${insets.right + 8}px;transform:scale(.8);transform-origin:100% 100%;text-align:right;max-width:calc((100% - ${insets.left + insets.right + 160}px) / .8);white-space:normal!important;`
     : `left:calc(${insets.left}px + (100% - ${insets.left + insets.right}px) / 2);transform:translateX(-50%) scale(.8);transform-origin:50% 100%;`;
   el.style.cssText = `position:absolute;z-index:1;${across}bottom:${insets.bottom + 2}px;white-space:nowrap;` +
     "font:10px 'Barlow',system-ui;opacity:.5;filter:grayscale(1) invert(1);";
 }
 
-// Latitude conversion between the API convention (planetocentric) and the rendering ellipsoid.
+/**
+ * Keyboard and assistive access. The canvas is the globe's one tab stop (role application, named by the frame's
+ * title, which lists the keys), with an ink focus ring (globe.html) and a key legend while it has keyboard focus.
+ * Cesium's credit links leave the tab order (re-applied whenever Cesium redraws the credits), and its "Data
+ * attribution" expander and lightbox are retired (globe.html): every credit is drawn on screen in the strip. The
+ * page around the frame is never scrolled by focus landing in here (the intro slides this frame partly past the
+ * window's edge, and a focused element is scrolled into view): an overflow-hidden ancestor is put back.
+ */
+function initKeyboardSurface() {
+  if (!viewer) return;
+  const canvas = viewer.scene.canvas;
+  canvas.tabIndex = 0;
+  canvas.setAttribute("role", "application");
+  canvas.setAttribute("aria-roledescription", "globe");
+  let title = "";
+  try { title = (window.frameElement as HTMLIFrameElement | null)?.title ?? ""; } catch { /* cross-origin: keep the default */ }
+  canvas.setAttribute("aria-label", title || `${planet === "mars" ? "Mars" : "Earth"} globe`);
+  const credits = viewer.cesiumWidget.creditContainer as HTMLElement;
+  const quiet = () => credits.querySelectorAll<HTMLElement>("a, button, [tabindex]").forEach((a) => { if (a.tabIndex !== -1) a.tabIndex = -1; });
+  quiet();
+  new MutationObserver(quiet).observe(credits, { subtree: true, childList: true });
+
+  const keys = document.createElement("div");
+  keys.className = "tt-keys";
+  keys.setAttribute("aria-hidden", "true");
+  keys.innerHTML = [["← ↑ → ↓", "Pan"], ["+ −", "Zoom"], ["N", "North up"], ["T", "3D / top-down"], ["Enter", "Select centre"]]
+    .map(([k, v]) => `<span><b>${k}</b>${v}</span>`).join("");
+  viewer.container.appendChild(keys);
+  const placeKeys = () => { keys.style.top = `${Math.max(insets.top, 64) + 8}px`; keys.style.left = `calc(${insets.left}px + (100% - ${insets.left + insets.right}px) / 2)`; };
+  canvas.addEventListener("focus", () => {
+    placeKeys();
+    keys.classList.toggle("on", canvas.matches(":focus-visible"));
+    unscrollAncestors();
+    requestAnimationFrame(unscrollAncestors);
+  });
+  canvas.addEventListener("blur", () => keys.classList.remove("on"));
+  canvas.addEventListener("pointerdown", () => keys.classList.remove("on"));
+  window.addEventListener("focus", () => requestAnimationFrame(unscrollAncestors));
+}
+
+/** Put back any overflow-hidden ancestor of this frame that focus scrolled (it has no scrollbar to undo that). */
+function unscrollAncestors() {
+  try {
+    let el = (window.frameElement as HTMLElement | null)?.parentElement ?? null;
+    while (el) {
+      if (el.scrollLeft || el.scrollTop) {
+        const st = window.parent.getComputedStyle(el);
+        if (st.overflowX === "hidden" || st.overflowX === "clip") el.scrollLeft = 0;
+        if (st.overflowY === "hidden" || st.overflowY === "clip") el.scrollTop = 0;
+      }
+      el = el.parentElement;
+    }
+  } catch { /* cross-origin parent: nothing to do */ }
+}
+
+// Latitude conversion between the API convention and the rendering ellipsoid. The API gives planetocentric
+// latitude on Mars and geodetic WGS84 latitude on Earth: only Mars is converted (and only changes anything on the
+// IAU 2000 ellipsoid used with the Cesium Mars tiles; on the app's sphere the two latitudes are the same).
 function toRender(lat: number) {
   return planet === "mars" ? centricToGraphic(lat, ellipsoid.maximumRadius, ellipsoid.minimumRadius) : lat;
 }
@@ -682,7 +779,8 @@ function updateGraticuleLabels() {
 
 // ---------------------------------------------------------------- moons (Mars)
 interface OrbitDraw {
-  aKm: number; line: Polyline; label: Label; labelPx: number; prefer: { x: number; y: number };
+  /** The ring as short arcs, so the part that would cross the intro's title can fade out alone (see copyBox). */
+  aKm: number; arcs: { line: Polyline; pts: Cartesian3[] }[]; label: Label; labelPx: number; prefer: { x: number; y: number };
   /** 0–1: how far the orbit is drawn, eased; it is drawn only while its label has a place (see updateOrbits). */
   named: number;
   /** Where the label last hung, kept while the orbit fades out after losing its place. */
@@ -711,10 +809,10 @@ function initOrbits() {
   scene.primitives.add(lines);
   scene.primitives.add(labels);
   MARS_MOONS.forEach((m, i) => {
-    const line = lines.add({
-      positions: orbitRing(m.aKm, 720).map(toCart), width: 1, show: false,
-      material: Material.fromType("Color", { color: INK.withAlpha(0) }),
-    });
+    const arcs = ringArcs(orbitRing(m.aKm, 720).map(toCart), 12).map((pts) => ({
+      pts: [pts[0], pts[Math.floor(pts.length / 2)], pts[pts.length - 1]],
+      line: lines.add({ positions: pts, width: 1, show: false, material: Material.fromType("Color", { color: INK.withAlpha(0) }) }),
+    }));
     const label = labels.add({
       position: new Cartesian3(m.aKm * 1000, 0, 0),
       text: orbitLabel(m), show: false,
@@ -726,11 +824,39 @@ function initOrbits() {
     // Preferred label spots (fractions of the frame): right of the planet, Deimos above Phobos. The label
     // runs right from its point, about 6.3 px per mono character.
     orbitDraws.push({
-      aKm: m.aKm, line, label, labelPx: orbitLabel(m).length * 6.3 + 6, prefer: i === 0 ? { x: 0.68, y: 0.44 } : { x: 0.66, y: 0.2 },
+      aKm: m.aKm, arcs, label, labelPx: orbitLabel(m).length * 6.3 + 6, prefer: i === 0 ? { x: 0.68, y: 0.44 } : { x: 0.66, y: 0.2 },
       named: 0, spot: null,
     });
   });
   scene.preRender.addEventListener(updateOrbits);
+}
+
+/**
+ * The intro's copy column (its title, lines and buttons) in this canvas's pixels, read from the parent page (same
+ * origin): the block that holds the title marked data-stage-heading="intro". Null when it is not on the page.
+ */
+function copyBox(): ScreenRect | null {
+  try {
+    const h = window.parent.document.querySelector<HTMLElement>('[data-stage-heading="intro"]');
+    const block = h?.parentElement;
+    const fe = window.frameElement as HTMLElement | null;
+    if (!block || !fe) return null;
+    const r = block.getBoundingClientRect(), f = fe.getBoundingClientRect();
+    if (r.width === 0) return null;
+    // The block's own padding is air around the copy: measure the title and what follows it instead.
+    let x1 = r.left, y0 = Infinity, y1 = -Infinity;
+    for (const c of Array.from(block.children) as HTMLElement[]) {
+      const b = c.getBoundingClientRect();
+      if (b.width === 0 || getComputedStyle(c).position === "absolute") continue;
+      x1 = Math.max(x1, b.right);
+      y0 = Math.min(y0, b.top);
+      y1 = Math.max(y1, b.bottom);
+    }
+    if (!Number.isFinite(y0)) return null;
+    return { x0: r.left - f.left, y0: y0 - f.top, x1: x1 - f.left, y1: y1 - f.top };
+  } catch {
+    return null;
+  }
 }
 
 const scratchA = new Cartesian3();
@@ -814,6 +940,7 @@ function updateOrbits() {
   const narrowIntro = lightMode === "intro" && viewer.scene.canvas.clientWidth < 640;
   const drawn = !drawingsHidden && !narrowIntro && k > 0.005;
   let fading = false;
+  const copy = lightMode === "intro" ? copyBox() : null;
   for (const o of orbitDraws) {
     const spot = drawn ? orbitLabelSpot(o) : null;
     if (spot) o.spot = spot;
@@ -821,10 +948,15 @@ function updateOrbits() {
     o.named = drawingsHidden || !drawn ? 0 : easeToward(o.named, spot ? 1 : 0, dt, reducedMotion ? 0 : ORBIT_NAME_FADE_S);
     if (o.named > 0 && o.named < 1) fading = true;
     const alpha = k * o.named;
-    o.line.show = drawn && alpha > 0.005;
-    o.label.show = o.line.show && !!o.spot;
-    if (!o.line.show) continue;
-    o.line.material.uniforms.color = INK.withAlpha(0.34 * alpha);
+    const shown = drawn && alpha > 0.005;
+    for (const arc of o.arcs) {
+      // On the title screen, the stretch of ring that would run through the copy column fades out.
+      const a = shown ? alpha * (copy ? arcClearOfBox(arc.pts.map((q) => SceneTransforms.worldToWindowCoordinates(viewer!.scene, q, new Cartesian2()) ?? null), copy) : 1) : 0;
+      arc.line.show = a > 0.005;
+      if (arc.line.show) arc.line.material.uniforms.color = INK.withAlpha(0.34 * a);
+    }
+    o.label.show = shown && !!o.spot;
+    if (!shown) continue;
     if (o.label.show) {
       o.label.position = o.spot!;
       o.label.fillColor = INK.withAlpha(0.74 * alpha);
@@ -899,6 +1031,7 @@ function setDrawingsHidden(on: boolean) {
   if (graticule) graticule.show = !on;
   if (graticuleLabels) graticuleLabels.show = !on;
   for (const layer of overlays.values()) layer.show = !on;
+  if (dataLayer) dataLayer.layer.show = !on;
   updateOrbits();
   requestRender();
 }
@@ -918,13 +1051,112 @@ async function setOverlay(id: string, url: string | null, alpha = 1) {
       ellipsoid,
     });
     if (!viewer) return;
-    const layer = new ImageryLayer(provider, { alpha, show: !drawingsHidden });
+    // Nearest sampling: each raster pixel (a 0.25° cell of the field) stays a crisp square at any zoom instead of
+    // being blended with its neighbours into values no cell has.
+    const layer = new ImageryLayer(provider, {
+      alpha, show: !drawingsHidden,
+      magnificationFilter: TextureMagnificationFilter.NEAREST, minificationFilter: TextureMinificationFilter.NEAREST,
+    });
     viewer.imageryLayers.add(layer);
     overlays.set(id, layer);
     requestRender();
   } catch (err) {
     post({ t: "error", message: `overlay ${id} failed: ${String(err)}` });
   }
+}
+
+// ---------------------------------------------------------------- gridded data layer
+let dataFailures = 0;
+let dataFailureTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Index just above the base imagery (or its placeholder): where the data layer goes. */
+function aboveBase(): number {
+  if (!viewer) return 0;
+  const below = baseLayer ?? placeholderLayer;
+  return below ? viewer.imageryLayers.indexOf(below) + 1 : 0;
+}
+
+/**
+ * Mask a data layer's tiles by a second tile set of the same grid (DataLayerSpec.mask): each tile is drawn only
+ * where the mask tile has one of the kept colours. Both tiles share the grid and tiling, so pixels align. A tile
+ * whose mask fails fails too (nothing drawn rather than unmasked values).
+ */
+function maskProvider(provider: UrlTemplateImageryProvider, mask: NonNullable<DataLayerSpec["mask"]>, spec: DataLayerSpec) {
+  const masker = new UrlTemplateImageryProvider({
+    url: mask.url, tilingScheme: new GeographicTilingScheme({ ellipsoid }), maximumLevel: spec.maximumLevel,
+    tileWidth: spec.tileSize, tileHeight: spec.tileSize, hasAlphaChannel: true,
+  });
+  const keep = mask.keep.map(hexRgb).filter((c): c is [number, number, number] => !!c);
+  const own = provider.requestImage.bind(provider);
+  provider.requestImage = (x, y, level, request) => {
+    const base = own(x, y, level, request);
+    if (!base) return base; // throttled: Cesium asks again
+    return Promise.all([base, masker.requestImage(x, y, level)]).then(([img, m]) => {
+      if (!img || !m) throw new Error("mask tile unavailable");
+      const w = (img as { width: number }).width, h = (img as { height: number }).height;
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const ctx = c.getContext("2d", { willReadFrequently: true })!;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(m as CanvasImageSource, 0, 0, w, h);
+      const md = ctx.getImageData(0, 0, w, h).data;
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(img as CanvasImageSource, 0, 0, w, h);
+      const d = ctx.getImageData(0, 0, w, h);
+      applyMask(d.data, md, keep);
+      ctx.putImageData(d, 0, 0);
+      return c;
+    }) as ReturnType<UrlTemplateImageryProvider["requestImage"]>;
+  };
+}
+
+/**
+ * Draw one gridded data layer (protocol: setDataLayer) over the base imagery and under overlays and drawings, or
+ * clear it. Tiles use the geographic tiling scheme on this globe's own body (on Mars the app's sphere); nearest
+ * sampling keeps a cell a cell. A change of alpha alone keeps the tiles already loaded.
+ */
+function setDataLayer(spec: DataLayerSpec | null) {
+  if (!viewer) return;
+  const change = dataLayerChange(dataLayer?.spec ?? null, spec);
+  if (change === "none") return;
+  if (change === "alpha" && dataLayer && spec) {
+    dataLayer.spec = spec;
+    dataLayer.layer.alpha = spec.alpha;
+    requestRender();
+    return;
+  }
+  if (dataLayer) {
+    viewer.imageryLayers.remove(dataLayer.layer, true);
+    dataLayer = null;
+  }
+  // The Cesium Mars 3D tiles replace the globe: there is no surface to drape tiles on.
+  if (!spec || !viewer.scene.globe) { requestRender(); return; }
+  const provider = new UrlTemplateImageryProvider({
+    url: spec.url,
+    tilingScheme: new GeographicTilingScheme({ ellipsoid }),
+    maximumLevel: spec.maximumLevel,
+    tileWidth: spec.tileSize,
+    tileHeight: spec.tileSize,
+    hasAlphaChannel: true,
+  });
+  if (spec.mask) maskProvider(provider, spec.mask, spec);
+  const id = spec.id;
+  provider.errorEvent.addEventListener(() => {
+    dataFailures++;
+    if (dataFailureTimer) return;
+    dataFailureTimer = setTimeout(() => {
+      post({ t: "dataLayerStatus", id, failures: dataFailures });
+      dataFailures = 0;
+      dataFailureTimer = null;
+    }, 3000);
+  });
+  const layer = new ImageryLayer(provider, {
+    alpha: spec.alpha, show: !drawingsHidden,
+    magnificationFilter: TextureMagnificationFilter.NEAREST, minificationFilter: TextureMinificationFilter.NEAREST,
+  });
+  viewer.imageryLayers.add(layer, aboveBase());
+  dataLayer = { spec, layer };
+  requestRender();
 }
 
 // ---------------------------------------------------------------- camera
@@ -1116,9 +1348,12 @@ function setLayer(id: string) {
   const provider = def.make(ellipsoid);
   watchProvider(provider, def.id);
   const layer = new ImageryLayer(provider, { alpha: old && !reducedMotion ? 0 : 1 });
-  // Insert directly above the old base so overlays stay on top, then crossfade (no base-colour flash).
-  viewer.imageryLayers.add(layer, old ? viewer.imageryLayers.indexOf(old) + 1 : 0);
+  // Insert directly above the old base (or the placeholder), so the data layer and overlays stay on top, then
+  // crossfade (no base-colour flash).
+  const below = old ?? placeholderLayer;
+  viewer.imageryLayers.add(layer, below ? viewer.imageryLayers.indexOf(below) + 1 : 0);
   baseLayer = layer;
+  reportImagery();
   if (!old) { requestRender(); return; }
   if (reducedMotion) { viewer.imageryLayers.remove(old, true); requestRender(); return; }
   const t0 = performance.now();
@@ -1131,6 +1366,18 @@ function setLayer(id: string) {
     else viewer.imageryLayers.remove(old, true);
   };
   setTimeout(() => requestAnimationFrame(step), 250);
+}
+
+/** The base imagery now drawn, as the shell should credit it. */
+function imagerySource(): ImagerySource {
+  if (marsTiles) return { mode, layer: null, ...MARS_ION_SOURCE };
+  const def = LAYERS.find((l) => l.id === currentLayerId) ?? LAYERS[0];
+  return { mode, layer: def.id, label: def.label, note: def.note, credit: def.credit };
+}
+let imageryReported = false;
+/** Tell the shell which imagery is drawn (from `ready` on; `ready` itself carries the first). */
+function reportImagery() {
+  if (imageryReported) post({ t: "imagery", imagery: imagerySource() });
 }
 
 /** Zoom towards the point under the reticle, keeping it there and keeping the view's pitch and heading. */
@@ -1488,6 +1735,7 @@ async function init(ionToken: string | null) {
   scene.preRender.addEventListener(updateGraticuleLabels);
   scene.postRender.addEventListener(() => { emitTelemetry(); emitAnchors(); });
   placeCredits();
+  initKeyboardSurface();
   scene.screenSpaceCameraController.minimumZoomDistance = 20_000;
   scene.screenSpaceCameraController.maximumZoomDistance = planet === "mars" ? 40_000_000 : 80_000_000;
   viewer.camera.moveStart.addEventListener(() => { moving = true; emitTelemetry(true); });
@@ -1526,6 +1774,7 @@ async function init(ionToken: string | null) {
     g.lightingFadeInDistance = meanR + (planet === "mars" ? 5_000_000 : 9_000_000);
     g.maximumScreenSpaceError = 1.6;
     g.tileCacheSize = 200;
+    placeholderLayer = viewer.imageryLayers.addImageryProvider(placeholderProvider(), 0);
     setLayer(LAYERS[0].id);
   }
 
@@ -1541,9 +1790,13 @@ async function init(ionToken: string | null) {
     }
   } catch (err) {
     post({ t: "error", message: `Cesium ion asset failed, using NASA imagery fallback: ${String(err)}` });
-    if (!scene.globe) scene.globe = new Globe(ellipsoid);
-    setLayer(LAYERS[0].id);
+    if (!scene.globe) {
+      scene.globe = new Globe(ellipsoid);
+      placeholderLayer = viewer.imageryLayers.addImageryProvider(placeholderProvider(), 0);
+    }
+    marsTiles = null;
     mode = "fallback";
+    setLayer(LAYERS[0].id);
   }
 
   viewer.camera.setView({ destination: pos(HOME.lat, HOME.lon, HOME.heightKm * 1000) });
@@ -1619,7 +1872,9 @@ async function init(ionToken: string | null) {
     t: "ready", planet, mode,
     layers: LAYERS.map(({ id, label, kind, note }) => ({ id, label, kind, note })),
     ellipsoid: planet === "earth" ? "WGS84" : ionToken ? `Mars IAU 2000 (${MARS_IAU2000.a}/${MARS_IAU2000.b} m)` : `Mars sphere R = ${R_MARS_M} m`,
+    imagery: imagerySource(),
   });
+  imageryReported = true;
   emitTelemetry(true);
   settle();
   if (import.meta.env.DEV) Object.assign(window, { __globe: { viewer, groups, occluder: () => occluder, pos, markers: markerRecs, place, viewTarget } });
@@ -1673,6 +1928,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
       case "select": selectedId = m.id; rebuildStems(); break;
       case "setLayer": setLayer(m.layer); break;
       case "setOverlay": void setOverlay(m.id, m.url, m.alpha); break;
+      case "setDataLayer": setDataLayer(m.layer); break;
       case "setGraticule": setGraticule(m.on, m.stepDeg); break;
       case "trackAnchors": anchors = m.anchors; lastAnchors = ""; break;
       case "zoom": { const d = m.direction; cameraCommand(() => zoom(d)); break; }
@@ -1710,6 +1966,9 @@ window.addEventListener("message", (ev: MessageEvent) => {
 // Keyboard operation when the globe frame has focus: every pointer action has a key equivalent.
 window.addEventListener("keydown", (e: KeyboardEvent) => {
   if (!viewer || e.metaKey || e.ctrlKey || e.altKey) return;
+  // Enter or Space on a link or button inside the frame (a data credit) activates it; it never picks a point.
+  const target = e.target as HTMLElement | null;
+  if ((e.key === "Enter" || e.key === " ") && target && (target.tagName === "A" || target.tagName === "BUTTON")) return;
   const step = e.shiftKey ? 0.5 : 0.2;
   let handled = true;
   switch (e.key) {
