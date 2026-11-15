@@ -1,8 +1,11 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { type GlobeToParent, type ParentToGlobe, type Planet, isEnvelope, wrap } from "./protocol";
+import { useGlobes } from "../store/globes";
 
 export interface GlobeHandle {
   send: (msg: ParentToGlobe) => void;
+  /** Render a top-down view of a location and resolve with a JPEG data URL (visualization imagery only). */
+  snapshot: (lat: number, lon: number, heightKm: number, maxWidth?: number) => Promise<{ dataUrl: string; width: number; height: number } | null>;
 }
 
 interface Props {
@@ -24,15 +27,27 @@ export const GlobeFrame = forwardRef<GlobeHandle, Props>(function GlobeFrame({ p
   const handler = useRef(onMessage);
   handler.current = onMessage;
   const [loaded, setLoaded] = useState(false);
+  const pending = useRef(new Map<string, (v: { dataUrl: string; width: number; height: number } | null) => void>());
 
   const deliver = (msg: ParentToGlobe) => frame.current?.contentWindow?.postMessage(wrap(msg), location.origin);
 
-  useImperativeHandle(ref, () => ({
-    send(msg) {
+  useImperativeHandle(ref, () => {
+    const send = (msg: ParentToGlobe) => {
       if (ready.current) deliver(msg);
       else queue.current.push(msg);
-    },
-  }), []);
+    };
+    return {
+      send,
+      snapshot(lat, lon, heightKm, maxWidth) {
+        const requestId = `${planet}-${Math.round(performance.now())}-${pending.current.size}`;
+        return new Promise((resolve) => {
+          pending.current.set(requestId, resolve);
+          send({ t: "snapshot", requestId, lat, lon, heightKm, maxWidth });
+          setTimeout(() => { if (pending.current.delete(requestId)) resolve(null); }, 15000);
+        });
+      },
+    };
+  }, [planet]);
 
   useEffect(() => {
     function onMsg(ev: MessageEvent) {
@@ -45,13 +60,25 @@ export const GlobeFrame = forwardRef<GlobeHandle, Props>(function GlobeFrame({ p
       if (msg.t === "ready") {
         ready.current = true;
         setLoaded(true);
+        useGlobes.getState().setReady(planet);
         for (const m of queue.current.splice(0)) deliver(m);
+      } else if (msg.t === "camera") {
+        useGlobes.getState().setCamera(planet, msg.camera);
+        return;
+      } else if (msg.t === "anchors") {
+        useGlobes.getState().setAnchors(planet, msg.anchors);
+        return;
+      } else if (msg.t === "snapshot") {
+        const done = pending.current.get(msg.requestId);
+        pending.current.delete(msg.requestId);
+        done?.(msg.dataUrl ? { dataUrl: msg.dataUrl, width: msg.width, height: msg.height } : null);
+        return;
       }
       handler.current?.(msg);
     }
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, []);
+  }, [planet]);
 
   // Keep the Cesium canvas sized with layout changes (panel collapse, split view).
   useEffect(() => {

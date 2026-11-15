@@ -13,6 +13,7 @@ export type MarkerKind =
   | "selection" // user-selected point
   | "candidate" // tier-1 coarse candidate
   | "leader" // tier-2 named leader / tied-set member
+  | "pool" // tier-2 research pool window (examined, not a result)
   | "reference" // documented analog
   | "control"; // negative control
 
@@ -23,6 +24,13 @@ export interface GlobeMarker {
   kind: MarkerKind;
   label?: string;
   rank?: number;
+}
+
+export interface MarkerGroupOptions {
+  /** Cluster nearby markers into count bubbles (Cesium EntityCluster). */
+  cluster?: boolean;
+  /** Which Cesium labels to draw. HTML annotations in the shell usually replace them. */
+  labels?: "none" | "selected" | "all";
 }
 
 export interface GlobeFootprint {
@@ -42,14 +50,49 @@ export interface LayerInfo {
   note: string;
 }
 
+export interface AnchorRequest {
+  id: string;
+  lat: number;
+  lon: number;
+}
+
+export interface AnchorPosition {
+  id: string;
+  /** CSS pixels relative to the globe frame's top-left corner. */
+  x: number;
+  y: number;
+  /** False when the point is behind the planet or off-screen. */
+  visible: boolean;
+}
+
+export interface CameraTelemetry {
+  /** Camera height above the reference surface, km. */
+  heightKm: number;
+  /** Surface point under the frame centre (planetocentric, east-positive), or null when looking past the limb. */
+  center: { lat: number; lon: number } | null;
+  /** Ground distance per CSS pixel at the frame centre, metres; null when the centre is off the planet. */
+  metersPerPixel: number | null;
+  headingDeg: number;
+  pitchDeg: number;
+  moving: boolean;
+}
+
 export type ParentToGlobe =
   | { t: "init"; ionToken: string | null }
   | { t: "flyTo"; lat: number; lon: number; heightKm?: number; durationS?: number }
+  | { t: "setView"; lat: number; lon: number; heightKm: number }
   | { t: "reset"; durationS?: number }
-  | { t: "setMarkers"; group: string; markers: GlobeMarker[] }
+  | { t: "setMarkers"; group: string; markers: GlobeMarker[]; options?: MarkerGroupOptions }
   | { t: "setFootprints"; group: string; footprints: GlobeFootprint[] }
   | { t: "select"; id: string | null }
   | { t: "setLayer"; layer: string }
+  | { t: "setOverlay"; id: string; url: string | null; alpha?: number }
+  | { t: "setGraticule"; on: boolean; stepDeg?: number }
+  | { t: "trackAnchors"; anchors: AnchorRequest[] }
+  | { t: "zoom"; direction: "in" | "out" }
+  | { t: "panBy"; dx: number; dy: number }
+  | { t: "resetHeading" }
+  | { t: "snapshot"; requestId: string; lat: number; lon: number; heightKm: number; maxWidth?: number }
   | { t: "setSpin"; on: boolean }
   | { t: "resize" };
 
@@ -59,6 +102,9 @@ export type GlobeToParent =
   | { t: "pick"; lat: number; lon: number }
   | { t: "hover"; lat: number | null; lon: number | null }
   | { t: "markerClick"; id: string }
+  | { t: "camera"; camera: CameraTelemetry }
+  | { t: "anchors"; anchors: AnchorPosition[] }
+  | { t: "snapshot"; requestId: string; dataUrl: string | null; width: number; height: number; error?: string }
   | { t: "interaction" }
   | { t: "error"; message: string };
 
