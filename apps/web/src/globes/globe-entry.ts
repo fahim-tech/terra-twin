@@ -71,7 +71,7 @@ import {
   OBLIQUE_PITCH_DEG, attitudeAt, exactNadir, fitDepth, flightPitchDeg, focusOf, isTilted, nadirFor, poseAt, stemHeightM, tiltWeight,
   verticalPxPerMetre, type Enu, type Vec3, type View,
 } from "./camera";
-import { footprintCorners, outlineRing, scanHeightM } from "./footprints";
+import { footprintCorners, footprintSideKm, hasScanVolume, outlineRing, scanHeightM, volumeSizeWeight } from "./footprints";
 import { GLYPH_EARTH, GLYPH_INK, GLYPH_KINDS, GLYPH_MARS, GLYPH_SPACE, glyph, wallGradient } from "./glyphs";
 import { MARS_MOONS, orbitFade, orbitLabel, orbitRing } from "./moons";
 import {
@@ -448,35 +448,46 @@ function stemAt(lat: number, lon: number): MarkerRec | null {
 }
 
 // ---------------------------------------------------------------- footprints as scan volumes
-const FOOT: Record<GlobeFootprint["kind"], { color: Color; fill: number; line: number; width: number; wall: number; edge: number; posts: boolean }> = {
-  aoi: { color: MARS, fill: 0.1, line: 0.95, width: 1.5, wall: 0.42, edge: 0.85, posts: true },
-  cell: { color: EARTH, fill: 0.1, line: 0.95, width: 1.5, wall: 0.42, edge: 0.85, posts: true },
-  window: { color: INK, fill: 0.05, line: 0.95, width: 1.5, wall: 0.3, edge: 0.75, posts: true },
-  research_bbox: { color: MARS, fill: 0.04, line: 0.5, width: 1, wall: 0.12, edge: 0.32, posts: false },
+/** Base fill and outline for every footprint; wall and raised-edge strength for those drawn as volumes. */
+const FOOT: Record<GlobeFootprint["kind"], { color: Color; fill: number; line: number; width: number; wall: number; edge: number }> = {
+  aoi: { color: MARS, fill: 0.1, line: 0.95, width: 1.5, wall: 0.42, edge: 0.85 },
+  cell: { color: EARTH, fill: 0.1, line: 0.95, width: 1.5, wall: 0.42, edge: 0.85 },
+  window: { color: INK, fill: 0.05, line: 0.95, width: 1.5, wall: 0.3, edge: 0.75 },
+  research_bbox: { color: MARS, fill: 0.04, line: 0.5, width: 1, wall: 0, edge: 0 },
 };
 
-/** How much of the 3D-only drawing to show: 0 looking straight down, 1 once tilted. */
-function volumeWeight() {
-  return viewer ? tiltWeight(CMath.toDegrees(viewer.camera.pitch)) : 0;
+let wallImage: HTMLCanvasElement | null = null;
+/** Counts rendered frames (scene.preUpdate), so per-frame values can be memoised. */
+let frameTick = 0;
+
+/**
+ * How much of one footprint's scan volume to draw this frame: the view's tilt (none looking straight down)
+ * times the footprint's size on screen (none while it is a few tens of pixels across, footprints.ts).
+ * Memoised per frame: a volume's wall, edge and posts all ask.
+ */
+function volumeWeightFor(centre: Cartesian3, sideM: number) {
+  let frame = -1, weight = 0;
+  return () => {
+    if (!viewer) return 0;
+    if (frame === frameTick) return weight;
+    frame = frameTick;
+    const cam = viewer.camera;
+    const tilt = tiltWeight(CMath.toDegrees(cam.pitch));
+    if (tilt <= 0) return (weight = 0);
+    const fovy = (cam.frustum as PerspectiveFrustum).fovy ?? CMath.toRadians(60);
+    const k = viewer.scene.canvas.clientHeight / 2 / Math.tan(fovy / 2);
+    const sidePx = (sideM * k) / Math.max(1, Cartesian3.distance(cam.positionWC, centre));
+    return (weight = tilt * volumeSizeWeight(sidePx));
+  };
 }
 
-/** Shared per kind, so every volume of a kind batches into one primitive. */
-const volumeStyles = new Map<GlobeFootprint["kind"], { wall: ImageMaterialProperty; edge: ColorMaterialProperty; show: CallbackProperty }>();
-function volumeStyle(kind: GlobeFootprint["kind"]) {
-  let v = volumeStyles.get(kind);
-  if (!v) {
-    const st = FOOT[kind];
-    v = {
-      wall: new ImageMaterialProperty({
-        image: wallGradient(), transparent: true,
-        color: new CallbackProperty(() => st.color.withAlpha(st.wall * volumeWeight()), false),
-      }),
-      edge: new ColorMaterialProperty(new CallbackProperty(() => st.color.withAlpha(st.edge * volumeWeight()), false)),
-      show: new CallbackProperty(() => volumeWeight() > 0.01, false),
-    };
-    volumeStyles.set(kind, v);
-  }
-  return v;
+/** A footprint colour at `alpha` × the volume's weight, written into Cesium's scratch colour. */
+function volumeColor(base: Color, alpha: number, weight: () => number) {
+  return new CallbackProperty((_t, result?: Color) => {
+    const c = Color.clone(base, result ?? new Color());
+    c.alpha = alpha * weight();
+    return c;
+  }, false);
 }
 
 function setFootprints(group: string, fps: GlobeFootprint[]) {
@@ -485,13 +496,17 @@ function setFootprints(group: string, fps: GlobeFootprint[]) {
   replaceEntities(ds, () => {
     for (const f of fps) {
       const st = FOOT[f.kind];
-      const vol = volumeStyle(f.kind);
-      const corners = footprintCorners(f, meanR).map((c) => ({ lat: c.lat, lon: normLon(c.lon) }));
+      const raw = footprintCorners(f, meanR);
+      const sideKm = footprintSideKm(f, meanR);
+      // No size in the payload: nothing is drawn rather than a made-up square.
+      if (!raw || sideKm === null) continue;
+      const corners = raw.map((c) => ({ lat: c.lat, lon: normLon(c.lon) }));
       // Densified outline (footprints.ts explains the gaps a few long chords left in the window outline).
       const ring = outlineRing(f, meanR);
+      const volume = hasScanVolume(f.kind);
       // Scan-volume wall height: visual only, it gives the outline depth in the 3D view and is never a
       // measurement (a footprint is a ground area).
-      const H = scanHeightM(f, meanR);
+      const H = volume ? scanHeightM(f, meanR) : 0;
       // The base outline floats a hair above the surface so it never z-fights the imagery tiles.
       const lift = 20 + H * 0.002;
       const id = `fp:${group}::${f.id}`;
@@ -500,27 +515,29 @@ function setFootprints(group: string, fps: GlobeFootprint[]) {
         polygon: { hierarchy: new PolygonHierarchy(corners.map((c) => pos(c.lat, c.lon))), material: st.color.withAlpha(st.fill), outline: false },
         polyline: { positions: ring.map((p) => pos(p.lat, p.lon, lift)), width: st.width, material: st.color.withAlpha(st.line), arcType: ArcType.NONE },
       });
+      if (!volume) continue;
+      const weight = volumeWeightFor(pos(f.lat, f.lon), sideKm * 1000);
+      const show = new CallbackProperty(() => weight() > 0.01, false);
+      const edge = new ColorMaterialProperty(volumeColor(st.color, st.edge, weight));
       ds.entities.add({
         id: `${id}::wall`,
         wall: {
           positions: ring.map((p) => pos(p.lat, p.lon)),
           minimumHeights: ring.map(() => 0),
           maximumHeights: ring.map(() => H),
-          material: vol.wall,
+          material: new ImageMaterialProperty({ image: (wallImage ??= wallGradient()), transparent: true, color: volumeColor(st.color, st.wall, weight) }),
           outline: false,
-          show: vol.show,
+          show,
         },
       });
       ds.entities.add({
         id: `${id}::top`,
-        polyline: { positions: ring.map((p) => pos(p.lat, p.lon, H)), width: 1, material: vol.edge, arcType: ArcType.NONE, show: vol.show },
+        polyline: { positions: ring.map((p) => pos(p.lat, p.lon, H)), width: 1, material: edge, arcType: ArcType.NONE, show },
       });
-      if (st.posts) {
-        corners.forEach((c, i) => ds.entities.add({
-          id: `${id}::post${i}`,
-          polyline: { positions: [pos(c.lat, c.lon, lift), pos(c.lat, c.lon, H)], width: 1, material: vol.edge, arcType: ArcType.NONE, show: vol.show },
-        }));
-      }
+      corners.forEach((c, i) => ds.entities.add({
+        id: `${id}::post${i}`,
+        polyline: { positions: [pos(c.lat, c.lon, lift), pos(c.lat, c.lon, H)], width: 1, material: edge, arcType: ArcType.NONE, show },
+      }));
     }
   });
   settle();
@@ -1192,7 +1209,10 @@ async function init(ionToken: string | null) {
   scene.light = new DirectionalLight({ direction: new Cartesian3(1, 0, 0), intensity: 2.2 });
   scene.postUpdate.addEventListener(updateLight);
   occluder = new EllipsoidalOccluder(ellipsoid, viewer.camera.positionWC);
-  scene.preUpdate.addEventListener(() => { if (occluder && viewer) occluder.cameraPosition = viewer.camera.positionWC; });
+  scene.preUpdate.addEventListener(() => {
+    frameTick++;
+    if (occluder && viewer) occluder.cameraPosition = viewer.camera.positionWC;
+  });
   scene.preRender.addEventListener(updateGraticuleLabels);
   scene.postRender.addEventListener(() => { emitTelemetry(); emitAnchors(); });
   placeCredits();

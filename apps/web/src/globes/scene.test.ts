@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { R_EARTH_MEAN_M, R_MARS_M, distanceKm } from "../lib/geodesy";
-import { footprintCorners, footprintSideKm, outlineRing, scanHeightM, slerp } from "./footprints";
+import { VOLUME_PX, footprintCorners, footprintSideKm, hasScanVolume, outlineRing, scanHeightM, slerp, volumeSizeWeight } from "./footprints";
 import { MARS_MOONS, orbitFade, orbitLabel, orbitPoint, orbitRing } from "./moons";
 import { daysSinceJ2000, icrfToMarsFixed, marsOrientation } from "./sky";
 
@@ -42,7 +42,7 @@ describe("footprint outlines", () => {
       expect(distanceKm(ring[i - 1].lat, ring[i - 1].lon, ring[i].lat, ring[i].lon, R_EARTH_MEAN_M)).toBeLessThan(2.1);
     }
     // Every corner is on the outline.
-    for (const c of footprintCorners(window50, R_EARTH_MEAN_M)) {
+    for (const c of footprintCorners(window50, R_EARTH_MEAN_M)!) {
       expect(ring.some((p) => Math.abs(p.lat - c.lat) < 1e-9 && Math.abs(p.lon - c.lon) < 1e-9)).toBe(true);
     }
   });
@@ -67,11 +67,38 @@ describe("footprint outlines", () => {
   it("gives scan volumes a visual height from the footprint's own size", () => {
     expect(footprintSideKm(window50, R_EARTH_MEAN_M)).toBe(50);
     expect(scanHeightM(window50, R_EARTH_MEAN_M)).toBe(15_000);
-    const zone = { id: "z", kind: "research_bbox" as const, lat: 18, lon: 77, bbox: [76, 17, 78, 19] as [number, number, number, number] };
-    const side = footprintSideKm(zone, R_MARS_M);
+    const cell = { id: "c", kind: "cell" as const, lat: 18, lon: 77, bbox: [76, 17, 78, 19] as [number, number, number, number] };
+    const side = footprintSideKm(cell, R_MARS_M)!;
     expect(side).toBeCloseTo(2 * (Math.PI / 180) * (R_MARS_M / 1000) * Math.cos(18 * Math.PI / 180), 6);
-    expect(scanHeightM(zone, R_MARS_M)).toBeCloseTo(side * 100, 6);
+    expect(scanHeightM(cell, R_MARS_M)).toBeCloseTo(side * 300, 6);
     expect(scanHeightM({ id: "a", kind: "aoi", lat: 0, lon: 0, km: 1 }, R_MARS_M)).toBe(300);
+  });
+
+  it("draws nothing for a footprint whose payload carries no size (no default square)", () => {
+    const bare = { id: "x", kind: "window" as const, lat: 10, lon: 20 };
+    expect(footprintCorners(bare, R_EARTH_MEAN_M)).toBeNull();
+    expect(outlineRing(bare, R_EARTH_MEAN_M)).toEqual([]);
+    expect(footprintSideKm(bare, R_EARTH_MEAN_M)).toBeNull();
+    expect(scanHeightM(bare, R_EARTH_MEAN_M)).toBe(0);
+    expect(footprintCorners({ ...bare, km: 0 }, R_EARTH_MEAN_M)).toBeNull();
+  });
+
+  it("keeps research zones flat and raises scanned footprints", () => {
+    expect(hasScanVolume("research_bbox")).toBe(false);
+    expect(hasScanVolume("aoi")).toBe(true);
+    expect(hasScanVolume("cell")).toBe(true);
+    expect(hasScanVolume("window")).toBe(true);
+  });
+
+  it("raises a volume only once its footprint reads as a box on screen", () => {
+    const [flat, whole] = VOLUME_PX;
+    expect(volumeSizeWeight(30)).toBe(0); // a 25 km footprint seen from the 1,100 km approach
+    expect(volumeSizeWeight(flat)).toBe(0);
+    expect(volumeSizeWeight(whole)).toBe(1);
+    expect(volumeSizeWeight(300)).toBe(1); // the matched comparison windows
+    const mid = volumeSizeWeight((flat + whole) / 2);
+    expect(mid).toBeCloseTo(0.5, 9);
+    expect(volumeSizeWeight(70)).toBeLessThan(volumeSizeWeight(90));
   });
 });
 

@@ -11,22 +11,27 @@ import type { GlobeFootprint } from "./protocol";
 
 export interface LatLon { lat: number; lon: number }
 
-/** Corners (SW, SE, NE, NW for boxes) of a footprint. */
-export function footprintCorners(f: GlobeFootprint, radiusM: number): LatLon[] {
+/**
+ * Corners (SW, SE, NE, NW for boxes) of a footprint, or null when it carries no size: the size comes from
+ * the caller's payload (a box, or a square of side `km`), never from a default.
+ */
+export function footprintCorners(f: GlobeFootprint, radiusM: number): LatLon[] | null {
   if (f.bbox) {
     const [w, s, e, n] = f.bbox;
     return [{ lat: s, lon: w }, { lat: s, lon: e }, { lat: n, lon: e }, { lat: n, lon: w }];
   }
-  return squareFootprint(f.lat, f.lon, f.km ?? 25, radiusM);
+  if (!(typeof f.km === "number" && f.km > 0)) return null;
+  return squareFootprint(f.lat, f.lon, f.km, radiusM);
 }
 
 /**
  * Closed outline (first point repeated at the end) sampled every ≤ `stepKm` along each edge. Geographic
  * boxes follow their parallels and meridians; squares (approximate local windows) follow great circles
- * between their corners.
+ * between their corners. Empty for a footprint without a size.
  */
 export function outlineRing(f: GlobeFootprint, radiusM: number, stepKm = 2, maxPerEdge = 96): LatLon[] {
   const corners = footprintCorners(f, radiusM);
+  if (!corners) return [];
   const out: LatLon[] = [];
   const R = radiusM / 1000;
   for (let i = 0; i < corners.length; i++) {
@@ -70,9 +75,12 @@ export function slerp(a: LatLon, b: LatLon, t: number): LatLon {
   return { lat: (Math.atan2(z, Math.hypot(x, y)) * 180) / Math.PI, lon: normLon((Math.atan2(y, x) * 180) / Math.PI) };
 }
 
-/** Smaller side of a footprint, km (box sides measured along the centre parallel and a meridian). */
-export function footprintSideKm(f: GlobeFootprint, radiusM: number): number {
-  if (!f.bbox) return f.km ?? 25;
+/**
+ * Smaller side of a footprint, km (box sides measured along the centre parallel and a meridian); null when
+ * the footprint carries no size.
+ */
+export function footprintSideKm(f: GlobeFootprint, radiusM: number): number | null {
+  if (!f.bbox) return typeof f.km === "number" && f.km > 0 ? f.km : null;
   const [w, s, e, n] = f.bbox;
   const R = radiusM / 1000;
   const spanLon = ((e - w) % 360 + 360) % 360;
@@ -82,11 +90,34 @@ export function footprintSideKm(f: GlobeFootprint, radiusM: number): number {
 }
 
 /**
- * Wall height of a footprint's scan volume, metres. Purely visual — it gives the outline depth in the
- * oblique view and is never shown or read as a measurement (the footprints are 2D ground areas).
+ * Footprints drawn as scan volumes in the 3D view: the user's footprint, screened cells and research
+ * windows. Research zones are context, not scanned areas, and stay flat outlines (raised, their top edge
+ * read as a second, misregistered outline).
+ */
+export function hasScanVolume(kind: GlobeFootprint["kind"]): boolean {
+  return kind !== "research_bbox";
+}
+
+/**
+ * Wall height of a footprint's scan volume, metres (0 without a size). Purely visual — it gives the outline
+ * depth in the oblique view and is never shown or read as a measurement (the footprints are 2D ground areas).
  */
 export function scanHeightM(f: GlobeFootprint, radiusM: number): number {
   const side = footprintSideKm(f, radiusM);
-  const k = f.kind === "research_bbox" ? 0.1 : 0.3;
-  return Math.max(250, side * k * 1000);
+  if (side === null) return 0;
+  return Math.max(250, side * 0.3 * 1000);
+}
+
+/** On-screen side (CSS px) up to which a footprint stays a flat outline, and from which its volume is whole. */
+export const VOLUME_PX: readonly [number, number] = [56, 112];
+
+/**
+ * How much of a footprint's scan volume to draw for its side on screen, CSS px: none while it spans a few
+ * tens of pixels — walls, posts and the raised edge would stack into a blur around the marker standing on
+ * it — and all of it once the footprint reads as a box.
+ */
+export function volumeSizeWeight(sidePx: number): number {
+  const [a, b] = VOLUME_PX;
+  const t = Math.min(1, Math.max(0, (sidePx - a) / (b - a)));
+  return t * t * (3 - 2 * t);
 }
