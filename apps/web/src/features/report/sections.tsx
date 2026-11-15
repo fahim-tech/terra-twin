@@ -66,7 +66,7 @@ export function ResearchSummary({ search, c }: { search: AnalogSearch; c: Report
       {/* The key figures carry the decision for a research window or no candidate; a screening cell needs it here. */}
       {c?.tier === 1 && (
         <div>
-          <div className="text-title text-ink"><DecisionMark type={d.type} className="mr-2 -translate-y-px" /><Numerals text={decisionHeadline(search)} /><span className="font-normal text-muted"> — research decision for this zone</span></div>
+          <div className="text-title text-ink [&_.num]:font-medium"><DecisionMark type={d.type} className="mr-2 -translate-y-px" /><Numerals text={decisionHeadline(search)} /><span className="font-normal text-muted"> — research decision for this zone</span></div>
           {decisionLabel(search) && <p className="mt-1 max-w-[68ch] text-body text-muted">{decisionLabel(search)}</p>}
         </div>
       )}

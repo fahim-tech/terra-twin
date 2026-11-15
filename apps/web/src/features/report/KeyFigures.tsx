@@ -36,9 +36,12 @@ const PLACE = [
 
 interface Fig { key: string; label: ReactNode; value: ReactNode; note: ReactNode }
 
-/** Numerals: mono at figure size. Words: condensed caps, smaller, on the same baseline. */
+/**
+ * Numerals: mono at figure size. Words: condensed caps, smaller, on the same baseline. IBM Plex Mono is
+ * loaded at 400/500, so numerals inside the semibold caps are held at 500 (never a synthesized bold).
+ */
 const NUM_VALUE = "num text-[30px] leading-none tracking-[-0.01em] text-ink";
-const WORD_VALUE = cx(DISPLAY, "text-[23px] leading-[1.08] tracking-[0.03em] text-ink");
+const WORD_VALUE = cx(DISPLAY, "text-[23px] leading-[1.08] tracking-[0.03em] text-ink [&_.num]:font-medium");
 
 export function KeyFigures({ search, c }: { search: AnalogSearch; c: ReportCandidate | null }) {
   const t2 = search.tier2;

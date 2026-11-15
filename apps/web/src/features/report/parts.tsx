@@ -93,7 +93,7 @@ export function ReadoutGrid({ items, cols = 2, className }: { items: ReadoutItem
   // Across two columns from `sm`, and across the three-column row from `lg`.
   const lastSpan = cx(odd && "sm:col-span-2", cols === 3 && (rem3 === 1 ? "lg:col-span-3" : rem3 === 2 ? "lg:col-span-2" : "lg:col-span-1"));
   return (
-    <dl className={cx("grid border-b border-r border-line", cols === 3 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2", className)}>
+    <dl className={cx("print-keep grid border-b border-r border-line", cols === 3 ? "sm:grid-cols-2 lg:grid-cols-3" : "sm:grid-cols-2", className)}>
       {items.map((it, i) => {
         const span = i === items.length - 1 ? lastSpan : undefined;
         return (
