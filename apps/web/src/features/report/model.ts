@@ -4,10 +4,12 @@
  * Pure functions, no React — tested in model.test.ts.
  */
 import { decisionG5Label, G5 } from "../../lib/glossary";
+import { clock, marsTime } from "../../lib/instruments";
 import { searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, MissionProfile, Tier1Candidate, Tier2Candidate } from "../../types/contracts";
 import { memberOrder, researchWindowKm, screenCellKm } from "../analogs/candidates";
 import { interpret, PLANETARY_DIFFERENCES, TIER1_SPECS } from "../comparison/science";
+import { indexLabel } from "./typeset";
 
 export type DecisionType = AnalogSearch["tier2"]["decision"]["type"];
 
@@ -103,6 +105,17 @@ export function decisionLabel(search: AnalogSearch): string | null {
 /** Tie members as an unordered group (west to east, the order every view uses, so list order never reads as a ranking). */
 export function decisionMembers(search: AnalogSearch): string[] {
   return memberOrder(search.tier2).map(windowLabel);
+}
+
+export interface MemberRow { id: string; label: string; lat: number | null; lon: number | null }
+
+/** Decision members with their window centres, in the same order as decisionMembers (west to east for a tie, never by S). */
+export function decisionMemberRows(search: AnalogSearch): MemberRow[] {
+  const byId = new Map(search.tier2.candidates.map((x) => [x.id, x]));
+  return memberOrder(search.tier2).map((id) => {
+    const c = byId.get(id);
+    return { id, label: windowLabel(id), lat: c?.lat ?? null, lon: c?.lon ?? null };
+  });
 }
 
 export function representationLabel(r: "mars_observation_space" | "as_measured"): string {
@@ -304,4 +317,80 @@ export function buildCsv(search: AnalogSearch, c: ReportCandidate | null, eviden
 export function exportBaseName(search: AnalogSearch): string {
   const t = searchTarget(search);
   return `terratwin-${(t?.siteId ?? "target").replace(/[^\w-]+/g, "_")}-${search.id}`;
+}
+
+// ---------------------------------------------------------------------------------- dossier layout
+
+export type SectionId =
+  | "plates" | "figures" | "research" | "screen" | "terrain" | "dimensions"
+  | "differences" | "provenance" | "limitations" | "claims" | "references";
+
+export const SECTION_TITLES: Record<SectionId, string> = {
+  plates: "Location plates",
+  figures: "Key figures",
+  research: "Research comparison",
+  screen: "Global screen",
+  terrain: "Terrain comparison",
+  dimensions: "Dimensions of analogy",
+  differences: "Planetary differences",
+  provenance: "Provenance",
+  limitations: "Limitations",
+  claims: "New-analog claims",
+  references: "References",
+};
+
+export interface DossierSection { id: SectionId; index: string; title: string }
+
+/** The dossier's sections in reading order, numbered without gaps over the ones this search can fill. */
+export function dossierSections(search: AnalogSearch, c: ReportCandidate | null): DossierSection[] {
+  const ids: SectionId[] = ["plates", "figures", "research"];
+  if (search.tier1) ids.push("screen");
+  if (c) ids.push("terrain", "dimensions");
+  ids.push("differences", "provenance", "limitations", "claims", "references");
+  return ids.map((id, i) => ({ id, index: indexLabel(i + 1), title: SECTION_TITLES[id] }));
+}
+
+/**
+ * The moment the dossier was generated, read from the real clock: UTC date and time, and the same instant
+ * as Mars Sol Date and Mars Coordinated Time (Mars24, as in the top-bar mission clock). Null for a bad stamp.
+ */
+export function generatedStamp(iso: string): { date: string; time: string; msd: number; mtc: string } | null {
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return null;
+  const d = new Date(ms).toISOString();
+  const m = marsTime(ms);
+  return { date: d.slice(0, 10), time: d.slice(11, 19), msd: Math.floor(m.msd), mtc: clock(m.mtcHours) };
+}
+
+export interface ProvenanceLine { body: "mars" | "earth" | "imagery"; label: string; items: string[] }
+
+/**
+ * One-line data provenance for the dossier header: only the sources this search actually drew on, with
+ * resolutions and counts read from the payload. The Provenance section carries the full statements.
+ */
+export function provenanceSummary(search: AnalogSearch): ProvenanceLine[] {
+  const t2 = search.tier2;
+  const mars: string[] = [];
+  const f = search.mars.tier1_features.find((x) => x.source_id);
+  if (f?.source_id) {
+    const res = typeof f.native_resolution_m === "number" ? ` ${Math.round(f.native_resolution_m)} m` : "";
+    mars.push(/MOLA/i.test(f.source_id) ? `MOLA${res} mosaic` : f.source_id);
+  }
+  if (search.mars.observation_support) mars.push("MEGDR shot counts");
+  const op = t2.operator as { status: string; version?: string };
+  if (op.status === "ok") mars.push(`Observation model${op.version ? ` ${op.version}` : ""}`);
+
+  const earth: string[] = [];
+  if (search.tier1) {
+    const src = search.tier1.candidate_pool.source.split(/\s/)[0];
+    earth.push(`${src} · ${search.tier1.candidate_pool.n_cells_searched.toLocaleString("en-US")} cells`);
+  }
+  if (t2.candidate_pool) earth.push(`Copernicus GLO-90 · ${t2.candidate_pool.n_windows.toLocaleString("en-US")} windows`);
+  if (t2.landcover_gate) earth.push("ESA WorldCover 2021");
+
+  return [
+    { body: "mars", label: "Mars", items: mars.length ? mars : ["No Mars measurement for this target"] },
+    { body: "earth", label: "Earth", items: earth.length ? earth : ["No Earth comparison ran"] },
+    { body: "imagery", label: "Imagery", items: ["NASA Mars Trek · NASA GIBS — visualization only"] },
+  ];
 }

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { G5 } from "../../lib/glossary";
+import { clock, marsTime } from "../../lib/instruments";
 import type { AnalogSearch } from "../../types/contracts";
 import {
-  buildCsv, buildReportJson, candidateRole, CSV_COLUMNS, decisionHeadline, decisionLabel, decisionMembers, limitations, resolveCandidate, terrainRows,
+  buildCsv, buildReportJson, candidateRole, CSV_COLUMNS, decisionHeadline, decisionLabel, decisionMemberRows, decisionMembers, dossierSections,
+  generatedStamp, limitations, provenanceSummary, resolveCandidate, terrainRows,
 } from "./model";
 
 const t1cand = {
@@ -128,5 +130,56 @@ describe("report model", () => {
   it("binds the target to the search, not to any later selection", () => {
     const json = buildReportJson(makeSearch("named_leader"), null, null, "t");
     expect(json.mars_target).toMatchObject({ label: "Jezero", site: "Jezero", lat: 17.6756 });
+  });
+});
+
+describe("dossier layout", () => {
+  it("numbers only the sections the search can fill, without gaps", () => {
+    const s = makeSearch("named_leader");
+    const full = dossierSections(s, resolveCandidate(s, "t2:Atacama Yungay"));
+    expect(full.map((x) => x.id)).toEqual(["plates", "figures", "research", "screen", "terrain", "dimensions", "differences", "provenance", "limitations", "claims", "references"]);
+    expect(full.map((x) => x.index)).toEqual(["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11"]);
+    // No candidate: no terrain or dimensions. No global screen: no screen section. Numbering closes up.
+    const bare = dossierSections(makeSearch("insufficient_evidence"), null);
+    expect(bare.map((x) => x.id)).toEqual(["plates", "figures", "research", "differences", "provenance", "limitations", "claims", "references"]);
+    expect(bare.at(-1)).toMatchObject({ index: "08", title: "References" });
+  });
+
+  it("lists tie members west to east with their window centres, never by S", () => {
+    const s = makeSearch("tied_set");
+    (s.tier2.candidates as { lon: number }[]).forEach((c, i) => { c.lon = 30 - i * 10; }); // highest S furthest east
+    const rows = decisionMemberRows(s);
+    expect(rows.map((r) => r.id)).toEqual(["rand_d8_224", "rand_d8_217", "rand_d8_233"]);
+    expect(rows.map((r) => r.lon)).toEqual([10, 20, 30]);
+    expect(rows.map((r) => r.label)).toEqual(decisionMembers(s));
+    // A member without a located window keeps its place with no invented coordinate.
+    const t = makeSearch("tied_set");
+    (t.tier2.candidates as { lat: number | null; lon: number | null }[])[1].lon = null;
+    expect(decisionMemberRows(t).find((r) => r.id === "rand_d8_217")).toMatchObject({ lon: null });
+  });
+
+  it("stamps the generation time in UTC and as Mars time from the same instant", () => {
+    const iso = "2026-11-15T08:16:39.123Z";
+    const m = marsTime(Date.parse(iso));
+    expect(generatedStamp(iso)).toEqual({ date: "2026-11-15", time: "08:16:39", msd: Math.floor(m.msd), mtc: clock(m.mtcHours) });
+    expect(generatedStamp("not a date")).toBeNull();
+  });
+
+  it("summarises only the data sources the search drew on, with counts from the payload", () => {
+    const s = makeSearch("named_leader");
+    (s.mars.tier1_features[0] as { source_id?: string; native_resolution_m?: number }).source_id = "Mars_MGS_MOLA_DEM_mosaic_global_463m";
+    (s.mars.tier1_features[0] as { native_resolution_m?: number }).native_resolution_m = 463.09;
+    (s.tier2.operator as { version?: string }).version = "oom-1.0";
+    const p = provenanceSummary(s);
+    expect(p.find((l) => l.body === "mars")!.items).toEqual(["MOLA 463 m mosaic", "Observation model oom-1.0"]);
+    expect(p.find((l) => l.body === "earth")!.items).toEqual(["GMTED2010 · 249,165 cells", "Copernicus GLO-90 · 230 windows", "ESA WorldCover 2021"]);
+    // Off-zone point: no screen, no pool, no operator — nothing is claimed.
+    const off = makeSearch("insufficient_evidence");
+    (off.tier2 as { candidate_pool: unknown; landcover_gate: unknown }).candidate_pool = null;
+    (off.tier2 as { landcover_gate: unknown }).landcover_gate = null;
+    (off.mars as { tier1_features: unknown[] }).tier1_features = [];
+    const q = provenanceSummary(off);
+    expect(q.find((l) => l.body === "mars")!.items).toEqual(["No Mars measurement for this target"]);
+    expect(q.find((l) => l.body === "earth")!.items).toEqual(["No Earth comparison ran"]);
   });
 });
