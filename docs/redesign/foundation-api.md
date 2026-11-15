@@ -73,3 +73,36 @@ rubber-banding and keyboard resizing.
 `src/index.css`, `index.html`, `globe.html`, `src/app/**`, `src/components/**`, `src/globes/**`,
 `src/store/**`, `src/services/**`, `src/types/**`, `src/lib/**`, `package.json`, `apps/api/**`.
 View packages own only their feature folder (`src/features/<package>/**`) and may add files there.
+
+## Shell slots (exports the shell imports — keep these names and files)
+
+| Package | Export (file) | Where the shell mounts it |
+|---|---|---|
+| Mars | `MarsSearch` (`features/explorer/MarsSearch.tsx`) | top-left navigator capsule, 360 px (full width on phones) |
+| Mars | `MarsInspector` (`features/explorer/MarsInspector.tsx`) | right context surface (380 px, full height, `rounded-surface`) on desktop/tablet; bottom `Sheet` on phones. Render a flex column: `PanelHeader` / `PanelBody` / `PanelFooter` (sticky CTA). Shown only when a selection exists. |
+| Mars | `MarsOverlay` (`features/explorer/MarsOverlay.tsx`) | over the Mars globe (annotations) |
+| Mars | `MarsGlobeSync` (`features/explorer/MarsGlobeSync.tsx`) | non-visual |
+| Earth | `EarthLayers` (`features/analogs/EarthLayers.tsx`) | top-left navigator capsule |
+| Earth | `AnalogResults` (`features/analogs/AnalogResults.tsx`) | right context surface / phone sheet when a search exists (same column contract) |
+| Earth | `EarthGlobeSync` (`features/analogs/EarthGlobeSync.tsx`) | non-visual |
+| Compare | `ComparisonPanel` (`features/comparison/ComparisonPanel.tsx`) | over the split globes (and the phone Mars/Earth switch); owns its strip/drawer; must mark its surfaces `data-occludes="both"` |
+| Compare | `CompareGlobeSync` (`features/comparison/CompareGlobeSync.tsx`) | non-visual |
+| Evidence | default export `features/evidence/EvidenceView.tsx` | full page over the dimmed globe |
+| Report | default export `features/report/ReportView.tsx` | full page over the dimmed globe |
+
+A package may add components/files inside its folder and re-export through these names.
+
+## Primitives — `src/components/primitives.tsx`
+`Kicker`, `Toponym` (serif place names; sizes sm/md/lg), `Measure` (mono value + unit, missing ≠ 0), `Figure`
+(key figure + label + basis), `Term` (plain label with technical term/definition popover, keys from
+`src/lib/glossary.ts`), `Disclosure`, `Tag`, `IconButton`, `Tabs`, `Dots` (availability), `PanelHeader`,
+`PanelBody`, `PanelFooter`, `Block`, `SPRING` (Motion spring: bounce 0, 0.35 s). Legacy `components/ui.tsx`
+(`Button`, `Segmented`, `Chip`, `Note`, `Spinner`, `Bar`, `fmt`, `pct`, `cx`) restyled and still available.
+
+Glossary and G5 strings: `src/lib/glossary.ts` (`GLOSSARY`, `G5`, `zoneName()`). Use `G5.*` verbatim.
+
+Tokens (Tailwind v4): colours `space surface elevated line line-strong ink muted faint mars earth warn bad`;
+text sizes `text-display text-toponym text-toponym-sm text-title text-lead text-body text-label text-caption
+text-kicker text-figure text-num text-num-sm`; classes `.surface` (basalt), `.surface-solid` (opaque, for
+menus/drawers on top of surfaces), `.num`, `.toponym`, `.kicker`, `.on-imagery` (text halo over imagery),
+`.fade-edges`, `.hit` (44 px targets on coarse pointers); radii `rounded-control` (6), `rounded-surface` (14).
