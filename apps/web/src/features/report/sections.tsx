@@ -13,8 +13,10 @@ import { TIE_ORDER } from "../analogs/readout";
 import { DIFFERENCES_SOURCE, PLANETARY_DIFFERENCES } from "../comparison/science";
 import {
   decisionHeadline, decisionLabel, decisionMemberRows, dimensions, type EvidenceRecord, fmtLat, fmtLon, footprintRobustness, limitations, REFERENCES,
-  representationLabel, type ReportCandidate, terrainRows, windowLabel,
+  representationLabel, type ReportCandidate, terrainRows, tieScoreRange, windowLabel,
 } from "./model";
+import { recordDigits } from "../comparison/model";
+import { G5 } from "../../lib/glossary";
 import { DecisionMark, DISPLAY, Numerals, type ReadoutItem, ReadoutGrid, StatusMark, statusWord } from "./parts";
 import { RatioChart } from "./RatioChart";
 import { indexLabel, splitDesignation } from "./typeset";
@@ -30,6 +32,7 @@ export function ResearchSummary({ search, c }: { search: AnalogSearch; c: Report
   const op = t2.operator as { status: string; mask?: string };
   const b = t2.as_measured_baseline;
   const members = decisionMemberRows(search);
+  const tieRange = tieScoreRange(search);
   const current = c?.tier === 2 ? c.id : null;
 
   const items: ReadoutItem[] = [];
@@ -103,6 +106,11 @@ export function ResearchSummary({ search, c }: { search: AnalogSearch; c: Report
               })}
             </tbody>
           </table>
+          {tieRange && (
+            <p className="mt-2.5 max-w-[72ch] text-caption text-muted">
+              Across the set <SFigure value={tieRange.lo} className="text-ink" /> … <span className="num text-ink">{tieRange.hi.toFixed(3)}</span>, at one orientation (rotation <N>0°</N>, equal weights). Across the four orientations the top window changes, so these scores do not order the set. {G5.validation}.
+            </p>
+          )}
         </div>
       )}
       {members.length > 0 && d.type !== "tied_set" && (
@@ -110,7 +118,7 @@ export function ResearchSummary({ search, c }: { search: AnalogSearch; c: Report
           <span className="kicker">Leader</span>
           <span className={cx(DISPLAY, "text-[22px] leading-none tracking-[0.04em] text-earth")}>{members.map((m) => m.label).join(", ")}</span>
           {members.length === 1 && members[0].lat !== null && members[0].lon !== null && (
-            <span className="num text-num text-muted">{fmtLat(members[0].lat, 3)} {fmtLon(members[0].lon, 3)}</span>
+            <span className="num text-num text-muted">{fmtLat(members[0].lat, recordDigits(members[0].lat, members[0].lon))} {fmtLon(members[0].lon, recordDigits(members[0].lat, members[0].lon))}</span>
           )}
         </div>
       )}
@@ -153,7 +161,7 @@ export function TerrainComparison({ search, c }: { search: AnalogSearch; c: Repo
     <>
       <p className="mb-5 max-w-[72ch] text-body text-muted">
         {c.tier === 2
-          ? <>Earth values come from the {cellKm !== null ? <><N>{cellKm}</N> km </> : ""}screening cell that contains this window, as measured. Its screen similarity is <Measure value={terrain.S} digits={3} className="text-ink" /> — a different basis from the research <SFigure value={c.score} className="text-ink" />.</>
+          ? <>Earth values come from the {cellKm !== null ? <><N>{cellKm}</N> km </> : ""}screening cell nearest the window centre (Earth as measured). Its screen similarity is <Measure value={terrain.S} digits={3} className="text-ink" /> — a different basis from the research <SFigure value={c.score} className="text-ink" />.</>
           : <>Each row compares the Mars zone median with this cell, both on the shared {cellKm !== null ? <><N>{cellKm}</N> km </> : ""}screening operator, Earth as measured.</>}
       </p>
       <RatioChart rows={terrain.rows} />
@@ -250,7 +258,7 @@ export function Provenance({ search }: { search: AnalogSearch }) {
           : "No research pool for this target."}
       </Row>
       <Row k="Land cover">
-        ESA WorldCover 2021 v200{gate ? <> · {gate.mode === "exclude" ? "applied before ranking" : "reported only, never excludes"} · bare-like ≥ <N>{gate.bare_min.toFixed(2)}</N>, vegetated ≤ <N>{gate.veg_max.toFixed(2)}</N> (working hypotheses)</> : <> · not used for this search</>}.
+        ESA WorldCover 2021 v200{gate ? <> · {gate.mode === "exclude" ? "applied before ranking" : "reported only, never excludes"} · bare-like ≥ <N>{gate.bare_min.toFixed(2)}</N>, vegetated ≤ <N>{gate.veg_max.toFixed(2)}</N> (working assumptions)</> : <> · not used for this search</>}.
       </Row>
       <Row k="Live refinement">
         {t2.live_refinement.status === "unavailable" ? "Not available" : t2.live_refinement.status}

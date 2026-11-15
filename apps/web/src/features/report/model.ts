@@ -37,7 +37,7 @@ export type CandidateRole = "stable_leader" | "tie_member" | "research_window" |
 
 export function windowLabel(id: string): string {
   const m = /^rand_d(\d+)_(\d+)$/.exec(id);
-  return m ? `Window ${m[2]} · roughness decile ${m[1]}` : id.replace(/_/g, " ");
+  return m ? `Window ${m[2]} · stratified random · roughness decile ${m[1]}` : id.replace(/_/g, " ");
 }
 
 export function cellLabel(c: Tier1Candidate): string {
@@ -125,6 +125,18 @@ export function decisionMemberRows(search: AnalogSearch): MemberRow[] {
 }
 
 /**
+ * The span of the tied windows' S (rotation 0°, equal weights) as one range, so a tie never reads as a ranking of its
+ * members. Null when the set has fewer than two members with a score.
+ */
+export function tieScoreRange(search: AnalogSearch): { lo: number; hi: number } | null {
+  const d = search.tier2.decision;
+  if (d.type !== "tied_set") return null;
+  const ids = new Set(d.members);
+  const v = search.tier2.candidates.filter((x) => ids.has(x.id)).map((x) => x.S).filter((x): x is number => typeof x === "number" && Number.isFinite(x));
+  return v.length >= 2 ? { lo: Math.min(...v), hi: Math.max(...v) } : null;
+}
+
+/**
  * The research record's 50 km vs 25 km footprint diagnostic, when it reports a change. It is computed before any
  * land-cover exclusion and is about the record's ranking, so it never names a leader: the decision shown may be
  * gated, or a tie with no leader at all.
@@ -146,7 +158,8 @@ export interface TerrainRow {
 
 /**
  * Global-screen (tier-1, 25 km, as measured) descriptor rows for the candidate. For a research window this
- * is the screening cell that contains it — context, never the research score.
+ * is the screening cell nearest the window centre (a 25 km cell cannot contain a 50 km window) — context, never
+ * the research score.
  */
 export function terrainRows(search: AnalogSearch, c: ReportCandidate): { rows: TerrainRow[]; S: number | null; coverage: number | null; cell: string } | null {
   const marsT1 = Object.fromEntries(search.mars.tier1_features.map((f) => [f.key, f.value]));

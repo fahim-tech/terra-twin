@@ -3,6 +3,7 @@ import { Term } from "../../components/primitives";
 import { Button, cx } from "../../components/ui";
 import { reliefWindowId } from "../../components/relief";
 import { useEarthPool, useEvidence, useMissions } from "../../services/api";
+import { zoneName } from "../../lib/glossary";
 import { useApp } from "../../store/app";
 import { resultsAreStale, searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
@@ -136,7 +137,7 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
         <Section of={sections} id="plates" aside={hasRelief ? "NASA imagery · terrain relief · visualization only" : "NASA imagery · visualization only"}>
           <div className="grid gap-8 md:grid-cols-2 md:gap-7 print:grid-cols-2 print:gap-5">
             <LocationPlate planet="mars" plate="A" lat={marsLat} lon={marsLon} frame={marsFrame}
-              kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"} name={target.siteId ? target.label : "Search target"}
+              kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"} name={target.siteId ? zoneName(target.siteId) : "Search target"}
               imagery="NASA Mars Trek imagery" snapshot={marsSnap} held={platesHeld} aspect={aspect}
               disk={{ snapshot: marsDisk, heightKm: diskKm.mars }} />
             {c && earthFrame ? (

@@ -5,7 +5,7 @@ import { Term } from "../../components/primitives";
 import { GridFacts, renderReliefSnapshot, reliefWindowId, unavailableWords, type Snapshot } from "../../components/relief";
 import { contourInterval, fmtNum, rampColor, SUN, TINT } from "../../components/relief/reliefMath";
 import { cx } from "../../components/ui";
-import { G5 } from "../../lib/glossary";
+import { G5, zoneName } from "../../lib/glossary";
 import { ApiError, useEarthPool, useMarsRelief, useRelief } from "../../services/api";
 import { useApp } from "../../store/app";
 import { searchTarget } from "../../store/searchTarget";
@@ -37,7 +37,7 @@ export function ReliefSnapshotSlot({ search, candidate }: { search: AnalogSearch
     <div className="mt-10 print:mt-7">
       <ReliefPlate plate="C" planet="earth" kicker="Earth · Terrain relief" name={candidate.label} q={earth} />
       {mars.data ? (
-        <div className="mt-10 print:mt-7"><ReliefPlate plate="D" planet="mars" kicker="Mars · Terrain relief" name={mars.data.id} q={mars} /></div>
+        <div className="mt-10 print:mt-7"><ReliefPlate plate="D" planet="mars" kicker="Mars · Terrain relief" name={zoneName(mars.data.id)} q={mars} /></div>
       ) : zone && (
         <p className="mt-3 flex items-baseline gap-2.5 text-caption text-faint">
           <span aria-hidden className="h-1.5 w-1.5 shrink-0 translate-y-[-1px] ring-1 ring-inset ring-mars" />
@@ -179,7 +179,7 @@ function Ramp({ planet, min, max, noData }: { planet: "earth" | "mars"; min: num
     <div className="shrink-0 pt-1">
       <div className="kicker !text-[10px]">Elevation</div>
       <div className="mt-1.5 h-2 w-40 border border-line-strong [print-color-adjust:exact]" style={{ backgroundImage: `linear-gradient(to right, ${stops})` }} aria-hidden />
-      <div className="num mt-1 flex w-40 justify-between text-num-sm text-muted"><span>{fmtNum(min, 1)}</span><span>{fmtNum(max, 1)}{unit}</span></div>
+      <div className="num mt-1 flex w-40 justify-between text-num-sm text-muted"><span>{fmtNum(min)}</span><span>{fmtNum(max)}{unit}</span></div>
       {noData > 0 && <div className="num mt-1 text-[10.5px] text-faint">No elevation {(100 * noData).toFixed(1)} % (open)</div>}
     </div>
   );

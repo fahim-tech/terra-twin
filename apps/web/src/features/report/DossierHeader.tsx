@@ -6,7 +6,9 @@ import { useEvidence } from "../../services/api";
 import { useApp } from "../../store/app";
 import type { SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, MissionProfile } from "../../types/contracts";
+import { zoneName } from "../../lib/glossary";
 import { tiedWindows } from "../analogs/readout";
+import { recordDigits } from "../comparison/model";
 import {
   buildCsv, buildReportJson, candidateRole, exportBaseName, fmtCoord, generatedStamp, provenanceSummary, type ReportCandidate,
 } from "./model";
@@ -66,7 +68,7 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
       <h1 data-stage-heading="report" tabIndex={-1}
         className="grid gap-y-4 px-4 pb-7 pt-6 outline-none! md:grid-cols-[minmax(0,1fr)_96px_minmax(0,1fr)] md:gap-x-2 md:px-6 md:pb-9 md:pt-8 print:grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)] print:pb-6 print:pt-5">
         <Designation tone="mars" kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"}
-          name={target.siteId ? target.label : "Search target"} coord={fmtCoord(target.lat, target.lon, 3)} coordSpoken={marsGeneric} />
+          name={target.siteId ? zoneName(target.siteId) : "Search target"} coord={fmtCoord(target.lat, target.lon, 3)} coordSpoken={marsGeneric} />
         <span aria-hidden className="flex items-center md:justify-center md:pt-[30px] print:justify-center print:pt-[26px]">
           {/* Stacked on phones: the same double arrow, turned to point at both designations. */}
           <svg width="10" height="30" viewBox="0 0 10 30" className="block text-faint md:hidden print:hidden">
@@ -78,7 +80,7 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
         </span>
         <span className="sr-only"> compared with </span>
         {c && earthName ? (
-          <Designation tone="earth" kicker={earthKicker} name={earthName} coord={fmtCoord(c.lat, c.lon, 3)} coordSpoken={earthName === "Screening cell"} />
+          <Designation tone="earth" kicker={earthKicker} name={earthName} coord={fmtCoord(c.lat, c.lon, recordDigits(c.lat, c.lon))} coordSpoken={earthName === "Screening cell"} />
         ) : (
           <Designation tone="earth" kicker={earthKicker} name="No candidate selected" muted />
         )}
@@ -92,7 +94,7 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
       {stale && (
         <p className="border-t border-line px-4 py-3 text-body text-muted md:px-6" role="note">
           <span className="kicker mr-3 !text-warn">Superseded selection</span>
-          This dossier describes <span className="text-ink">{target.label}</span>, the target of the last search. The current selection{liveLabel ? <> (<span className="text-ink">{liveLabel}</span>)</> : null} has moved on; run Find Earth Analogs again to report it.
+          This dossier describes <span className="text-ink">{target.siteId ? zoneName(target.siteId) : target.label}</span>, the target of the last search. The current selection{liveLabel ? <> (<span className="text-ink">{liveLabel}</span>)</> : null} has moved on; run Find Earth Analogs again to report it.
         </p>
       )}
 
