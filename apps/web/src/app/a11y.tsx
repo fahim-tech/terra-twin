@@ -40,15 +40,34 @@ export function useStageFocus() {
   const introOpen = useApp((s) => s.introOpen);
   useEffect(() => {
     if (introOpen) return;
-    // Lazy stages (evidence, report) can mount well after the change, so retry for about a second.
-    let tries = 0;
-    let t = 0;
-    const attempt = () => {
-      const el = document.querySelector<HTMLElement>(`[data-stage-heading="${stage}"]`);
-      if (el) { if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1"); el.focus({ preventScroll: true }); return; }
-      if (++tries < 20) t = window.setTimeout(attempt, 60);
+    // The control that started the stage change (a rail command, a footer button) or <body>: focus moves to
+    // the heading only from one of these, never away from something the user has moved to since.
+    const trigger = document.activeElement;
+    const allowed = () => {
+      const a = document.activeElement;
+      return !a || a === document.body || a === trigger || !a.isConnected;
     };
-    t = window.setTimeout(attempt, 60);
-    return () => clearTimeout(t);
+    // A modal opened with the stage change (the comparison brief) owns focus; the stage heading sits behind it.
+    const modalOpen = () => useApp.getState().whyOpen || !!document.querySelector('[aria-modal="true"]');
+    let done = false;
+    const attempt = () => {
+      if (done) return true;
+      const el = document.querySelector<HTMLElement>(`[data-stage-heading="${stage}"]`);
+      if (!el) return false;
+      done = true;
+      if (modalOpen() || !allowed()) return true;
+      if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
+      el.focus({ preventScroll: true });
+      return true;
+    };
+    // Lazy stages (Evidence, Report) mount when their chunk arrives, which on a slow network can take
+    // seconds: wait for the heading to appear (capped at 10 s) instead of a fixed retry window.
+    const t = window.setTimeout(() => {
+      if (attempt()) return;
+      mo.observe(document.body, { childList: true, subtree: true });
+    }, 60);
+    const mo = new MutationObserver(() => { if (attempt()) mo.disconnect(); });
+    const cap = window.setTimeout(() => mo.disconnect(), 10_000);
+    return () => { clearTimeout(t); clearTimeout(cap); mo.disconnect(); done = true; };
   }, [stage, introOpen]);
 }
