@@ -69,6 +69,8 @@ function Workspace() {
 
   const fullPage = stage === "evidence" || stage === "report";
   const split = stage === "compare";
+  const marsActive = !fullPage && (stage === "mars" || split);
+  const earthActive = !fullPage && (stage === "earth" || split);
 
   return (
     <div className="flex h-full flex-col">
@@ -80,7 +82,7 @@ function Workspace() {
       <main ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden">
         {/* Globe stage: both viewers stay mounted; layout and opacity change per workflow stage. */}
         <div className={cx("absolute inset-0 transition-[filter,opacity] duration-700", fullPage && "opacity-25 blur-sm")}>
-          <div ref={marsFrame} className={cx("absolute inset-y-0 left-0 transition-all duration-[900ms] ease-[var(--ease-out-soft)]",
+          <div ref={marsFrame} {...inert(!marsActive)} className={cx("absolute inset-y-0 left-0 transition-all duration-[900ms] ease-[var(--ease-out-soft)]",
             split ? "w-full md:w-1/2" : "w-full",
             stage === "mars" || split || (fullPage && s.previousStage === "mars") ? "opacity-100 scale-100" : "pointer-events-none scale-[0.86] opacity-0",
             split && "hidden md:block")}>
@@ -93,7 +95,7 @@ function Workspace() {
             )}
             {split && <GlobeLabel planet="mars" text={selection?.label ?? "Mars target"} />}
           </div>
-          <div ref={earthFrame} className={cx("absolute inset-y-0 right-0 transition-all duration-[900ms] ease-[var(--ease-out-soft)]",
+          <div ref={earthFrame} {...inert(!earthActive)} className={cx("absolute inset-y-0 right-0 transition-all duration-[900ms] ease-[var(--ease-out-soft)]",
             split ? "w-full md:w-1/2 md:border-l md:border-line/60" : "w-full",
             stage === "earth" || split || (fullPage && s.previousStage !== "mars") ? "opacity-100 scale-100" : "pointer-events-none scale-[1.08] opacity-0")}>
             <GlobeFrame ref={earth} planet="earth" onMessage={onEarth} />
@@ -134,6 +136,11 @@ function Workspace() {
   );
 }
 
+/** `inert` removes hidden UI from the tab order and accessibility tree (React 18 needs the string form). */
+function inert(on: boolean): Record<string, string> {
+  return on ? { inert: "" } : {};
+}
+
 function GlobeLabel({ planet, text }: { planet: "mars" | "earth"; text: string }) {
   return (
     <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 text-[12px]">
@@ -149,7 +156,7 @@ function SidePanel({ side, open, onToggle, children, occludes }: { side: "left" 
   const Icon = left ? (open ? PanelLeftClose : PanelLeftOpen) : open ? PanelRightClose : PanelRightOpen;
   return (
     <>
-      <aside aria-label={left ? "Controls" : "Details"} data-occludes={open ? occludes : undefined}
+      <aside aria-label={left ? "Controls" : "Details"} data-occludes={open ? occludes : undefined} {...inert(!open)}
         className={cx(
           "panel no-print absolute z-10 flex flex-col overflow-hidden shadow-2xl shadow-black/40 transition-all duration-500 ease-[var(--ease-out-soft)]",
           // mobile: right panel becomes a bottom sheet; left panel is hidden behind its toggle
