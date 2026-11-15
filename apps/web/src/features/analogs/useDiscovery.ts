@@ -17,10 +17,10 @@ export function useRunDiscovery() {
   const find = useFindAnalogs();
   const run = (sel: Selection) => {
     const app = useApp.getState();
-    const { mission, discoveryWindows: n, footprintKm } = app;
-    const request = { lat: sel.lat, lon: sel.lon, site: sel.siteId, label: sel.label, mission, nRefine: n };
+    const { mission, discoveryWindows: n, footprintKm, discoveryPool: includePool } = app;
+    const request = { lat: sel.lat, lon: sel.lon, site: sel.siteId, label: sel.label, mission, nRefine: n, includePool };
     app.announce(`Submitting a global discovery for ${sel.label}, ${n} windows.`);
-    submit.mutate({ lat: sel.lat, lon: sel.lon, mission, n_refine: n, site: sel.siteId }, {
+    submit.mutate({ lat: sel.lat, lon: sel.lon, mission, n_refine: n, site: sel.siteId, include_research_pool: includePool }, {
       onError: (e) => useApp.getState().announce(`Discovery could not be submitted: ${(e as Error).message}`, true),
       onSuccess: (job) => {
         const s = useApp.getState();

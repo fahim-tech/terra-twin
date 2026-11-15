@@ -14,6 +14,7 @@ import { Readout, Readouts, rowClass, SectionHead, SelectionBar } from "./instru
 import { DiscoveryAction } from "./DiscoveryAction";
 import { sText } from "./readout";
 import { searchTarget } from "../../store/searchTarget";
+import { DiscoveryCompareActions } from "./DiscoveryAction";
 
 const TERM: Partial<Record<DecisionType, GlossaryKey>> = { named_leader: "stableLeader", tied_set: "tie", insufficient_evidence: "notEnough" };
 const MISSION_WORDS = (m: string | null | undefined) => (m ? m.replace(/_/g, " ") : "—");
@@ -316,6 +317,7 @@ function RunView({ run }: { run: DiscoveryRun }) {
       </div>
 
       {selected && <CandidateDetail c={selected} run={run} index={idx.detail} />}
+      {selected && <DiscoveryCompareActions className="mt-3" />}
 
       {others.length > 0 && (
         <>

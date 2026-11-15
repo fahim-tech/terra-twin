@@ -22,6 +22,7 @@ import { tieNote } from "./readout";
 import { ResearchStage } from "./ResearchStage";
 import { switchTier } from "./tierMemory";
 import { useSheetFit } from "./useSheetFit";
+import { DiscoveryCompareActions } from "./DiscoveryAction";
 
 export { DECISION_COPY, DecisionBlock } from "./Verdict";
 
@@ -158,6 +159,7 @@ function LiveFooter({ phone }: { phone: boolean }) {
           <p className="mt-0.5 text-caption text-muted">
             Live discovery · {run.data.refinement.window_km} km window · as MOLA would observe it · validated on synthetic twins only
           </p>
+          <DiscoveryCompareActions compact className="mt-2" />
         </div>
       ) : (
         <p className="flex items-baseline gap-2.5 text-caption text-muted"><StatusMark state="off" className="translate-y-[-1px]" />Select a refined window to see its descriptors and fly the globe to it.</p>
