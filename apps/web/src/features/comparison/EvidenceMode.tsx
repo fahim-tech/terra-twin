@@ -133,7 +133,8 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
               )}
               {rob.leaderChangedVsBaseline !== null && (
                 <li className="flex items-baseline gap-2.5">
-                  <StatusMark state="off" size={7} className="translate-y-[-1px]" />
+                  {/* A fact, not a state: no status mark (an outlined square means "off"), only its indent. */}
+                  <span aria-hidden className="w-[7px] shrink-0" />
                   <span>{rob.leaderChangedVsBaseline ? "Observation matching changes the leader versus the as-measured comparison" : "Same leader with and without observation matching"}
                     {rob.spearmanBaselineVsOom !== null && <> · <span className="num">ρ {rob.spearmanBaselineVsOom.toFixed(2)}</span></>}
                     {rob.top10Overlap !== null && <> · top-10 overlap <span className="num">{rob.top10Overlap}</span></>}
