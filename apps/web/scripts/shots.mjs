@@ -127,12 +127,15 @@ const VIEWS = {
       s.set({ search: res, candidateId: `t2:${res.tier2.candidates[0].id}`, tier: 2 }); s.go("compare"); s.go("report");
     },
     settle: 1500,
-    // The plates render globe snapshots (camera flight, then capture); wait until every plate image has loaded.
+    // The plates and their whole-disk locators render globe snapshots (camera flight, then capture); wait
+    // until none is still rendering and every plate image has loaded.
     after: async (page) => {
       const ok = await page.waitForFunction(() => {
         const plates = document.querySelector("#dossier-plates");
         if (!plates) return false;
-        if (plates.querySelector('figure [role="status"]')) return false; // "Rendering … imagery"
+        const figures = [...plates.querySelectorAll("figure")];
+        // A plate says "Rendering … imagery" (role=status); a disk locator says "Rendering the … whole disk".
+        if (plates.querySelector('figure [role="status"]') || figures.some((f) => /\bRendering\b/.test(f.textContent ?? ""))) return false;
         const imgs = [...plates.querySelectorAll("figure img")];
         return imgs.every((i) => i.complete && i.naturalWidth > 0);
       }, null, { timeout: PLATES_TIMEOUT }).then(() => true, () => false);
