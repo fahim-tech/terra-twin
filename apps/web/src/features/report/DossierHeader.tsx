@@ -39,7 +39,7 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
   const gateMode = t2.landcover_gate?.mode ?? mission?.gate_mode ?? null;
   const researchRan = t2.operator.status === "ok";
   const stamp = generatedStamp(generatedAt);
-  const basis = !c ? "Search summary · no candidate selected" : c.tier === 1 ? "Global screening cell · screen rank, not a decision" : "Research comparison";
+  const basis = !c ? "Search summary · no candidate selected" : c.tier === 1 ? "Screening cell · screen rank, not a decision" : "Research comparison";
   const researchVersion = (t2 as { method_version?: string }).method_version ?? (t2.operator as { version?: string }).version ?? null;
   const marsGeneric = !target.siteId;
   const earthName = !c ? null : c.tier === 1 && !c.t1?.known_analog.name ? "Screening cell" : c.label;
@@ -47,13 +47,13 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
 
   return (
     <header className="frame print-keep relative border border-line bg-surface">
-      {/* Identity strip and exports */}
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-b border-line px-4 py-3 md:px-6">
+      {/* Identity strip and exports. The exports keep their place at the right; a long basis wraps inside its
+          own cell (under the identity, after its rule) instead of pushing the exports onto a second row. */}
+      <div className="grid items-center gap-x-6 gap-y-3 border-b border-line px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] md:px-6">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <span aria-hidden className="h-1.5 w-1.5 shrink-0 bg-ink" />
           <span className="kicker !text-ink">TerraTwin · Mission dossier</span>
-          <span aria-hidden className="hidden h-3 w-px bg-line-strong sm:block" />
-          <span className="kicker">{basis}</span>
+          <span className="kicker sm:border-l sm:border-line-strong sm:pl-3">{basis}</span>
         </div>
         <Exports search={search} c={c} mission={mission} generatedAt={generatedAt} />
       </div>
@@ -64,7 +64,10 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
         <Designation tone="mars" kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"}
           name={target.siteId ? target.label : "Search target"} coord={fmtCoord(target.lat, target.lon, 3)} coordSpoken={marsGeneric} />
         <span aria-hidden className="flex items-center md:justify-center md:pt-[30px] print:justify-center print:pt-[26px]">
-          <span className="ml-[2px] block h-6 w-px bg-line-strong md:hidden print:hidden" />
+          {/* Stacked on phones: the same double arrow, turned to point at both designations. */}
+          <svg width="10" height="30" viewBox="0 0 10 30" className="block text-faint md:hidden print:hidden">
+            <path d="M5 1v28M1 5l4-4 4 4M1 25l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1" />
+          </svg>
           <svg width="76" height="10" viewBox="0 0 76 10" className="hidden text-faint md:block print:block print:w-[60px]">
             <path d="M1 5h74M5 1L1 5l4 4M71 1l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1" />
           </svg>
@@ -91,7 +94,8 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
 
       {/* Document control */}
       {/* Rules are drawn by the cells (by position at each breakpoint), so they stay single lines under the print zoom. */}
-      <dl className="grid border-t border-line sm:grid-cols-2 lg:grid-cols-[1.15fr_1.15fr_0.85fr_0.85fr] print:grid-cols-[1.15fr_1.15fr_0.85fr_0.85fr]">
+      {/* Column shares leave the analysis cell room for a full method version (mono, never broken mid-token). */}
+      <dl className="grid border-t border-line sm:grid-cols-2 lg:grid-cols-[1.05fr_1fr_0.85fr_1.1fr] print:grid-cols-[1.05fr_1fr_0.85fr_1.1fr]">
         <Field k="Mission profile">
           <span className="text-ink">{mission?.label ?? target.mission.replace(/_/g, " ")}</span>
           {gateMode ? <span className="mt-1 block text-caption text-faint">{GATE_EFFECT[gateMode]}</span> : null}
@@ -107,14 +111,17 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
             <>
               <span className="num block text-ink">{stamp.date}</span>
               <span className="block text-ink"><span className="num">{stamp.time}</span> UTC</span>
-              <span className="mt-1 block text-caption text-faint">MSD <span className="num">{stamp.msd.toLocaleString("en-US")}</span> · MTC <span className="num">{stamp.mtc}</span></span>
+              <span className="mt-1 block text-caption text-faint">
+                <span className="whitespace-nowrap">MSD <span className="num">{stamp.msd.toLocaleString("en-US")}</span></span> · <span className="whitespace-nowrap">MTC <span className="num">{stamp.mtc}</span></span>
+              </span>
             </>
           ) : <span className="num text-faint">—</span>}
         </Field>
         <Field k="Analysis" className="border-t sm:border-l lg:border-t-0 print:border-t-0">
           <span className="num block truncate text-ink" title={search.id}>{search.id}</span>
-          <span className="mt-1 block text-caption text-faint">Research <span className="num">{researchVersion ?? "—"}</span></span>
-          {search.tier1 && <span className="block text-caption text-faint">Screen <span className="num">{search.tier1.method_version}</span></span>}
+          {/* A version id wraps only as a whole (after its label), never at its own hyphens. */}
+          <span className="mt-1 block text-caption text-faint">Research <span className="num whitespace-nowrap">{researchVersion ?? "—"}</span></span>
+          {search.tier1 && <span className="block text-caption text-faint">Screen <span className="num whitespace-nowrap">{search.tier1.method_version}</span></span>}
         </Field>
       </dl>
 
