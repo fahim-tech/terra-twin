@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DECISION_WORDS, type DecisionType, OutcomeMark, outcomeKind, SFigure, StatusMark } from "../../components/marks";
 import { Disclosure, Term } from "../../components/primitives";
 import { cx, Note, Spinner } from "../../components/ui";
@@ -7,13 +7,14 @@ import { formatLat, formatLon } from "../../lib/geodesy";
 import { decisionG5Label, type GlossaryKey, zoneName } from "../../lib/glossary";
 import { type DiscoveryCandidate, type DiscoveryJob, type DiscoveryRun, useDiscoveryRun, useDiscoveryRuns, useGisStatus } from "../../services/gis";
 import { useApp } from "../../store/app";
-import {
+import { pickCachedRun,
   cellLabel, decisionMembers, descriptorLabel, descriptorUnit, disclaimerText, elapsedText, formatValue, jobPhase, otherCandidates, pctText, scopeText, windowsProgress,
 } from "./discoveryModel";
 import { Readout, Readouts, rowClass, SectionHead, SelectionBar } from "./instruments";
 import { DiscoveryAction } from "./DiscoveryAction";
 import { sText } from "./readout";
 import { searchTarget } from "../../store/searchTarget";
+import { useMissions, useSites } from "../../services/api";
 import { DiscoveryCompareActions } from "./DiscoveryAction";
 
 const TERM: Partial<Record<DecisionType, GlossaryKey>> = { named_leader: "stableLeader", tied_set: "tie", insufficient_evidence: "notEnough" };
@@ -407,6 +408,23 @@ export function LiveDiscovery() {
   const search = useApp((s) => s.search);
   const t = searchTarget(search);
   const target = t ? { lat: t.lat, lon: t.lon, siteId: t.siteId, label: t.siteId ? zoneName(t.siteId) : t.label } : null;
+  // Open the newest verified cached run for this target and mission instead of asking for a new server run.
+  const runs = useDiscoveryRuns();
+  const missions = useMissions();
+  const sites = useSites();
+  const mission = useApp((s) => s.mission);
+  const researchKey = missions.data?.find((m) => m.id === mission)?.research_key ?? null;
+  const zone = target?.siteId ? sites.data?.find((s) => s.id === target.siteId) ?? null : null;
+  const auto = !liveRunId && !running && target && runs.data && (!target.siteId || zone)
+    ? pickCachedRun(runs.data, { ...target, centre: zone ? { lat: zone.lat, lon: zone.lon } : null }, researchKey) : null;
+  const opened = useRef<string | null>(null);
+  const [autoNote, setAutoNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (!auto || opened.current === `${auto.run_id}:${mission}`) return;
+    opened.current = `${auto.run_id}:${mission}`;
+    useApp.getState().set({ liveRunId: auto.run_id, liveCandidate: null });
+    setAutoNote(`Opened the latest verified run for ${target!.label} and this mission (run ${auto.run_id}${auto.finished ? `, ${auto.finished.slice(0, 16).replace("T", " ")} UTC` : ""}). Use Run global discovery on Mars for other parameters.`);
+  }, [auto, mission, target]);
   return (
     <section aria-labelledby="stage-live" className="pb-2">
       <h3 id="stage-live" className="sr-only">Live discovery</h3>
@@ -421,6 +439,7 @@ export function LiveDiscovery() {
           <JobProgress job={job} />
         </div>
       )}
+      {showRun && autoNote && <p className="mb-3 text-caption text-faint">{autoNote}</p>}
       {showRun ? (
         run.isLoading ? <Spinner label="Loading the run" />
           : run.isError ? <Note tone="critical">The run could not be loaded: {(run.error as Error).message}</Note>

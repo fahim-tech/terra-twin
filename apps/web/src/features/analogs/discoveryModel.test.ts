@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { G5 } from "../../lib/glossary";
 import type { DiscoveryJob, DiscoveryRun } from "../../services/gis";
 import { windowChoices } from "./DiscoveryAction";
-import {
+import { pickCachedRun,
   cellLabel, decisionMembers, descriptorUnit, disclaimerText, elapsedText, formatValue, jobPhase, otherCandidates, scopeText, westToEast, windowsProgress,
 } from "./discoveryModel";
 
@@ -89,5 +89,24 @@ describe("job progress comes only from the payload", () => {
     expect(windowChoices([20, 40, 30])).toEqual([20, 40, 30]);
     expect(windowChoices([20, 25, 40, 60])).toEqual([20, 40]);
     expect(windowChoices(undefined)).toEqual([]);
+  });
+});
+
+describe("pickCachedRun", () => {
+  const runs = [
+    { run_id: "old", status: "ok", mission: "landing_engineering", finished: "2026-11-15T01:00:00+00:00", target: { site: "Jezero", lat: 17.67557, lon: 77.01274 } },
+    { run_id: "new", status: "ok", mission: "landing_engineering", finished: "2026-11-15T14:51:09+00:00", target: { site: "Jezero", lat: 17.67557, lon: 77.01274 } },
+    { run_id: "rover", status: "ok", mission: "rover_mobility", finished: "2026-11-15T15:00:00+00:00", target: { site: "Jezero", lat: 17.67557, lon: 77.01274 } },
+    { run_id: "bad", status: "failed", mission: "landing_engineering", finished: "2026-11-15T16:00:00+00:00", target: { site: "Jezero", lat: 17.67557, lon: 77.01274 } },
+  ];
+  const jezero = { lat: 18.0, lon: 77.5, siteId: "Jezero", centre: { lat: 17.67557431706733, lon: 77.01274064381283 } };
+  it("opens the newest completed run for the zone centre and mission", () => {
+    expect(pickCachedRun(runs, jezero, "landing_engineering")?.run_id).toBe("new");
+    expect(pickCachedRun(runs, jezero, "rover_mobility")?.run_id).toBe("rover");
+  });
+  it("opens nothing for another mission, another place or an unknown mission", () => {
+    expect(pickCachedRun(runs, jezero, "permanent_base")).toBeNull();
+    expect(pickCachedRun(runs, { lat: 1, lon: 2, siteId: null }, "landing_engineering")).toBeNull();
+    expect(pickCachedRun(runs, jezero, null)).toBeNull();
   });
 });

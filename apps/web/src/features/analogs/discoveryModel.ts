@@ -150,3 +150,25 @@ export function jobPhase(job: DiscoveryJob): JobPhase {
 
 /** Live discovery window id used on the globe and in the store. */
 export const liveId = (id: string) => `live:${id}`;
+
+/** A cached discovery run as listed by `/api/gis/runs` (only the fields the picker reads). */
+export interface CachedRunSummary {
+  run_id: string; status: string | null; mission: string | null; finished: string | null;
+  target: { site: string | null; lat: number | null; lon: number | null };
+}
+
+/**
+ * The newest completed cached run for this target and mission, or null. A zone matches by its centre (the
+ * coordinate discovery runs use for zones) or its id; a free point matches its own coordinate to 1e-3°.
+ * Opening it costs nothing on the server, unlike starting a new run.
+ */
+export function pickCachedRun(
+  runs: CachedRunSummary[], target: { lat: number; lon: number; siteId: string | null; centre?: { lat: number; lon: number } | null },
+  researchKey: string | null,
+): CachedRunSummary | null {
+  if (!researchKey) return null;
+  const near = (a: number | null, b: number) => a !== null && Math.abs(a - b) < 1e-3;
+  const at = target.centre ?? target;
+  const hits = runs.filter((r) => r.status === "ok" && r.mission === researchKey && near(r.target.lat, at.lat) && near(r.target.lon, at.lon));
+  return hits.sort((a, b) => (b.finished ?? "").localeCompare(a.finished ?? ""))[0] ?? null;
+}
