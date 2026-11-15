@@ -27,6 +27,7 @@ export function GlobeBusProvider({ children }: { children: ReactNode }) {
     emit: (p, msg) => { for (const h of subs.current[p]) h(msg); },
     on: (p, h) => { subs.current[p].add(h); return () => { subs.current[p].delete(h); }; },
   }), []);
+  if (import.meta.env.DEV) Object.assign(window, { __terratwinBus: bus });
   return <Ctx.Provider value={bus}>{children}</Ctx.Provider>;
 }
 
