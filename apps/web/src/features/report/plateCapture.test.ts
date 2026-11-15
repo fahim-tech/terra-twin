@@ -29,6 +29,7 @@ function tieSearch(): AnalogSearch {
 
 const base: DrawState = {
   selection: null, footprintKm: 25, search: null, candidateId: null, tier: 2, sites: undefined, earthSites: undefined, referenceSites: false, phone: false,
+  graticule: false,
 };
 
 const groupsOf = (msgs: ParentToGlobe[], t: "setMarkers" | "setFootprints") =>
@@ -49,6 +50,14 @@ describe("clean plate captures", () => {
       const r = restoreFor(p, state);
       for (const g of CAPTURE_GROUPS[p].markers) if (g !== "pool") expect(groupsOf(r, "setMarkers"), `${p} markers ${g}`).toContain(g);
       for (const g of CAPTURE_GROUPS[p].footprints) expect(groupsOf(r, "setFootprints"), `${p} footprints ${g}`).toContain(g);
+    }
+  });
+
+  it("keeps the user's graticule out of the imagery and puts the toggle back as it is now", () => {
+    for (const p of ["mars", "earth"] as const) {
+      expect(clearMessages(p)).toContainEqual({ t: "setGraticule", on: false });
+      expect(restoreFor(p, { ...base, graticule: true })).toContainEqual({ t: "setGraticule", on: true });
+      expect(restoreFor(p, base)).toContainEqual({ t: "setGraticule", on: false });
     }
   });
 

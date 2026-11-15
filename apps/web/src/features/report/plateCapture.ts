@@ -29,13 +29,18 @@ export const CAPTURE_GROUPS = {
   earth: { markers: ["reference", "candidates", "t1", "t2", "pool"], footprints: ["cand", "members", "compare"] },
 } as const satisfies Record<Planet, { markers: readonly string[]; footprints: readonly string[] }>;
 
-/** Messages that clear everything the app draws on a globe (data overlays are switched off through app state). */
+/**
+ * Messages that clear everything the app draws on a globe (data overlays are switched off through app state).
+ * The graticule is the user's map toggle; its lines would be baked into imagery captioned as NASA's, so it is
+ * switched off for the capture too (the plate's own neatline carries the coordinates).
+ */
 export function clearMessages(planet: Planet): ParentToGlobe[] {
   const g = CAPTURE_GROUPS[planet];
   return [
     { t: "select", id: null },
     ...g.markers.map((group): ParentToGlobe => ({ t: "setMarkers", group, markers: [] })),
     ...g.footprints.map((group): ParentToGlobe => ({ t: "setFootprints", group, footprints: [] })),
+    { t: "setGraticule", on: false },
   ];
 }
 
@@ -50,11 +55,14 @@ export interface DrawState {
   earthSites: EarthSites | undefined;
   referenceSites: boolean;
   phone: boolean;
+  /** The graticule toggle (App sends it to both globes). */
+  graticule: boolean;
 }
 
 /** What the syncs would send for this state, for every group `clearMessages` empties (pool via overlay state). */
 export function restoreFor(planet: Planet, s: DrawState): ParentToGlobe[] {
-  const out: ParentToGlobe[] = [];
+  // App.tsx keeps both globes' graticule in step with the toggle.
+  const out: ParentToGlobe[] = [{ t: "setGraticule", on: s.graticule }];
   if (planet === "mars") {
     // MarsGlobeSync: research zones (markers + faint footprints), then the selection and its AOI.
     if (s.sites) {
@@ -119,6 +127,7 @@ export function restoreMessages(planet: Planet, qc: QueryClient): ParentToGlobe[
     earthSites: qc.getQueryData<EarthSites>(["earthSites"]),
     referenceSites: useEarthLocal.getState().referenceSites,
     phone: window.innerWidth < 768, // useLayout's phone breakpoint
+    graticule: app.graticule,
   });
 }
 
