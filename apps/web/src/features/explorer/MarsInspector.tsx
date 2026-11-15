@@ -21,6 +21,7 @@ import { useRunSearch } from "./useRunSearch";
 import { useScales } from "./useScales";
 import { formatCoord, FOOTPRINTS } from "./zones";
 import { DiscoveryAction } from "../analogs/DiscoveryAction";
+import { FactorsPanel } from "../factors/FactorsPanel";
 
 /**
  * Inspector for the selected Mars point, laid out like a telemetry panel: the target (name and
@@ -135,6 +136,7 @@ export function MarsInspector() {
                 </Section>
                 <Section n={6} title="Context · not used in similarity">
                   <ContextReadout lat={selection.lat} lon={selection.lon} />
+                  <FactorsPanel lat={selection.lat} lon={selection.lon} className="mt-3" />
                 </Section>
                 {/* In the phone sheet the discovery command lives here, so the docked footer stays one row high. */}
                 {inSheet && (

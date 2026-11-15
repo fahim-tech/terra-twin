@@ -16,6 +16,7 @@ import { KmFigure, Mark, Section } from "./parts";
 import { useRunSearch } from "./useRunSearch";
 import { useScales } from "./useScales";
 import { formatCoord, formatKm, readZone, zoneSelection } from "./zones";
+import { FactorsPanel } from "../factors/FactorsPanel";
 
 /** True when the GIS library answers for any Mars point (/api/gis/status). */
 export function useGisAvailable(): boolean {
@@ -54,6 +55,7 @@ export function OutsideBody({ a }: { a: MarsAnalysis | undefined }) {
         </Section>
         <Section n={3} title="Context · not used in similarity">
           <ContextReadout lat={lat} lon={lon} />
+          <FactorsPanel lat={lat} lon={lon} className="mt-3" />
         </Section>
         <NearbyZones n={4} lat={lat} lon={lon} />
       </div>
