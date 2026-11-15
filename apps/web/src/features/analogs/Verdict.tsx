@@ -1,18 +1,24 @@
+import { DECISION_WORDS, OutcomeMark, type OutcomeKind, outcomeKind } from "../../components/marks";
 import { Term } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { decisionG5Label, type GlossaryKey } from "../../lib/glossary";
 import type { Tier2Result } from "../../types/contracts";
-import { type MarkState, StatusMark } from "./instruments";
+import { StatusMark } from "./instruments";
+
+type DecisionType = Tier2Result["decision"]["type"];
+
+const copy = (type: DecisionType, term: GlossaryKey | null) => ({ title: DECISION_WORDS[type], mark: outcomeKind(type), term });
 
 /**
- * Plain decision names (glossary §13) with their status mark; the research term stays on demand via <Term>.
- * `glyph` is the same mark as text, for plain-text contexts.
+ * Plain decision names (glossary §13) with their outcome mark (components/marks.tsx); the research term
+ * stays on demand via <Term>. Every outcome is ink: a tie is a valid outcome, not a caution, and an
+ * abstention is a result, not a fault.
  */
-export const DECISION_COPY: Record<Tier2Result["decision"]["type"], { title: string; tone: "ok" | "warn" | "neutral" | "bad"; mark: MarkState; glyph: string; term: GlossaryKey | null }> = {
-  named_leader: { title: "Stable leader", tone: "ok", mark: "on", glyph: "■", term: "stableLeader" },
-  tied_set: { title: "Tie", tone: "warn", mark: "caution", glyph: "■", term: "tie" },
-  no_convincing_analog: { title: "No convincing analog", tone: "neutral", mark: "off", glyph: "□", term: null },
-  insufficient_evidence: { title: "Not enough evidence", tone: "bad", mark: "fault", glyph: "■", term: "notEnough" },
+export const DECISION_COPY: Record<DecisionType, { title: string; mark: OutcomeKind; term: GlossaryKey | null }> = {
+  named_leader: copy("named_leader", "stableLeader"),
+  tied_set: copy("tied_set", "tie"),
+  no_convincing_analog: copy("no_convincing_analog", null),
+  insufficient_evidence: copy("insufficient_evidence", "notEnough"),
 };
 
 /** The research label for a decision: G5 verbatim for leader and tie (shared helper). */
@@ -45,16 +51,17 @@ export function RotationGlyph({ t2, className, compact }: { t2: Tier2Result; cla
   );
 }
 
-/** Annunciator row of a decision: status mark, decision name (research term on demand), orientation check. */
+/**
+ * Annunciator row of a decision: outcome mark, decision name (research term on demand), orientation check.
+ * Every decision lights the row the same quiet way: none of them is a caution or a fault.
+ */
 export function DecisionHead({ t2, id, as: As = "h4" }: { t2: Tier2Result; id?: string; as?: "h3" | "h4" | "div" }) {
   const d = t2.decision;
   const c = DECISION_COPY[d.type];
-  // Caution (tie) and fault (no evidence) light their row faintly, like an annunciator; colour is never the only cue.
-  const lit = c.mark === "caution" ? "bg-warn/[0.07]" : c.mark === "fault" ? "bg-bad/[0.07]" : "bg-white/[0.035]";
   return (
-    <div className={cx("flex min-h-[40px] items-center justify-between gap-3 px-3 py-2 max-md:min-h-9 max-md:py-1.5", lit)}>
+    <div className="flex min-h-[40px] items-center justify-between gap-3 bg-white/[0.035] px-3 py-2 max-md:min-h-9 max-md:py-1.5">
       <As id={id} className="label-caps flex min-w-0 items-center gap-2.5 text-ink [&_button]:text-left [&_button]:uppercase">
-        <StatusMark state={c.mark} />
+        <OutcomeMark kind={c.mark} />
         <span className="min-w-0">
           {c.term ? <Term k={c.term}>{c.title}</Term> : c.title}
           {d.type === "tied_set" && <span className="text-muted"> · {d.members.length} equivalent windows</span>}
@@ -79,13 +86,14 @@ export function DecisionBlock({ t2 }: { t2: Tier2Result }) {
 
 /**
  * Operator status (G5: no S without it). When the MOLA observation model is missing there is no research
- * score at all, and the uncorrected comparison is never substituted.
+ * score at all, and the uncorrected comparison is never substituted. A missing model is a gap in the
+ * inputs (struck: not available), not a fault of the instrument.
  */
 export function OperatorStatus({ t2, className }: { t2: Tier2Result; className?: string }) {
   const ok = t2.operator.status === "ok";
   return (
     <p className={cx("flex items-center gap-2 text-caption", ok ? "text-ink/90" : "text-ink", className)}>
-      <StatusMark state={ok ? "on" : "fault"} />
+      <StatusMark state={ok ? "on" : "struck"} />
       <span><Term k="operator">MOLA observation model</Term> {ok ? "applied" : "unavailable · no score shown"}</span>
     </p>
   );

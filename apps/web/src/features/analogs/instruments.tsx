@@ -5,39 +5,12 @@ import { cx } from "../../components/ui";
 
 /**
  * Readout parts for the Earth results surfaces (mission-control language, docs/redesign/v2-mission-control.md):
- * square status marks, indexed section rules, hairline key/value readouts, instrument-table rows with a
- * square selection bar, and joined square segmented controls. Square corners only; mono for figures.
+ * indexed section rules, hairline key/value readouts, instrument-table rows with a square selection bar, and
+ * joined square segmented controls. Square corners only; mono for figures. The marks are the app's shared
+ * set (components/marks.tsx), re-exported for the Earth files that import them from here.
  */
-
-/** Filled = on, outlined = off; caution (amber) and fault (red) are lit marks; struck = not available. */
-export type MarkState = "on" | "off" | "caution" | "fault" | "struck";
-
-/** 6 px square status mark. Decorative: it always sits next to the words that say the same thing. */
-export function StatusMark({ state, tone = "ink", className }: { state: MarkState; tone?: "ink" | "earth" | "mars"; className?: string }) {
-  if (state === "struck") {
-    return (
-      <svg aria-hidden viewBox="0 0 7 7" className={cx("h-[7px] w-[7px] shrink-0 text-faint", className)}>
-        <rect x="0.5" y="0.5" width="6" height="6" fill="none" stroke="currentColor" strokeWidth="1" />
-        <path d="M0.5 6.5 6.5 0.5" stroke="currentColor" strokeWidth="1" />
-      </svg>
-    );
-  }
-  const fill = state === "on" ? (tone === "earth" ? "bg-earth" : tone === "mars" ? "bg-mars" : "bg-ink")
-    : state === "caution" ? "bg-warn" : state === "fault" ? "bg-bad" : "ring-1 ring-inset ring-faint";
-  return <span aria-hidden className={cx("inline-block h-1.5 w-1.5 shrink-0", fill, className)} />;
-}
-
-/**
- * "Near a documented analog": a 1 px outlined diamond, drawn rather than typed, so it renders the same on
- * every platform (a text ◆ / ⚠ can turn into an emoji). Decorative: always paired with words or a label.
- */
-export function AnalogMark({ className }: { className?: string }) {
-  return (
-    <svg aria-hidden viewBox="0 0 8 8" className={cx("inline-block h-2 w-2 shrink-0 text-muted", className)}>
-      <path d="M4 0.75 7.25 4 4 7.25 0.75 4Z" fill="none" stroke="currentColor" strokeWidth="1" />
-    </svg>
-  );
-}
+export { AnalogMark, NEAR_ANALOG, OutcomeMark, StatusMark } from "../../components/marks";
+export type { StatusKind as MarkState } from "../../components/marks";
 
 /** Caps label that also sets a glossary <Term> inside it in caps, left-aligned (buttons inherit neither). */
 export const CAPS = "kicker [&_button]:text-left [&_button]:uppercase";

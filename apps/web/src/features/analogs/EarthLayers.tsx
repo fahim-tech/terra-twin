@@ -1,4 +1,5 @@
 import { ChevronDown } from "lucide-react";
+import { PlanetMark } from "../../components/marks";
 import { Term } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { useLayout } from "../../app/useLayout";
@@ -121,7 +122,7 @@ export function EarthLayers() {
     <div className="surface frame rounded-surface" data-occludes="earth" role="group" aria-label="Earth layers">
       {!phone && (
         <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-2.5">
-          <span className="kicker flex items-center gap-2 !text-ink/85"><StatusMark state="on" tone="earth" />Earth layers</span>
+          <span className="kicker flex items-center gap-2 !text-ink/85"><PlanetMark planet="earth" />Earth layers</span>
         </div>
       )}
       <div className={cx("flex", !phone && "border-t border-line")}>

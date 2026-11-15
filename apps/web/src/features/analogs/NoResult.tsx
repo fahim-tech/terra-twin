@@ -80,7 +80,7 @@ export function NoResult({ search, target }: { search: AnalogSearch; target: Sea
           <Readouts className="mt-2.5 max-md:mt-3" label="Nearest research zone">
             <Readout label="Nearest zone">
               <span className="flex flex-wrap items-baseline justify-between gap-x-3">
-                <span className="toponym text-[15px] tracking-[0.04em] text-ink">{zoneName(near.site.id)}</span>
+                <span className="text-label text-ink">{zoneName(near.site.id)}</span>
                 <span className="text-caption text-muted"><KmFigure km={near.km} /> to its centre</span>
               </span>
             </Readout>
