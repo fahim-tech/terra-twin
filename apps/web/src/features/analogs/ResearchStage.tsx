@@ -41,9 +41,9 @@ function windowName(c: Tier2Candidate): { name: string; sub: string | null } {
 function WindowTableHead({ tie = false, basis }: { tie?: boolean; basis?: string | null }) {
   return (
     <div aria-hidden className={cx(WINDOW_ROW, "kicker border-b border-line py-1.5 max-md:hidden")}>
-      <span>Window</span>
-      <span className="whitespace-nowrap">{tie ? "Location · west → east" : "Location"}</span>
-      <span className="justify-self-end whitespace-nowrap">{tie ? (basis ? `S at ${basis} · meas.` : "S · not a rank") : "S · Meas."}</span>
+      {/* Over a tie the order note spans the name and location columns, so it never runs into the figure label. */}
+      {tie ? <span className="col-span-2 whitespace-nowrap">Window · location · west → east</span> : <><span>Window</span><span>Location</span></>}
+      <span className="justify-self-end whitespace-nowrap">{tie ? (basis ? `S at ${basis}` : "S · no rank") : "S · Meas."}</span>
     </div>
   );
 }
