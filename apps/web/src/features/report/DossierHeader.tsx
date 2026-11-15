@@ -207,7 +207,11 @@ function Exports({ search, c, mission, generatedAt }: { search: AnalogSearch; c:
         }
       }}>
         {copied ? <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} aria-hidden /> : <Copy className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} aria-hidden />}
-        {copied ? "Copied" : <span>Copy<span className="max-sm:sr-only"> JSON</span></span>}
+        {/* Both labels share one cell, so the command keeps its width when it confirms (the strip never shifts). */}
+        <span className="grid [&>*]:col-start-1 [&>*]:row-start-1">
+          <span className={cx(copied && "invisible")}>Copy<span className="max-sm:sr-only"> JSON</span></span>
+          <span className={cx(!copied && "invisible")}>Copied</span>
+        </span>
       </button>
       <button type="button" className={CMD} onClick={() => { download(`${base}.json`, json(), "application/json"); announce("Report JSON downloaded"); }}>
         <Download className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} aria-hidden /><span><span className="sr-only">Download </span>JSON</span>
