@@ -203,8 +203,8 @@ function ReliefScene({ relief, planet, defaultExaggeration, renderer, name }: {
         </div>
         {model && (
           // Phones (and the 2D map at every size): a deck under the scene, so nothing covers the map.
-          <div className={cx("relative z-10 flex flex-wrap items-end justify-between gap-x-6 gap-y-2.5 border-t border-line px-3 py-2.5 sm:px-4",
-            float && "sm:pointer-events-none sm:absolute sm:inset-x-4 sm:bottom-4 sm:flex-nowrap sm:border-0 sm:p-0")}>
+          <div className={cx("relative z-10 flex flex-wrap items-end justify-between gap-x-6 gap-y-2.5 border-t border-line px-3 py-2.5",
+            float ? "sm:pointer-events-none sm:absolute sm:inset-x-4 sm:bottom-4 sm:flex-nowrap sm:border-0 sm:p-0" : "sm:px-5")}>
             <div className={cx("flex flex-col gap-1.5", float && "sm:pointer-events-auto")}>
               <span id={veLabel} className="label-caps on-imagery text-ink">
                 Vertical exaggeration <span className="num tracking-normal">×{ve}</span>
