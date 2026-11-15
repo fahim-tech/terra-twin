@@ -143,12 +143,12 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
       <KeyFigures search={search} c={c} />
 
       <div className="mt-4">
-        <Section title="Research comparison" aside="Tier 2 · observation-operator matching">
+        <Section title="Research comparison" aside={<>Earth as MOLA would observe it · <Term k="researchComparison">method</Term></>}>
           <ResearchSummary search={search} c={c} />
         </Section>
 
         {search.tier1 && (
-          <Section title="Global screen" aside="Tier 1 · coarse screening, as measured">
+          <Section title="Global screen" aside={<>Earth as measured · <Term k="globalScreen">method</Term></>}>
             <ScreenSummary search={search} c={c} />
           </Section>
         )}
@@ -250,7 +250,7 @@ function Meta({ k, children }: { k: ReactNode; children: ReactNode }) {
   );
 }
 
-function Section({ title, aside, children }: { title: string; aside?: string; children: ReactNode }) {
+function Section({ title, aside, children }: { title: string; aside?: ReactNode; children: ReactNode }) {
   return (
     <section className="grid gap-x-10 gap-y-3 pt-10 md:grid-cols-[200px_1fr] print:grid-cols-[150px_1fr] print:pt-7">
       <div>
