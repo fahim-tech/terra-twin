@@ -1,6 +1,6 @@
-"""mars-factors-1.0: every factor reported with a status, values only when available, providers additive."""
+"""mars-factors-1.0 at the API boundary: GIS records passed through, honesty rules enforced, no GIS -> not_integrated."""
 import sys
-from types import ModuleType, SimpleNamespace
+from types import ModuleType
 
 from terratwin_api.services import factors as F
 from terratwin_api.services import gis as GIS
@@ -13,33 +13,38 @@ def test_without_gis_every_factor_is_not_integrated(client, monkeypatch):
         raise GIS.GisUnavailable("no", ["x"])
     monkeypatch.setattr(GIS, "lib", unavailable)
     d = client.get("/api/gis/mars/factors?lat=18.4&lon=77.5").json()
-    assert d["contract_version"] == "mars-factors-1.0" and [f["id"] for f in d["factors"]] == list(F.FACTORS)
-    assert all(f["status"] == "not_integrated" and f["value"] is None for f in d["factors"])
+    assert d["contract_version"] == "mars-factors-1.0" and [f["factor_id"] for f in d["factors"]] == list(F.FACTORS)
+    assert all(f["status"] == "not_integrated" and f["value"] is None and f["reason"] for f in d["factors"])
 
 
-def test_delivered_context_layers_fill_thermal_inertia_and_geology(client, fake):  # noqa: F811
-    fake.CL.point = lambda planet, lat, lon: {"layers": {
-        "tes_thermal_inertia_night": {"layer": "tes_thermal_inertia_night", "source_id": "mars_tes_ti_putzig2007", "value": 311,
-                                      "units": "J m-2 K-1 s-1/2", "feature_state": "measurement-derived", "missing_reason": None,
-                                      "native_resolution": "20 pixels/degree (~2.96 km)", "comparability": "Mars-only context"},
-        "tes_thermal_inertia_day": {"value": 298},
-        "geologic_unit": {"layer": "geologic_unit", "source_id": "mars_geology_sim3292", "value": "HNt", "unit_description": "Hesperian and Noachian transition unit",
-                          "units": "unit symbol", "feature_state": "interpreted", "missing_reason": None, "native_resolution": "1:20,000,000", "comparability": "label only"}}}
-    d = {f["id"]: f for f in client.get("/api/gis/mars/factors?lat=18.4&lon=77.5").json()["factors"]}
-    ti = d["thermal_inertia"]
-    assert ti["status"] == "available" and ti["value"] == 311 and ti["source"]["id"] == "mars_tes_ti_putzig2007"
-    assert any("298" in c for c in ti["caveats"])
-    assert d["geologic_unit"]["value"].startswith("HNt") and d["rock_abundance"]["status"] == "not_integrated"
-
-
-def test_a_gis_factor_module_is_picked_up_and_validated(client, fake, monkeypatch):  # noqa: F811
+def _module(records, seen):
     mod = ModuleType("terratwin_gis.factors")
-    mod.point = lambda lat, lon: {
-        "rock_abundance": {"status": "available", "value": 0.12, "units": "fraction", "source": {"id": "tes_rock"}, "caveats": ["8 ppd"]},
-        "insolation": {"status": "outside_coverage", "value": 5.0, "reason": "polar night"},
-        "swim_ice_potential": {"status": "bogus", "value": 1}}
-    monkeypatch.setitem(sys.modules, "terratwin_gis.factors", mod)
-    d = {f["id"]: f for f in client.get("/api/gis/mars/factors?lat=40&lon=-150").json()["factors"]}
-    assert d["rock_abundance"]["value"] == 0.12 and d["rock_abundance"]["provider"] == "gis.factors"
-    assert d["insolation"]["status"] == "outside_coverage" and d["insolation"]["value"] is None  # never a number
-    assert d["swim_ice_potential"]["status"] == "error" and d["swim_ice_potential"]["value"] is None
+
+    def get_mars_context(lat, lon, season_ls=None, local_time=None):
+        if not -90 <= lat <= 90:
+            raise ValueError("latitude out of range")
+        seen.append((lat, lon, season_ls, local_time))
+        return {"record_type": "mars_planetary_context", "factors": records, "request": {"season_ls": season_ls}}
+    mod.get_mars_context = get_mars_context
+    return mod
+
+
+def test_gis_records_pass_through_with_the_honesty_rules(client, fake, monkeypatch):  # noqa: F811
+    seen = []
+    recs = [
+        {"factor_id": "thermal_inertia", "status": "available", "value": 311, "unit": "J m-2 K-1 s-1/2", "source_id": "tes",
+         "citation": "Putzig & Mellon 2007", "limitations": ["apparent TI"]},
+        {"factor_id": "water_ice", "status": "outside_coverage", "value": 0.4, "reason": "outside SWIM coverage"},
+        {"factor_id": "solar_energy", "status": "weird", "value": 1.0},
+        {"factor_id": "rock_abundance", "status": "available", "value": float("nan"), "source_id": "x"},
+    ]
+    monkeypatch.setitem(sys.modules, "terratwin_gis.factors", _module(recs, seen))
+    d = client.get("/api/gis/mars/factors?lat=18.4&lon=77.5&season_ls=90&local_time=14").json()
+    by = {f["factor_id"]: f for f in d["factors"]}
+    assert seen == [(18.4, 77.5, 90.0, 14.0)] and d["provider"] == "terratwin_gis.factors"
+    assert by["thermal_inertia"]["value"] == 311 and by["thermal_inertia"]["citation"] == "Putzig & Mellon 2007"
+    assert by["water_ice"]["value"] is None and by["water_ice"]["reason"] == "outside SWIM coverage"
+    assert by["solar_energy"]["status"] == "error" and by["solar_energy"]["value"] is None
+    assert by["rock_abundance"]["status"] == "unavailable"  # NaN is not a value
+    assert by["geologic_unit"]["status"] == "not_integrated" and d["summary"]["geologic_unit"] == "not_integrated"
+    assert client.get("/api/gis/mars/factors?lat=18&lon=77&season_ls=400").status_code == 422

@@ -60,11 +60,13 @@ def mars_features(lat: float = Lat, lon: float = Lon):
 
 
 @router.get("/mars/factors")
-def mars_factors(lat: float = Lat, lon: float = Lon):
-    """Additional Mars scientific layers (mars-factors-1.0): characterization only, never similarity. Always 200;
-    each factor carries its own status (available, not_integrated, outside_coverage, unavailable,
-    unsupported_resolution, error)."""
-    return factors.mars_factors(lat, lon)
+def mars_factors(lat: float = Lat, lon: float = Lon, season_ls: float | None = Query(None, ge=0, lt=360),
+                 local_time: float | None = Query(None, ge=0, lt=24)):
+    """Additional Mars scientific layers (mars-factors-1.0, GIS records passed through): characterization only,
+    never similarity or suitability. Each factor carries its own status (available, unavailable, outside_coverage,
+    not_integrated, unsupported_resolution, error). ``season_ls`` (solar longitude, deg) and ``local_time``
+    (local true solar time, h) apply only to time-dependent factors."""
+    return _call(factors.mars_factors, lat, lon, season_ls, local_time)
 
 
 @router.get("/tier1")
