@@ -60,7 +60,10 @@ function NearbyZones({ lat, lon }: { lat?: number; lon?: number }) {
     .slice(0, 3);
   return (
     <div className="mt-5">
-      <h3 className="text-label text-ink">Nearest research zones</h3>
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="text-label text-ink">Nearest research zones</h3>
+        <span className="text-caption text-faint">distance to zone centre</span>
+      </div>
       <ul className="mt-1.5">
         {near.map(({ s, km }) => (
           <li key={s.id} className="border-b border-line last:border-b-0">
@@ -79,10 +82,10 @@ function NearbyZones({ lat, lon }: { lat?: number; lon?: number }) {
   );
 }
 
-/** Distance with a mono figure and a text-face unit; the number is the great-circle distance to the zone centre. */
-export function KmFigure({ km }: { km: number }) {
+/** Distance with a mono figure and a text-face unit (great-circle distance to the zone centre). */
+function KmFigure({ km }: { km: number }) {
   const [v, u] = formatKm(km).split(" ");
-  return <span title="Great-circle distance to the zone centre"><span className="num">{v}</span> {u}</span>;
+  return <span><span className="num">{v}</span> {u}</span>;
 }
 
 /** Actions for an off-zone point: go to the nearest zone (keeping this point marked) or keep this point. */
@@ -101,7 +104,7 @@ export function OutsideActions({ selection }: { selection: Selection }) {
   return (
     <div className="space-y-1.5">
       <Button variant="primary-mars" className="w-full py-2.5" onClick={go} disabled={!near}>
-        {near ? <>Go to nearest zone · {near.name} · <KmFigure km={near.km ?? 0} /></> : "Loading research zones…"}
+        {near ? <>Go to nearest zone · {near.name} · <KmFigure km={near.km ?? 0} /><span className="sr-only"> to its centre</span></> : "Loading research zones…"}
         <ArrowRight className="h-4 w-4" aria-hidden />
       </Button>
       {!isKept && (

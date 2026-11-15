@@ -54,7 +54,10 @@ export function MarsOverlay() {
   );
 }
 
-/** Client-side zone readout for the point under the cursor (fine pointers only; no API call). */
+/**
+ * Client-side zone readout for the point under the cursor (fine pointers only; no API call). The
+ * coordinate itself is already in the top rail's hover readout, so it is not repeated here.
+ */
 function HoverReadout() {
   const hover = useGlobes((s) => (s.hover?.planet === "mars" ? s.hover : null));
   const ins = useGlobes((s) => s.insets.mars);
@@ -79,8 +82,7 @@ function HoverReadout() {
         <span aria-hidden className={z.inside ? "h-2 w-2 self-center rounded-[2px] ring-1 ring-mars" : "h-2 w-2 self-center rounded-full ring-1 ring-faint"} />
         {z.inside
           ? <span className="text-label text-ink">Research zone · <span className="toponym text-[15px]">{z.name}</span></span>
-          : <span className="text-label text-muted">No terrain data here · nearest zone <span className="text-ink">{z.name}</span>, <span className="num">{formatKm(z.km ?? 0)}</span></span>}
-        <span className="num text-num-sm text-faint">{formatCoord(hover.lat, hover.lon)}</span>
+          : <span className="text-label text-muted">No terrain data here · nearest zone <span className="text-ink">{z.name}</span>, <span className="num">{formatKm(z.km ?? 0)}</span> to centre</span>}
       </div>
     </div>
   );

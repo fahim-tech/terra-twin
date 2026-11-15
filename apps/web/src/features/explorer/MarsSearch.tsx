@@ -3,13 +3,19 @@ import { useId, useMemo, useRef, useState } from "react";
 import { cx } from "../../components/ui";
 import { normLon } from "../../lib/geodesy";
 import { zoneName } from "../../lib/glossary";
-import { useMissions, useSites } from "../../services/api";
+import { useEvidence, useMissions, useSites } from "../../services/api";
 import { useApp, type Selection } from "../../store/app";
 import { useExplorer } from "./explorerStore";
 import { OUTCOME_COPY, useSiteOutcomes } from "./outcomes";
 import { formatCoord, formatKm, readZone, selectionFor, zoneSelection } from "./zones";
 
-/** Shown first: a stable leader (Jezero), a tie-prone zone (Gale), and a documented positive-control limit (Cerberus). */
+/**
+ * Shown first (spec §8): zones that between them show a stable leader, a tie and a documented
+ * positive-control limit. Which zone shows which outcome depends on the mission and is read live from
+ * the research summary (glyphs); for Landing Site, Arcadia Planitia is the tie. Cerberus carries the
+ * limit: the verified volcanic analog Holuhraun is not recovered there at 50 km (captioned from the
+ * evidence limitations, not hard-coded).
+ */
 const START_HERE = ["Jezero", "Gale", "Arcadia_Planitia", "Cerberus"];
 
 /** Parse "lat, lon" (also "17.6N 77E" style) into numbers; null if not a coordinate. */
@@ -99,6 +105,8 @@ export function MarsSearch() {
         )}
       </div>
 
+      {/* Phones: a scrim behind the open list so it never half-covers the nav cluster or the sheet. */}
+      {open && <div aria-hidden className="fixed inset-0 -z-10 bg-space/75 md:hidden" />}
       {open && (
         <div className="surface-solid absolute left-0 right-0 top-[52px] z-40 overflow-hidden rounded-surface">
           <ul id={listId} role="listbox" aria-label={coord ? "Coordinate" : "Research zones"} className="scroll-thin fade-edges max-h-[min(56vh,440px)] overflow-y-auto py-1.5">
@@ -109,7 +117,7 @@ export function MarsSearch() {
                   <span className="block text-label text-ink">Go to <span className="num">{formatCoord(coord.lat, coord.lon)}</span></span>
                   {coordZone && (
                     <span className="mt-0.5 block text-caption text-muted">
-                      {coordZone.inside ? <>Inside research zone · {coordZone.name}</> : <>Outside research zones · nearest {coordZone.name}, <span className="whitespace-nowrap"><span className="num">{formatKm(coordZone.km ?? 0).split(" ")[0]}</span> km</span></>}
+                      {coordZone.inside ? <>Inside research zone · {coordZone.name}</> : <>Outside research zones · nearest {coordZone.name}, <span className="whitespace-nowrap"><span className="num">{formatKm(coordZone.km ?? 0).split(" ")[0]}</span> km to centre</span></>}
                     </span>
                   )}
                 </span>
@@ -122,6 +130,7 @@ export function MarsSearch() {
                   : <>No zone matches “{q.trim()}”. Try a name, or a coordinate like <span className="num">18.4, 77.5</span>.</>}
               </li>
             ) : options.map((s, i) => {
+              const note = s.group === "Start here" && s.id === "Cerberus" ? <PositiveControlNote /> : null;
               const head = s.group !== lastGroup ? s.group : null;
               lastGroup = s.group;
               const o = bySite[s.id];
@@ -134,7 +143,10 @@ export function MarsSearch() {
                     className={cx("flex cursor-pointer items-center justify-between gap-3 px-4 py-2 [@media(pointer:coarse)]:min-h-[44px]", i === active && "bg-space/60")}>
                     <span className="flex min-w-0 items-center gap-2.5">
                       <OutcomeGlyph type={o?.type} />
-                      <span className={cx("truncate text-label", current ? "text-mars" : "text-ink")}>{s.display}</span>
+                      <span className="min-w-0">
+                        <span className={cx("block truncate text-label", current ? "text-mars" : "text-ink")}>{s.display}</span>
+                        {note}
+                      </span>
                       {current && <span className="sr-only">(selected)</span>}
                     </span>
                     <span className="num shrink-0 text-num-sm text-faint">{formatCoord(s.lat, s.lon, 1)}</span>
@@ -145,7 +157,7 @@ export function MarsSearch() {
           </ul>
           {!coord && (
             <p className="border-t border-line px-4 py-2 text-caption text-faint">
-              {missionLabel}: <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◉</span> stable leader</span> · <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◎</span> tie</span> · <span className="whitespace-nowrap"><span aria-hidden>—</span> none</span>
+              {missionLabel}: <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◉</span> stable leader</span> · <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◎</span> tie</span> · <span className="whitespace-nowrap"><span aria-hidden>○</span> no verdict</span> · <span className="whitespace-nowrap"><span aria-hidden>—</span> not loaded</span>
             </p>
           )}
         </div>
@@ -154,14 +166,26 @@ export function MarsSearch() {
   );
 }
 
-/** Research outcome glyph for a zone under the active mission: ◉ stable leader, ◎ tie, — none. */
+/**
+ * Research outcome glyph for a zone under the active mission: ◉ stable leader, ◎ tie, ○ abstention
+ * (no convincing analog / insufficient evidence), — no outcome loaded. Abstention is a result, so it
+ * never shares the "missing data" dash.
+ */
 export function OutcomeGlyph({ type }: { type?: string }) {
   const label = type ? OUTCOME_COPY[type as keyof typeof OUTCOME_COPY]?.short ?? type : "No research outcome loaded";
-  const glyph = type === "named_leader" ? "◉" : type === "tied_set" ? "◎" : "—";
+  const glyph = type === "named_leader" ? "◉" : type === "tied_set" ? "◎" : type ? "○" : "—";
   return (
     <span title={label} className={cx("inline-grid w-4 shrink-0 place-items-center text-[13px] leading-none", type === "named_leader" || type === "tied_set" ? "text-mars" : "text-faint")}>
       <span aria-hidden>{glyph}</span>
       <span className="sr-only">{label}:</span>
     </span>
   );
+}
+
+/** One-line caption for Cerberus in "Start here", taken from the API's evidence limitations. */
+function PositiveControlNote() {
+  const ev = useEvidence();
+  const lim = (ev.data?.limitations as { code: string; text: string }[] | undefined)?.find((l) => l.code === "positive_control_miss");
+  if (!lim) return null;
+  return <span className="block truncate text-caption text-faint" title={lim.text}>Positive control missed at 50 km</span>;
 }
