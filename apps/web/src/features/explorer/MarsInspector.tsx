@@ -12,7 +12,7 @@ import { Availability } from "./Availability";
 import { Locator } from "./Locator";
 import { useExplorer } from "./explorerStore";
 import { useSiteOutcomes } from "./outcomes";
-import { ContextReadout, GridReadout } from "./GisPoint";
+import { ContextReadout, FACTOR_CONTEXT_LAYERS, GridReadout } from "./GisPoint";
 import { OutsideActions, OutsideBody, useGisAvailable } from "./OutsideZone";
 import { Mark, Readout, Section, SectionTitle } from "./parts";
 import type { Scales } from "./readouts";
@@ -131,16 +131,18 @@ export function MarsInspector() {
             {/* Point facts from the GIS grids: they describe the picked point, not the zone's research record above. */}
             {gis && (
               <>
-                <Section n={5} title="1 km grid at this point">
+                <Section n={5} title="Planetary context · not in the score">
+                  <FactorsPanel lat={selection.lat} lon={selection.lon} open />
+                </Section>
+                <Section n={6} title="1 km grid at this point">
                   <GridReadout lat={selection.lat} lon={selection.lon} />
                 </Section>
-                <Section n={6} title="Context · not used in similarity">
-                  <ContextReadout lat={selection.lat} lon={selection.lon} />
-                  <FactorsPanel lat={selection.lat} lon={selection.lon} className="mt-3" />
+                <Section n={7} title="Other context layers">
+                  <ContextReadout lat={selection.lat} lon={selection.lon} exclude={FACTOR_CONTEXT_LAYERS} />
                 </Section>
                 {/* In the phone sheet the discovery command lives here, so the docked footer stays one row high. */}
                 {inSheet && (
-                  <Section n={7} title="Global discovery">
+                  <Section n={8} title="Global discovery">
                     <DiscoveryAction selection={selection} variant="outline" />
                   </Section>
                 )}

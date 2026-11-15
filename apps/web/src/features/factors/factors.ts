@@ -66,3 +66,17 @@ export function temporalText(f: FactorRecord): string | null {
   if (typeof t.statistic === "string") parts.push(t.statistic);
   return parts.length ? parts.join(" · ") : typeof t.period === "string" ? t.period : null;
 }
+
+const SHORT: Record<string, string> = {
+  thermal_inertia: "Thermal inertia", geologic_unit: "Geology", rock_abundance: "Rocks",
+  surface_temperature: "Surface temp.", water_ice: "Water-ice index", solar_energy: "Solar",
+};
+/** Compact label for a factor (falls back to the record's own label). */
+export const factorShortLabel = (f: FactorRecord) => SHORT[f.factor_id] ?? f.label;
+
+/** Units in the compact form used beside figures. */
+export function compactUnit(u: string | null | undefined): string {
+  if (!u || u === "class") return "";
+  if (u.startsWith("consistency index")) return "";
+  return u.replace("J m-2 K-1 s-1/2", "J m⁻² K⁻¹ s⁻½").replace("W m-2", "W m⁻²");
+}

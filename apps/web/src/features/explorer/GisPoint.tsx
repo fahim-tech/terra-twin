@@ -172,13 +172,16 @@ export function GridReadout({ lat, lon }: { lat: number; lon: number }) {
 }
 
 /** Context layers at the point: value with units (or the payload's missing reason), native resolution, comparability on demand. */
-export function ContextReadout({ lat, lon }: { lat: number; lon: number }) {
+/** Context layers the planetary-context factors already report (thermal inertia, geologic unit): not repeated. */
+export const FACTOR_CONTEXT_LAYERS = ["tes_thermal_inertia_night", "tes_thermal_inertia_day", "geologic_unit"];
+
+export function ContextReadout({ lat, lon, exclude = [] }: { lat: number; lon: number; exclude?: string[] }) {
   const q = useContextPoint("mars", { lat, lon });
   const [open, setOpen] = useState<string | null>(null);
   const c = q.data;
   if (q.isLoading) return <Loading what="the context layers" />;
   if (q.isError || !c) return <Failed what="Context" error={q.error} />;
-  const layers = Object.values(c.layers);
+  const layers = Object.values(c.layers).filter((l) => !exclude.includes(l.layer));
   return (
     <div>
       <ul aria-label="Context layers, not used in similarity" className="divide-y divide-line border-y border-line">

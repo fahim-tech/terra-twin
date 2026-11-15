@@ -10,7 +10,7 @@ import { distanceKm, R_MARS_M } from "../../lib/geodesy";
 import { zoneName } from "../../lib/glossary";
 import { DiscoveryAction } from "../analogs/DiscoveryAction";
 import { useExplorer } from "./explorerStore";
-import { ContextReadout, GisFeatureRecord, GridReadout } from "./GisPoint";
+import { ContextReadout, FACTOR_CONTEXT_LAYERS, GisFeatureRecord, GridReadout } from "./GisPoint";
 import { useSiteOutcomes } from "./outcomes";
 import { KmFigure, Mark, Section } from "./parts";
 import { useRunSearch } from "./useRunSearch";
@@ -50,14 +50,16 @@ export function OutsideBody({ a }: { a: MarsAnalysis | undefined }) {
         <Section n={1} title="GIS terrain record" aside="this point">
           <GisFeatureRecord lat={lat} lon={lon} />
         </Section>
-        <Section n={2} title="1 km grid at this point">
+        <Section n={2} title="Planetary context · not in the score">
+          <FactorsPanel lat={lat} lon={lon} open />
+        </Section>
+        <Section n={3} title="1 km grid at this point">
           <GridReadout lat={lat} lon={lon} />
         </Section>
-        <Section n={3} title="Context · not used in similarity">
-          <ContextReadout lat={lat} lon={lon} />
-          <FactorsPanel lat={lat} lon={lon} className="mt-3" />
+        <Section n={4} title="Other context layers">
+          <ContextReadout lat={lat} lon={lon} exclude={FACTOR_CONTEXT_LAYERS} />
         </Section>
-        <NearbyZones n={4} lat={lat} lon={lon} />
+        <NearbyZones n={5} lat={lat} lon={lon} />
       </div>
     );
   }
