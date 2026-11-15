@@ -2,6 +2,7 @@ import { cx, pct } from "../../components/ui";
 import { type CandidateView, T1_MEASURES, T2_MEASURES } from "../analogs/candidates";
 import { PlanetMark, SectionRule, StatusMark } from "./marks";
 import { DIFFERENCES_SOURCE, PLANETARY_DIFFERENCES } from "./science";
+import { EnvironmentPairs } from "../factors/EnvironmentPairs";
 
 export type DimensionStatus = "evaluated" | "partial" | "not_evaluated";
 
@@ -39,10 +40,11 @@ export function applications(c: CandidateView, gate: LandcoverGate): { text: str
   return out;
 }
 
-export function RelevanceMode({ c, gate }: { c: CandidateView; gate: LandcoverGate }) {
+export function RelevanceMode({ c, gate, mars }: { c: CandidateView; gate: LandcoverGate; mars?: { lat: number; lon: number } }) {
   const dims = DIMENSIONS(c);
   return (
     <div className="grid gap-x-10 gap-y-6 @min-[900px]:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+      {mars && <EnvironmentPairs className="@min-[900px]:col-span-2" mars={mars} earth={{ lat: c.lat, lon: c.lon }} bareFraction={c.t2?.landcover?.frac_bare_like ?? null} />}
       <section aria-label="Dimensions of analogy">
         <SectionRule title="Dimensions of analogy" as="h4" className="mb-1" />
         <ul>

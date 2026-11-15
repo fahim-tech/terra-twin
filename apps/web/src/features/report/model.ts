@@ -366,7 +366,7 @@ export const SECTION_TITLES: Record<SectionId, string> = {
   screen: "Global screen",
   terrain: "Terrain comparison",
   dimensions: "Dimensions of analogy",
-  context: "Mars planetary context",
+  context: "Planetary context",
   differences: "Planetary differences",
   provenance: "Provenance",
   limitations: "Limitations",

@@ -20,6 +20,7 @@ import { ReliefSnapshotSlot } from "./ReliefSlot";
 import { LiveReport } from "./LiveReport";
 import { useLiveCompare } from "../comparison/useLive";
 import { FactorsTable } from "../factors/FactorsPanel";
+import { EnvironmentPairs } from "../factors/EnvironmentPairs";
 import {
   Differences, Dimensions, Limitations, LIMITATIONS_ASIDE, NoCandidatePlate, Provenance, References, ResearchSummary, ScreenSummary, TerrainComparison,
   terrainAside,
@@ -195,6 +196,7 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
         )}
 
         <Section of={sections} id="context" aside="Characterization only · never in the score">
+          {c && <EnvironmentPairs className="mb-5" mars={search.mars.coordinate} earth={{ lat: c.lat, lon: c.lon }} bareFraction={c.t2?.landcover?.frac_bare_like ?? null} />}
           <FactorsTable lat={search.mars.coordinate.lat} lon={search.mars.coordinate.lon} />
         </Section>
 

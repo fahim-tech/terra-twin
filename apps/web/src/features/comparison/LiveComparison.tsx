@@ -80,7 +80,7 @@ function LiveStrip({ pair, phone }: { pair: LivePair; phone: boolean }) {
           {mode === "relevance" && (
             <>
               {header("What the comparison does and does not cover")}
-              <RelevanceMode c={view} gate={liveGate(r)} />
+              <RelevanceMode c={view} gate={liveGate(r)} mars={{ lat: targets.mars.lat, lon: targets.mars.lon }} />
             </>
           )}
           {mode === "relief" && (

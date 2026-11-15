@@ -107,7 +107,7 @@ function ResearchComparison() {
           {mode === "relevance" && (
             <>
               {header("What the comparison does and does not cover")}
-              <RelevanceMode c={c} gate={search.tier2.landcover_gate} />
+              <RelevanceMode c={c} gate={search.tier2.landcover_gate} mars={{ lat: targets.mars.lat, lon: targets.mars.lon }} />
             </>
           )}
           {mode === "relief" && ReliefViewer && (

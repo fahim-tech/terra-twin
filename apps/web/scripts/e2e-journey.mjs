@@ -87,7 +87,7 @@ await step("evidence page", async () => {
 await step("report page", async () => {
   await click(/^\s*Report\s*$/i); await text(/dossier|key figures/i, 30000);
 });
-await step("report has Mars planetary context", async () => { await text(/Mars planetary context/i, 30000); });
+await step("report has Mars planetary context", async () => { await text(/Planetary context/i, 30000); });
 for (const kind of ["JSON", "CSV"]) {
   await step(`report ${kind} download`, async () => {
     const [d] = await Promise.all([page.waitForEvent("download", { timeout: 15000 }), click(new RegExp(`Download ${kind}`, "i"))]);
