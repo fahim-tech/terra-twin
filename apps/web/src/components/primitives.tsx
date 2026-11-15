@@ -76,6 +76,24 @@ export function useTermTriggers(setOpen: (v: boolean | ((o: boolean) => boolean)
   };
 }
 
+/**
+ * ARIA radio-group keyboard pattern: Arrow keys and Home/End move the selection (selection follows
+ * focus). Pair with `tabIndex={checked ? 0 : -1}` on each radio so the group is one Tab stop.
+ */
+export function radioGroupKeys<T>(values: readonly T[], current: T, select: (v: T) => void) {
+  return (e: React.KeyboardEvent<HTMLElement>) => {
+    const i = Math.max(0, values.indexOf(current));
+    const n = values.length;
+    const to = e.key === "ArrowRight" || e.key === "ArrowDown" ? (i + 1) % n : e.key === "ArrowLeft" || e.key === "ArrowUp" ? (i - 1 + n) % n
+      : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : -1;
+    if (to < 0) return;
+    e.preventDefault();
+    select(values[to]);
+    const radios = e.currentTarget.querySelectorAll<HTMLElement>("[role=radio]");
+    radios[to]?.focus();
+  };
+}
+
 export function Term({ k, children, className }: { k: GlossaryKey; children?: ReactNode; className?: string }) {
   const g = GLOSSARY[k];
   const [open, setOpen] = useState(false);

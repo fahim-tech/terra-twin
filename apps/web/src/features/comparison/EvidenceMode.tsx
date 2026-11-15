@@ -1,4 +1,4 @@
-import { Disclosure, Kicker, Measure } from "../../components/primitives";
+import { Disclosure, Kicker, Measure, radioGroupKeys } from "../../components/primitives";
 import { CompareTerm as Term } from "./CompareTerm";
 import { cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
@@ -56,11 +56,12 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
     <div className="grid gap-x-8 gap-y-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <div>
         <Kicker className="mb-2">Earth representation</Kicker>
-        <div role="radiogroup" aria-label="Earth terrain representation" className="space-y-2">
+        <div role="radiogroup" aria-label="Earth terrain representation" className="space-y-2"
+          onKeyDown={radioGroupKeys(options.map((o) => o.value), representation, (v) => set({ representation: v }))}>
           {options.map((o) => {
             const on = representation === o.value;
             return (
-              <button key={o.value} type="button" role="radio" aria-checked={on} onClick={() => set({ representation: o.value })}
+              <button key={o.value} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} onClick={() => set({ representation: o.value })}
                 className={cx("hit flex w-full items-start gap-3 rounded-control px-3 py-2.5 text-left transition-colors duration-150 active:scale-[0.99]",
                   on ? "bg-elevated shadow-[inset_0_0_0_1px_var(--color-line-strong)]" : "hover:bg-elevated/60")}>
                 <span aria-hidden className={cx("mt-1 grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full ring-1 ring-inset", on ? "ring-ink" : "ring-faint")}>

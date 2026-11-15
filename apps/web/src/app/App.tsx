@@ -3,7 +3,7 @@ import { AnimatePresence, motion, MotionConfig } from "motion/react";
 import { GlobeFrame } from "../globes/GlobeFrame";
 import type { GlobeToParent, Planet } from "../globes/protocol";
 import { cx, Spinner } from "../components/ui";
-import { SPRING } from "../components/primitives";
+import { radioGroupKeys, SPRING } from "../components/primitives";
 import { Sheet, type SheetSnap } from "../components/Sheet";
 import { AltitudeReadout, CenterReadout, NavControls, Reticle, ScaleBar } from "../components/map/Instruments";
 import { useApp } from "../store/app";
@@ -143,9 +143,10 @@ function Workspace() {
         {split && (
           <>
             {phone && (
-              <div role="radiogroup" aria-label="Planet" className="surface no-print absolute left-1/2 top-3 z-20 flex -translate-x-1/2 rounded-full p-1">
+              <div role="radiogroup" aria-label="Planet" onKeyDown={radioGroupKeys<Planet>(["mars", "earth"], phonePlanet, setPhonePlanet)}
+                className="surface no-print absolute left-1/2 top-3 z-20 flex -translate-x-1/2 rounded-full p-1">
                 {(["mars", "earth"] as Planet[]).map((p) => (
-                  <button key={p} role="radio" aria-checked={phonePlanet === p} onClick={() => setPhonePlanet(p)}
+                  <button key={p} role="radio" aria-checked={phonePlanet === p} tabIndex={phonePlanet === p ? 0 : -1} onClick={() => setPhonePlanet(p)}
                     className={cx("hit rounded-full px-4 py-1.5 text-label", phonePlanet === p ? (p === "mars" ? "bg-mars text-space" : "bg-earth text-space") : "text-muted")}>
                     {p === "mars" ? "Mars" : "Earth"}
                   </button>
