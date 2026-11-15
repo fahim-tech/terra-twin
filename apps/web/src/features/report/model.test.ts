@@ -101,6 +101,16 @@ describe("report model", () => {
     expect(screen).toContain(",1,as_measured,");
     expect(screen).toContain("screen_rank_not_a_decision");
     expect(rows.filter((r) => r.startsWith("terrain_comparison")).every((r) => r.includes("context_not_research_score"))).toBe(true);
+    // The contract holds on every row of every section, not only the result rows.
+    const parse = (line: string) => [...line.matchAll(/("(?:[^"]|"")*"|[^,]*)(,|$)/g)].map((m) => m[1]).slice(0, CSV_COLUMNS.length);
+    const col = (k: (typeof CSV_COLUMNS)[number]) => CSV_COLUMNS.indexOf(k);
+    const sections = new Set<string>();
+    for (const r of rows) {
+      const cells = parse(r);
+      sections.add(cells[col("section")]);
+      for (const k of ["tier", "representation", "decision"] as const) expect(cells[col(k)], `${k} in ${r.slice(0, 40)}`).not.toBe("");
+    }
+    expect([...sections]).toEqual(expect.arrayContaining(["mars_target", "mars_descriptor", "selected_candidate", "terrain_comparison", "research_comparison", "global_screen", "limitation"]));
     // Escaping: the scope string contains commas, so it must be quoted intact.
     expect(rows.find((r) => r.includes(",terrain_only,"))).toContain(`"${G5.scope}"`);
   });

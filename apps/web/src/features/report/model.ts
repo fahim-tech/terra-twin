@@ -250,14 +250,18 @@ export function csvEscape(v: unknown): string {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-/** One long table; every row says its tier, representation, unit and decision basis. Tier scores never share a column meaning silently: score_name names each. */
+/**
+ * One long table; every row says its tier, representation and decision basis (never blank: rows that are
+ * not a tier-specific result say "n/a" and why). Tier scores never share a column meaning silently:
+ * score_name names each.
+ */
 export function buildCsv(search: AnalogSearch, c: ReportCandidate | null): string {
   const target = searchTarget(search) as SearchTarget;
   const t2 = search.tier2;
   const rows: CsvRow[] = [];
-  rows.push({ section: "mars_target", id: target.siteId ?? "", label: target.label, lat: target.lat, lon: target.lon, unit: "deg", note: `mission ${target.mission}; requested footprint ${target.footprintKm} km` });
+  rows.push({ section: "mars_target", tier: "n/a", representation: "n/a", decision: "n/a_target_definition", id: target.siteId ?? "", label: target.label, lat: target.lat, lon: target.lon, unit: "deg", note: `mission ${target.mission}; requested footprint ${target.footprintKm} km` });
   for (const f of search.mars.tier1_features) {
-    rows.push({ section: "mars_descriptor", tier: 1, representation: "as_measured", key: f.key, label: f.label, mars_value: f.value, unit: f.unit, note: f.state });
+    rows.push({ section: "mars_descriptor", tier: 1, representation: "as_measured", decision: "n/a_descriptor_zone_median", key: f.key, label: f.label, mars_value: f.value, unit: f.unit, note: f.state });
   }
   if (c) {
     const role = candidateRole(search, c);
@@ -279,7 +283,7 @@ export function buildCsv(search: AnalogSearch, c: ReportCandidate | null): strin
   for (const x of search.tier1?.candidates ?? []) {
     rows.push({ section: "global_screen", tier: 1, representation: "as_measured", id: x.region_id, label: cellLabel(x), lat: x.lat, lon: x.lon, score: x.similarity, score_name: "screen_similarity", unit: "index 0-1", coverage: x.coverage, decision: "screen_rank_not_a_decision", note: `rank ${x.rank}` });
   }
-  for (const l of limitations(search)) rows.push({ section: "limitation", key: l.code, note: l.text });
+  for (const l of limitations(search)) rows.push({ section: "limitation", tier: "n/a", representation: "n/a", decision: "n/a_statement", key: l.code, note: l.text });
   const lines = [CSV_COLUMNS.join(",")];
   for (const r of rows) lines.push(CSV_COLUMNS.map((k) => csvEscape(r[k])).join(","));
   return lines.join("\n");
