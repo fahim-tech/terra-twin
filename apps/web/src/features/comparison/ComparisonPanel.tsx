@@ -109,7 +109,7 @@ export function ComparisonPanel() {
     return () => ro.disconnect();
   }, [hasStrip, phone]);
 
-  if (!search || !c || !targets || !verdict) return <NoCandidate hasSearch={!!search} phone={phone} />;
+  if (!search || !c || !targets || !verdict) return <>{phone && <PhoneScale />}<NoCandidate hasSearch={!!search} phone={phone} /></>;
 
   const cellKm = screenCellKm(search);
   const winKm = researchWindowKm(search, c.t2);
