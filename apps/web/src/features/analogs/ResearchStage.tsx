@@ -11,22 +11,32 @@ import { chooseCandidate, switchTier } from "./tierMemory";
 import { decisionLabel, DecisionHead, OperatorStatus } from "./Verdict";
 
 /**
- * Instrument-table columns for research windows: name · position · S · measures. Fixed figure columns, so the
- * label row and every list share one grid (8 rem holds "25.16° N 102.38° W").
+ * Instrument-table columns for research windows: name · position · figure. The figure is the score with its
+ * measures, "0.718 · 8/8", written as everywhere else in the app (one column, so its label never crowds).
+ * Fixed figure columns, so the label row and every list share one grid (8 rem holds "25.16° N 102.38° W" in
+ * 11.5 px mono). Names wrap instead of truncating: a tie member is often a named analog ("Holuhraun lava
+ * field"), and its name must never be cut.
  * Phones drop the label row (the whole tied set should fit at half height) and print "S" in the cell instead.
+ * Below 380 px the name column would squeeze "Window 233" onto two lines, so there the position moves under
+ * the name instead and the name keeps the full width beside its figure.
  */
-const WINDOW_ROW = "grid grid-cols-[minmax(0,1fr)_8rem_3rem_2rem] items-baseline gap-x-3 pl-3 pr-3 max-md:grid-cols-[minmax(0,1fr)_7.5rem_3.75rem_1.75rem] max-md:gap-x-2";
+const WINDOW_ROW = cx(
+  "grid grid-cols-[minmax(0,1fr)_8rem_5.5rem] items-baseline gap-x-2.5 pl-3 pr-3",
+  // Disjoint ranges: Tailwind emits arbitrary breakpoints before named ones, so overlapping max-* rules would lose.
+  "max-md:min-[380px]:grid-cols-[minmax(0,1fr)_7.75rem_6.25rem] max-md:min-[380px]:gap-x-2",
+  "max-[379px]:grid-cols-[minmax(0,1fr)_auto] max-[379px]:gap-x-3 max-[379px]:gap-y-0.5",
+);
 
 function windowName(c: Tier2Candidate): { name: string; sub: string | null } {
   const w = parseWindowId(c.id);
   return w ? { name: shortWindow(c.id), sub: `Research pool · roughness decile ${w.decile}` } : { name: c.id, sub: c.kind && c.kind !== "random" ? c.kind : null };
 }
 
-/** Column labels (visual only: every row button carries its full accessible name). */
+/** Column labels (visual only: every row button carries its full accessible name). The figure label end-aligns with the figures. */
 function WindowTableHead() {
   return (
     <div aria-hidden className={cx(WINDOW_ROW, "kicker border-b border-line py-1.5 max-md:hidden")}>
-      <span>Window</span><span>Position</span><span className="text-right">S</span><span className="text-right">Meas.</span>
+      <span>Window</span><span>Position</span><span className="justify-self-end whitespace-nowrap">S · Meas.</span>
     </div>
   );
 }
@@ -37,12 +47,14 @@ function WindowRow({ c, on, onPick }: { c: Tier2Candidate; on: boolean; onPick: 
     <li>
       <button type="button" onClick={onPick} aria-pressed={on}
         aria-label={`${name}, ${coord(c.lat, c.lon)}, similarity ${sSpoken(c.S)}, ${measuresOf(c.coverage, T2_MEASURES) ?? "unknown"} of ${T2_MEASURES} measures`}
-        className={rowClass(on, cx(WINDOW_ROW, "py-2.5"))}>
+        className={rowClass(on, cx(WINDOW_ROW, "py-2.5 max-[379px]:py-2"))}>
         {on && <SelectionBar layoutId="t2-selection" />}
-        <span className={cx("truncate text-label", on ? "text-earth" : "text-ink")}>{name}</span>
-        <span className="num whitespace-nowrap text-num-sm text-muted">{coord(c.lat, c.lon)}</span>
-        <span className="num whitespace-nowrap text-right text-num text-ink"><span aria-hidden className="text-faint md:hidden">S </span>{sText(c.S)}</span>
-        <span className="num text-right text-num-sm text-faint">{measuresText(c.coverage, T2_MEASURES)}</span>
+        <span className={cx("min-w-0 break-words text-label", on ? "text-earth" : "text-ink")}>{name}</span>
+        <span className="num whitespace-nowrap text-num-sm text-muted max-[379px]:col-start-1 max-[379px]:row-start-2">{coord(c.lat, c.lon)}</span>
+        <span className="num whitespace-nowrap text-right max-[379px]:col-start-2 max-[379px]:row-start-1">
+          <span aria-hidden className="text-num text-faint md:hidden">S </span><span className="text-num text-ink">{sText(c.S)}</span>
+          <span className="text-num-sm text-faint"> · {measuresText(c.coverage, T2_MEASURES)}</span>
+        </span>
       </button>
     </li>
   );
