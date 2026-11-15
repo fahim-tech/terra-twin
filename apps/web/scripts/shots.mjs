@@ -4,6 +4,7 @@
  *
  *   node scripts/shots.mjs --base http://localhost:5180 --out ../../docs/redesign/screenshots/before
  *   node scripts/shots.mjs --views mars-selected,compare --sizes 1440x900
+ *   node scripts/shots.mjs --sizes 1440x790,1920x970      # realistic browser-window heights
  *
  * Requires a running dev server (it uses the dev-only `window.__terratwin` hook to drive state)
  * and the API on VITE_API_BASE_URL. Uses the locally installed Google Chrome via playwright-core.
@@ -29,6 +30,7 @@ const OFFSITE = { lat: -60, lon: 10, siteId: null, label: "60.00° S, 10.00° E"
 /** Each view: a function run in the page (receives the hook) + extra settle time. */
 const VIEWS = {
   intro: { run: async () => {}, settle: 2000 },
+  "mars-empty": { run: async (h) => { h.useApp.getState().set({ introOpen: false }); }, settle: 3000 },
   "mars-selected": {
     run: async (h, p) => { const s = h.useApp.getState(); s.set({ introOpen: false }); s.select(p.jezero); },
   },
@@ -57,6 +59,13 @@ const VIEWS = {
       s.set({ search: res, candidateId: null, tier: 2 }); s.go("earth");
     },
   },
+  "earth-tied": {
+    run: async (h, p) => {
+      const s = h.useApp.getState(); s.set({ introOpen: false, mission: "terrain_geometry_only" }); s.select(p.jezero);
+      const res = await h.api.findAnalogs({ lat: p.jezero.lat, lon: p.jezero.lon, footprint_km: 25, mission: "terrain_geometry_only" });
+      s.set({ search: res, candidateId: null, tier: 2 }); s.go("earth");
+    },
+  },
   compare: {
     run: async (h, p) => {
       const s = h.useApp.getState(); s.set({ introOpen: false }); s.select(p.jezero);
@@ -73,7 +82,7 @@ const VIEWS = {
     },
     settle: 9000,
   },
-  evidence: { run: async (h) => { h.useApp.getState().set({ introOpen: false }); h.useApp.getState().go("evidence"); }, settle: 4000 },
+  evidence: { run: async (h) => { h.useApp.getState().set({ introOpen: false }); h.useApp.getState().go("evidence"); }, settle: 4000, pages: 4 },
   report: {
     run: async (h, p) => {
       const s = h.useApp.getState(); s.set({ introOpen: false }); s.select(p.jezero);
@@ -81,6 +90,7 @@ const VIEWS = {
       s.set({ search: res, candidateId: `t2:${res.tier2.candidates[0].id}`, tier: 2 }); s.go("compare"); s.go("report");
     },
     settle: 3000,
+    pages: 4,
   },
 };
 
@@ -114,6 +124,22 @@ for (const [w, h] of SIZES) {
       await page.waitForTimeout(view.settle ?? SETTLE);
       const file = resolve(OUT, `${w}x${h}-${name}.jpg`);
       await page.screenshot({ path: file, type: "jpeg", quality: 82 });
+      // Long pages scroll inside the stage: capture further screens of the first scrollable container.
+      for (let k = 1; k < (view.pages ?? 1); k++) {
+        const moved = await page.evaluate((k) => {
+          const el = [...document.querySelectorAll("main *")].find((e) => {
+            const cs = getComputedStyle(e);
+            return (cs.overflowY === "auto" || cs.overflowY === "scroll") && e.scrollHeight > e.clientHeight + 40 && e.clientHeight > 300;
+          });
+          if (!el) return false;
+          const before = el.scrollTop;
+          el.scrollTop = k * el.clientHeight * 0.9;
+          return el.scrollTop !== before;
+        }, k);
+        if (!moved) break;
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: resolve(OUT, `${w}x${h}-${name}-p${k + 1}.jpg`), type: "jpeg", quality: 82 });
+      }
       console.log(`✓ ${w}x${h} ${name}${errors.length ? `  (${errors.length} console errors)` : ""}`);
       if (errors.length) failures.push({ view: `${w}x${h} ${name}`, errors: errors.slice(0, 3) });
     } catch (e) {
