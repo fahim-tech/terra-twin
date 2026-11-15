@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { R_EARTH_MEAN_M, R_MARS_M, distanceKm } from "../lib/geodesy";
 import { VOLUME_PX, footprintCorners, footprintSideKm, hasScanVolume, outlineRing, scanHeightM, slerp, volumeSizeWeight } from "./footprints";
-import { MARS_MOONS, orbitFade, orbitLabel, orbitPoint, orbitRing, refineMin } from "./moons";
+import { MARS_MOONS, clearOfDisc, easeToward, orbitFade, orbitLabel, orbitPoint, orbitRing, refineMin, visibleColumns } from "./moons";
 import { daysSinceJ2000, icrfToMarsFixed, marsOrientation } from "./sky";
 
 describe("moon orbits", () => {
@@ -31,6 +31,32 @@ describe("moon orbits", () => {
     expect(walled.t).toBeGreaterThanOrEqual(0.01);
     expect(walled.t).toBeLessThan(0.0105);
     expect(Number.isFinite(walled.c)).toBe(true);
+  });
+
+  it("keeps an orbit's whole label in front of space, not just the point it hangs from", () => {
+    const disc = { x: 500, y: 400, r: 300 };
+    // Hanging just outside the limb but running right, across the planet: refused.
+    expect(clearOfDisc({ x0: 190, y0: 380, x1: 320, y1: 393 }, disc, 8)).toBe(false);
+    // Above the planet, clear of the limb: allowed.
+    expect(clearOfDisc({ x0: 600, y0: 60, x1: 740, y1: 73 }, disc, 8)).toBe(true);
+    // Within the margin of the limb: refused.
+    expect(clearOfDisc({ x0: 805, y0: 395, x1: 900, y1: 408 }, disc, 8)).toBe(false);
+  });
+
+  it("knows which columns of a slid frame are on screen", () => {
+    // The intro slides a 1440 px frame 230 px right: its last 230 columns are past the window's edge.
+    expect(visibleColumns(1440, { left: 230, width: 1440 }, 1440)).toEqual({ x0: 0, x1: 1210 });
+    // A half-width compare frame on the right, fully on screen.
+    expect(visibleColumns(720, { left: 720, width: 720 }, 1440)).toEqual({ x0: 0, x1: 720 });
+    // Unknown placement: the whole canvas.
+    expect(visibleColumns(800, null, 0)).toEqual({ x0: 0, x1: 800 });
+  });
+
+  it("eases a fade at a fixed rate, and jumps when there is no time to ease", () => {
+    expect(easeToward(0, 1, 0.1, 0.25)).toBeCloseTo(0.4);
+    expect(easeToward(0.9, 1, 0.1, 0.25)).toBe(1);
+    expect(easeToward(1, 0, 0.05, 0.25)).toBeCloseTo(0.8);
+    expect(easeToward(0.3, 1, 0.016, 0)).toBe(1);
   });
 
   it("shows the orbits in whole-planet views and hides them near a site", () => {

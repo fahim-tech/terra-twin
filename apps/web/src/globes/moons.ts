@@ -72,6 +72,40 @@ export function refineMin(cost: (t: number) => number, lo: number, hi: number, i
   return best;
 }
 
+/** A screen rectangle, CSS px. */
+export interface ScreenRect { x0: number; y0: number; x1: number; y1: number }
+
+/**
+ * Whether a label's box keeps `margin` px clear of the planet's disc (centre and radius on screen). An orbit's
+ * name drawn over the planet would read as the name of a surface feature, so its whole box must stay in front
+ * of space — not just the point it hangs from.
+ */
+export function clearOfDisc(box: ScreenRect, disc: { x: number; y: number; r: number }, margin: number): boolean {
+  const dx = Math.max(box.x0 - disc.x, 0, disc.x - box.x1);
+  const dy = Math.max(box.y0 - disc.y, 0, disc.y - box.y1);
+  return Math.hypot(dx, dy) >= disc.r + margin;
+}
+
+/**
+ * The columns of a canvas `canvasW` px wide that are on screen, when its frame sits `frameLeft` px from the
+ * left of a viewport `viewportW` px wide (the shell slides the Mars frame right while the intro is open, so
+ * part of the canvas is then past the window's edge). The whole canvas when the frame's place is unknown.
+ */
+export function visibleColumns(canvasW: number, frame: { left: number; width: number } | null, viewportW: number): { x0: number; x1: number } {
+  if (!frame || !(frame.width > 0) || !(viewportW > 0) || !(canvasW > 0)) return { x0: 0, x1: canvasW };
+  const k = canvasW / frame.width;
+  const x0 = Math.min(canvasW, Math.max(0, -frame.left * k));
+  const x1 = Math.max(x0, Math.min(canvasW, (viewportW - frame.left) * k));
+  return { x0, x1 };
+}
+
+/** `value` moved towards `goal` at a rate that covers the whole 0–1 range in `seconds` (instantly when 0). */
+export function easeToward(value: number, goal: number, dtS: number, seconds: number): number {
+  if (!(seconds > 0)) return goal;
+  const step = Math.max(0, dtS) / seconds;
+  return goal > value ? Math.min(goal, value + step) : Math.max(goal, value - step);
+}
+
 /**
  * Visibility of the orbits by camera altitude (km above the surface): drawn in whole-planet views (the
  * intro and the global explorer, ~9,000 km), gone once the camera descends towards a site.

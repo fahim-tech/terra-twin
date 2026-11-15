@@ -78,7 +78,7 @@ import { SETTLE_START, SNAPSHOT_SETTLE, type SettleVerdict, captureSse, serialRu
 import { footprintCorners, footprintSideKm, hasScanVolume, outlineRing, scanHeightM, volumeSizeWeight } from "./footprints";
 import { GLYPH_EARTH, GLYPH_INK, GLYPH_KINDS, GLYPH_MARS, GLYPH_SPACE, glyph, wallGradient } from "./glyphs";
 import { borderSamples, groundBox, horizonAlong } from "./ground";
-import { MARS_MOONS, orbitFade, orbitLabel, orbitRing, refineMin } from "./moons";
+import { MARS_MOONS, clearOfDisc, easeToward, orbitFade, orbitLabel, orbitRing, refineMin, visibleColumns } from "./moons";
 import {
   type AnchorPosition,
   type AnchorRequest,
@@ -681,8 +681,27 @@ function updateGraticuleLabels() {
 }
 
 // ---------------------------------------------------------------- moons (Mars)
-interface OrbitDraw { aKm: number; line: Polyline; label: Label; labelPx: number; prefer: { x: number; y: number } }
+interface OrbitDraw {
+  aKm: number; line: Polyline; label: Label; labelPx: number; prefer: { x: number; y: number };
+  /** 0–1: how far the orbit is drawn, eased; it is drawn only while its label has a place (see updateOrbits). */
+  named: number;
+  /** Where the label last hung, kept while the orbit fades out after losing its place. */
+  spot: Cartesian3 | null;
+}
 const orbitDraws: OrbitDraw[] = [];
+/** Height of an orbit label's box above the point it hangs from (10.5 px mono with its outline, plus the 6 px offset), px. */
+const ORBIT_LABEL_H = 20;
+/** Clearance between an orbit label's box and the planet's limb, px. */
+const ORBIT_LABEL_LIMB_GAP = 8;
+/**
+ * Outside the intro, the shell's navigator field covers the top-left of the frame (12 px inset, 44 px tall,
+ * 360 px wide; the full width below 640 px) without being an occluding inset: an orbit label's box keeps out
+ * of that corner, with a little air.
+ */
+const NAVIGATOR = { bottom: 64, right: 384, fullWidthBelow: 640 };
+/** Seconds for an orbit to fade in or out as its label finds or loses a place. */
+const ORBIT_NAME_FADE_S = 0.25;
+let orbitsAt = 0;
 
 function initOrbits() {
   if (!viewer || planet !== "mars") return;
@@ -706,7 +725,10 @@ function initOrbits() {
     });
     // Preferred label spots (fractions of the frame): right of the planet, Deimos above Phobos. The label
     // runs right from its point, about 6.3 px per mono character.
-    orbitDraws.push({ aKm: m.aKm, line, label, labelPx: orbitLabel(m).length * 6.3 + 6, prefer: i === 0 ? { x: 0.68, y: 0.44 } : { x: 0.66, y: 0.2 } });
+    orbitDraws.push({
+      aKm: m.aKm, line, label, labelPx: orbitLabel(m).length * 6.3 + 6, prefer: i === 0 ? { x: 0.68, y: 0.44 } : { x: 0.66, y: 0.2 },
+      named: 0, spot: null,
+    });
   });
   scene.preRender.addEventListener(updateOrbits);
 }
@@ -715,10 +737,26 @@ const scratchA = new Cartesian3();
 const scratchB = new Cartesian3();
 const scratchW = new Cartesian2();
 /**
- * A point on the orbit to hang its label from: in front of space (not over or behind the planet's disc),
- * on screen, and as close as possible to the preferred spot. The ring is searched coarsely, then the angle is
- * refined continuously (moons.ts refineMin), so the label holds still while the planet turns under the
- * camera instead of stepping from one sample to the next.
+ * The columns of this globe's canvas that are on screen. The shell may slide the frame partly past the window's
+ * edge (the intro moves the Mars frame right by a sixth of the window), and a label placed out there is cut off.
+ * Read from the frame element the parent gives this realm (same origin); the whole canvas when that fails.
+ */
+function onScreenColumns(w: number): { x0: number; x1: number } {
+  try {
+    const fe = window.frameElement as HTMLElement | null;
+    const r = fe?.getBoundingClientRect();
+    return visibleColumns(w, r ? { left: r.left, width: r.width } : null, window.parent.innerWidth);
+  } catch {
+    return { x0: 0, x1: w };
+  }
+}
+
+/**
+ * A point on the orbit to hang its label from: in front of space, with the label's whole box clear of the
+ * planet's disc (a moon's name over the planet would read as a surface feature's), on screen, and as close as
+ * possible to the preferred spot. The ring is searched coarsely, then the angle is refined continuously
+ * (moons.ts refineMin), so the label holds still while the planet turns under the camera instead of stepping
+ * from one sample to the next.
  */
 function orbitLabelSpot(o: OrbitDraw): Cartesian3 | null {
   const scene = viewer!.scene;
@@ -727,6 +765,15 @@ function orbitLabelSpot(o: OrbitDraw): Cartesian3 | null {
   const C = cam.positionWC;
   const disc = Math.asin(Math.min(1, ellipsoid.maximumRadius / Cartesian3.magnitude(C)));
   const toCentre = Cartesian3.normalize(Cartesian3.negate(C, scratchA), scratchA);
+  // The planet's disc on screen: its centre's projection, and its angular radius at the camera's focal length.
+  const fovy = (cam.frustum as PerspectiveFrustum).fovy ?? CMath.toRadians(60);
+  const centre = SceneTransforms.worldToWindowCoordinates(scene, Cartesian3.ZERO, new Cartesian2());
+  const limb = centre ? { x: centre.x, y: centre.y, r: (h / 2 / Math.tan(fovy / 2)) * Math.tan(disc) } : null;
+  const cols = onScreenColumns(w);
+  // On the title screen the intro's copy fills the left of the window: labels hang right of the planet's centre.
+  const left = Math.max(0.04 * w, cols.x0 + 12, lightMode === "intro" && limb ? limb.x : -Infinity);
+  const right = Math.min(0.96 * w, w - 12, cols.x1 - 12);
+  const navCorner = lightMode === "intro" ? 0 : w < NAVIGATOR.fullWidthBelow ? w : NAVIGATOR.right;
   const a = o.aKm * 1000;
   const P = new Cartesian3();
   const cost = (th: number) => {
@@ -734,7 +781,9 @@ function orbitLabelSpot(o: OrbitDraw): Cartesian3 | null {
     const toP = Cartesian3.normalize(Cartesian3.subtract(P, C, scratchB), scratchB);
     if (Math.acos(Math.max(-1, Math.min(1, Cartesian3.dot(toP, toCentre)))) < disc + 0.03) return Infinity;
     const s = SceneTransforms.worldToWindowCoordinates(scene, P, scratchW);
-    if (!s || s.x < 0.04 * w || s.x + o.labelPx > Math.min(0.96 * w, w - 12) || s.y < 0.07 * h || s.y > 0.93 * h) return Infinity;
+    if (!s || s.x < left || s.x + o.labelPx > right || s.y < 0.07 * h || s.y > 0.93 * h) return Infinity;
+    if (navCorner && s.x < navCorner && s.y - ORBIT_LABEL_H < NAVIGATOR.bottom) return Infinity;
+    if (limb && !clearOfDisc({ x0: s.x, y0: s.y - ORBIT_LABEL_H, x1: s.x + o.labelPx, y1: s.y }, limb, ORBIT_LABEL_LIMB_GAP)) return Infinity;
     return Math.hypot(s.x / w - o.prefer.x, (s.y / h - o.prefer.y) * 0.7);
   };
   const N = 240, step = (Math.PI * 2) / N;
@@ -749,26 +798,40 @@ function orbitLabelSpot(o: OrbitDraw): Cartesian3 | null {
   return new Cartesian3(a * Math.cos(th), a * Math.sin(th), 0);
 }
 
+/**
+ * Orbit visibility for this frame. An orbit is drawn only with its name: a ring whose label has nowhere to go
+ * (zoomed in so it runs along the frame's edge, or only crossing the planet) reads as a decorative line, so it
+ * fades out — and back in once its label has a place again. On a narrow screen the intro's copy sits over the
+ * planet, so the orbits are not drawn there at all; the intro light is the shell's mark that the title screen is
+ * up.
+ */
 function updateOrbits() {
   if (!viewer) return;
+  const now = performance.now();
+  const dt = orbitsAt ? Math.min(0.1, (now - orbitsAt) / 1000) : 0;
+  orbitsAt = now;
   const k = orbitFade(viewer.camera.positionCartographic.height / 1000);
-  // On a narrow screen the intro's copy sits over the planet, so the labels cannot be placed; an orbit is
-  // not drawn without its label there (an unnamed ring through the title reads as decoration). The intro
-  // light is the shell's mark that the title screen is up.
   const narrowIntro = lightMode === "intro" && viewer.scene.canvas.clientWidth < 640;
+  const drawn = !drawingsHidden && !narrowIntro && k > 0.005;
+  let fading = false;
   for (const o of orbitDraws) {
-    o.line.show = !drawingsHidden && !narrowIntro && k > 0.005;
-    o.label.show = false;
+    const spot = drawn ? orbitLabelSpot(o) : null;
+    if (spot) o.spot = spot;
+    // Captures and reduced motion switch at once; otherwise the ring and its label fade together.
+    o.named = drawingsHidden || !drawn ? 0 : easeToward(o.named, spot ? 1 : 0, dt, reducedMotion ? 0 : ORBIT_NAME_FADE_S);
+    if (o.named > 0 && o.named < 1) fading = true;
+    const alpha = k * o.named;
+    o.line.show = drawn && alpha > 0.005;
+    o.label.show = o.line.show && !!o.spot;
     if (!o.line.show) continue;
-    o.line.material.uniforms.color = INK.withAlpha(0.34 * k);
-    const spot = orbitLabelSpot(o);
-    if (spot) {
-      o.label.position = spot;
-      o.label.fillColor = INK.withAlpha(0.74 * k);
-      o.label.outlineColor = SPACE.withAlpha(0.9 * k);
-      o.label.show = true;
+    o.line.material.uniforms.color = INK.withAlpha(0.34 * alpha);
+    if (o.label.show) {
+      o.label.position = o.spot!;
+      o.label.fillColor = INK.withAlpha(0.74 * alpha);
+      o.label.outlineColor = SPACE.withAlpha(0.9 * alpha);
     }
   }
+  if (fading) settle(ORBIT_NAME_FADE_S * 1000 + 50);
 }
 
 // ---------------------------------------------------------------- stars
@@ -1624,7 +1687,12 @@ window.addEventListener("message", (ev: MessageEvent) => {
         break;
       // The spin moves the camera: during a capture it waits too (the capture restores the spin it found).
       case "setSpin": { const on = m.on; cameraCommand(() => { spinning = on; }); break; }
-      case "setLight": lightMode = m.mode === "intro" ? "intro" : "work"; break;
+      case "setLight":
+        lightMode = m.mode === "intro" ? "intro" : "work";
+        // The shell slides the frame as the intro opens or closes (0.6 s): keep rendering until it has arrived,
+        // so the orbit labels are placed for where the frame ends up, not where it was mid-slide.
+        settle(900);
+        break;
       case "resize": viewer?.resize(); placeCredits(); break;
       case "setTilt": {
         const { on, turn } = m;
