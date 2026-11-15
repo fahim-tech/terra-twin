@@ -103,7 +103,8 @@ function FullMatrix({ m }: { m: EvidenceModel }) {
   return (
     <Disclosure summary="Every chain × every assumed operator">
       {m.falsificationLabel && <p className="mb-3 text-caption text-faint">{m.falsificationLabel}.</p>}
-      <div className="scroll-thin -mx-1 overflow-x-auto px-1" tabIndex={0} role="region" aria-label="Misspecification matrix, mean reciprocal rank">
+      {/* The disclosure body clips at its edges, so this scroller draws its focus ring inside itself. */}
+      <div className="scroll-thin overflow-x-auto focus-visible:outline-offset-[-1px]!" tabIndex={0} role="region" aria-label="Misspecification matrix, mean reciprocal rank">
         <table className="w-full min-w-[560px] border-collapse text-left">
           <thead>
             <tr className="border-b border-line-strong">
