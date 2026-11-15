@@ -156,14 +156,14 @@ export function ComparisonPanel() {
               )}
               {mode === "evidence" && (
                 <>
-                  <ModeHeader title="Scientific evidence" basis={c.tier === 2 ? "Research comparison · 50 km windows · research record" : "Global screen · 25 km cell · Earth as measured"} />
+                  <ModeHeader title="Scientific evidence" basis={c.tier === 2 ? `Research comparison · ${c.t2?.window_km ?? search.tier2.target.window_km} km windows · research record` : "Global screen · 25 km cell · Earth as measured"} />
                   <EvidenceMode search={search} c={c} />
                 </>
               )}
               {mode === "relevance" && (
                 <>
                   <ModeHeader title="Exploration relevance" basis="What the comparison does and does not cover" />
-                  <RelevanceMode c={c} />
+                  <RelevanceMode c={c} gate={search.tier2.landcover_gate} />
                 </>
               )}
             </motion.div>

@@ -20,17 +20,25 @@ export const STATUS_COPY: Record<DimensionStatus, { glyph: string; word: string 
   not_evaluated: { glyph: "○", word: "Not evaluated" },
 };
 
-/** Applications are suggestions to be verified; each one says what it rests on. */
-export function applications(c: CandidateView): { text: string; basis: string }[] {
+type LandcoverGate = { bare_min: number; veg_max: number } | null | undefined;
+
+/**
+ * Applications are suggestions to be verified; each one says what it rests on. The field-test suggestion
+ * needs both halves of the search's own land-cover gate (bare ≥ bare_min and vegetated ≤ veg_max); with no
+ * gate in the record, or a missing fraction, it is not offered.
+ */
+export function applications(c: CandidateView, gate: LandcoverGate): { text: string; basis: string }[] {
   const out = [{ text: "Testing DEM, roughness and hazard-mapping algorithms on terrain with comparable statistics.", basis: "terrain descriptors" }];
   const g = c.t2?.landcover;
-  if (g?.available && g.gate !== "fail" && (g.frac_bare_like ?? 0) >= 0.5) {
+  const bare = g?.frac_bare_like ?? null;
+  const veg = g?.frac_vegetated ?? null;
+  if (gate && g?.available && g.gate !== "fail" && bare !== null && veg !== null && bare >= gate.bare_min && veg <= gate.veg_max) {
     out.push({ text: `Screening as a field-test site (exposed ground ${pct(g.frac_bare_like ?? null)}). Access, safety and permits not assessed.`, basis: "ESA WorldCover 2021" });
   }
   return out;
 }
 
-export function RelevanceMode({ c }: { c: CandidateView }) {
+export function RelevanceMode({ c, gate }: { c: CandidateView; gate: LandcoverGate }) {
   return (
     <div className="grid gap-x-8 gap-y-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
       <section aria-label="Dimensions of analogy">
@@ -58,7 +66,7 @@ export function RelevanceMode({ c }: { c: CandidateView }) {
         <section aria-label="Potential applications">
           <Kicker className="mb-1.5">Potential applications · to be verified</Kicker>
           <ul className="space-y-1.5">
-            {applications(c).map((a) => (
+            {applications(c, gate).map((a) => (
               <li key={a.text} className="text-caption text-muted"><span className="text-ink">{a.text}</span> <span className="text-faint">Basis: {a.basis}.</span></li>
             ))}
           </ul>

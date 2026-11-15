@@ -26,7 +26,7 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
   if (c.tier === 1) {
     return (
       <div className="max-w-[760px] space-y-3 text-body text-muted">
-        <p className="text-ink">This is a global-screen cell. It has no research comparison: no 50 km window was re-observed the way MOLA saw the Mars site.</p>
+        <p className="text-ink">This is a global-screen cell. It has no research comparison: no {t2.target.window_km} km window was re-observed the way MOLA saw the Mars site.</p>
         <p>Refining new screening cells needs on-demand extraction and the target's MOLA observation model, which are not connected.</p>
         {t2.live_refinement.missing_inputs.length > 0 && (
           <Disclosure summary="What is missing">
@@ -87,7 +87,7 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
 
       <div className="space-y-4">
         <section aria-label="Per-descriptor research values">
-          <Kicker className="mb-1.5">Per-descriptor values · 50 km window</Kicker>
+          <Kicker className="mb-1.5">Per-descriptor values · {c.t2?.window_km ?? t2.target.window_km} km window</Kicker>
           <table className="w-full text-left text-caption">
             <thead className="text-faint">
               <tr>

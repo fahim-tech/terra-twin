@@ -64,7 +64,7 @@ export function CompareTerm({ k, children, className }: { k: GlossaryKey; childr
     <span className={cx("relative inline", className)} {...triggers.wrapper}>
       <button ref={trigger} type="button" aria-describedby={open ? id : undefined} aria-expanded={open}
         {...triggers.button}
-        className="cursor-help underline decoration-faint/60 decoration-dotted underline-offset-[3px] hover:decoration-ink">
+        className="term-hit cursor-help underline decoration-faint/60 decoration-dotted underline-offset-[3px] hover:decoration-ink">
         {children ?? g.label}
       </button>
       {typeof document !== "undefined" && createPortal(

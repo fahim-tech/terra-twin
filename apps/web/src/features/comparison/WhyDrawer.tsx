@@ -74,7 +74,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
         {c.tier === 2 ? (
           <div>
             <p className="text-label font-normal text-ink">
-              S comes from eight research descriptors on the 50 km windows, and their values are not loaded here. The two lists
+              S comes from eight research descriptors on the {c.t2?.window_km ?? search.tier2.target.window_km} km windows, and their values are not loaded here. The two lists
               below are global-screen context (seven descriptors, 25 km cells, Earth as measured), not what produced S.
             </p>
             <p className="mt-1 text-caption text-muted">Not loaded: {reasons.mars} {c.t2 && search.tier2.representation === "mars_observation_space" ? reasons.earthOom : ""}</p>
@@ -98,7 +98,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
         </Section>
 
         <Section title="Applications" basis="to be verified">
-          {applications(c).map((a) => <Li key={a.text}>{a.text} <span className="text-faint">Basis: {a.basis}.</span></Li>)}
+          {applications(c, search.tier2.landcover_gate).map((a) => <Li key={a.text}>{a.text} <span className="text-faint">Basis: {a.basis}.</span></Li>)}
         </Section>
 
         <Section title="Limits" basis="research record and method">
