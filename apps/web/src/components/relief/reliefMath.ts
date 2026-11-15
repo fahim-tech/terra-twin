@@ -736,6 +736,34 @@ export function rectsOverlap(a: Rect, b: Rect): boolean {
   return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 }
 
+/** Least clear space (CSS px) between km labels of the two scales set side by side, so they never read as one phrase. */
+export const SCALE_GAP = 10;
+
+/**
+ * Seen from the north, both km scales end at the near corner and their end labels ("50 km N", "50 km E") run apart
+ * along their own edges, side by side on one line; there they would read as one phrase. Labels of different scales
+ * that sit side by side closer than `SCALE_GAP` are moved apart, each by half the shortfall (inside the view).
+ */
+function separateScaleEnds(labels: PlacedLabel[], width: number): void {
+  const axis = (l: PlacedLabel) => l.key.split("-")[1];
+  for (let i = 0; i < labels.length; i++) {
+    for (let j = i + 1; j < labels.length; j++) {
+      const p = labels[i], q = labels[j];
+      if (p.kind !== "km" || q.kind !== "km" || axis(p) === axis(q)) continue;
+      const rp = labelRect(p), rq = labelRect(q);
+      if (rp.top >= rq.bottom || rq.top >= rp.bottom) continue; // not on one line
+      const [l, r] = rp.left <= rq.left ? [p, q] : [q, p];
+      const gap = labelRect(r).left - labelRect(l).right;
+      if (gap >= SCALE_GAP) continue;
+      const push = (SCALE_GAP - gap) / 2;
+      const roomL = labelRect(l).left - LABEL_INSET, roomR = width - LABEL_INSET - labelRect(r).right;
+      const toL = Math.min(roomL, Math.max(push, SCALE_GAP - gap - roomR)), toR = Math.min(roomR, SCALE_GAP - gap - toL);
+      l.x -= Math.max(0, toL);
+      r.x += Math.max(0, toR);
+    }
+  }
+}
+
 /**
  * The "N" of the north arrow: just beyond the arrow's tip, along the arrow as it appears on screen (above the
  * tip when the arrow is seen end-on), so it never sits on the arrow. It steps further out to clear the scale
@@ -772,7 +800,8 @@ function placeNorth(m: Model, a: Anchor, cam: Camera, width: number, height: num
  * they fit; elevation labels sit on the outer side of their corner. A km label beside an edge that runs up and
  * down the screen sits on the outside of its tick; seen from the north, both km scales end on the near corner
  * with different values, so (where neither edge runs up the screen) those two labels run apart along their own
- * edges. The north letter is placed last, clear of its arrow and of the scales (`placeNorth`).
+ * edges, with a clear gap between them (`separateScaleEnds`). The north letter is placed last, clear of its arrow
+ * and of the scales (`placeNorth`).
  */
 export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: number, height: number): PlacedLabel[] {
   const place = axisPlacement(cam);
@@ -826,6 +855,7 @@ export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: nu
       out.push({ key: it.a.key, text: it.a.text, kind: it.a.kind, x: it.x + dx, y, align });
     });
   }
+  separateScaleEnds(out, width);
   const north = anchors.find((a) => a.kind === "north");
   const n = north ? placeNorth(m, north, cam, width, height, out) : null;
   if (!n) return out;

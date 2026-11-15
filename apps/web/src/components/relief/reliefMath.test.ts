@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   anchorShown, ariaSummary, axisPlacement, baseElevation, boxEdges, buildModel, camera, contourInterval, contourSegments, fitFrame, gradients, gridStats,
   fitDistance, fmtHeading, fmtPitch, hillshade, homePose, labelAnchors, labelBox, labelRect, layoutLabels, meshElevation, niceStep, niceTicks, NORTH_ARROW, pickCell, project, representationNote,
-  shiftCamera, sunVector, TINT, toGrid, worldY, type Grid,
+  SCALE_GAP, shiftCamera, sunVector, TINT, toGrid, worldY, type Grid,
 } from "./reliefMath";
 
 /** Plane z = a·east + b·north on a north-up grid (row 0 = north). */
@@ -304,6 +304,29 @@ describe("scale labels from every side", () => {
       const km = view(az).filter((l) => l.kind === "km").map(box);
       for (let i = 0; i < km.length; i++) for (let j = i + 1; j < km.length; j++) expect(overlap(km[i], km[j])).toBe(false);
     }
+  });
+
+  it("leaves a clear gap between the two scales' labels where they meet on one line, low views included", () => {
+    let pairs = 0;
+    for (const [w, h] of [[340, 252], [880, 460], [690, 300]]) {
+      for (const elDeg of [12, 20, 30, 45]) {
+        for (let az = 0; az < 360; az += 10) {
+          const c = camera(real, { ...homePose(4), az: (az * Math.PI) / 180, el: (elDeg * Math.PI) / 180 }, w, h);
+          const km = layoutLabels(real, anchors, c, w, h).filter((l) => l.kind === "km");
+          for (let i = 0; i < km.length; i++) {
+            for (let j = i + 1; j < km.length; j++) {
+              if (km[i].key.split("-")[1] === km[j].key.split("-")[1]) continue;
+              const a = box(km[i]), b = box(km[j]);
+              if (a.top >= b.bottom || b.top >= a.bottom) continue; // not on one line
+              pairs++;
+              const gap = Math.max(a.left, b.left) - Math.min(a.right, b.right);
+              expect(gap).toBeGreaterThanOrEqual(SCALE_GAP - 1e-6);
+            }
+          }
+        }
+      }
+    }
+    expect(pairs).toBeGreaterThan(0); // the case occurs (seen from the north), so the check is not empty
   });
 
   it("shows both scale ends at the near corner when seen from the north-east", () => {
