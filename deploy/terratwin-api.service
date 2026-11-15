@@ -1,0 +1,64 @@
+# TerraTwin API (FastAPI) on the us-east-1 host, serving the Vercel frontend through nginx
+# (deploy/nginx/terratwin-api.conf). It reads the GIS workstream's data in /srv/terratwin read-only
+# and listens on localhost only.
+# Install: sudo install -m 0644 deploy/terratwin-api.service /etc/systemd/system/ && sudo systemctl daemon-reload
+#          sudo systemctl enable --now terratwin-api
+# Code lives in /srv/terratwin-app/api (rsync of apps/api), the venv in /srv/terratwin-app/venv (built on the
+# GIS conda env with --system-site-packages, so GDAL/numpy/pandas/scipy/pyarrow are the GIS versions).
+# No secrets in this unit.
+[Unit]
+Description=TerraTwin API (localhost:8710, behind nginx)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=terratwin
+Group=terratwin
+SupplementaryGroups=ubuntu
+WorkingDirectory=/srv/terratwin-app/api
+UMask=0002
+Environment=PATH=/srv/terratwin-app/venv/bin:/srv/terratwin/tools/envs/gis/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONPATH=/srv/terratwin/src
+Environment=TERRATWIN_DATA=/srv/terratwin/data
+Environment=TERRATWIN_DATA_DIR=/srv/terratwin-app/api/data/research
+Environment=TERRATWIN_MOLA_MOSAIC=/srv/terratwin/data/raw/mars/Mars_MGS_MOLA_DEM_mosaic_global_463m.tif
+Environment=TERRATWIN_MEGDR_COUNTS_DIR=/srv/terratwin/data/raw/mars/megdr_counts
+Environment=TERRATWIN_CORS_LOCALHOST=0
+Environment=PROJ_DATA=/srv/terratwin/tools/envs/gis/share/proj
+Environment=GDAL_DATA=/srv/terratwin/tools/envs/gis/share/gdal
+Environment=PROJ_NETWORK=OFF
+Environment=GDAL_CACHEMAX=256
+Environment=OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 GDAL_NUM_THREADS=1
+# One worker: analyses are kept in process memory (docs/deployment.md).
+ExecStart=/srv/terratwin-app/venv/bin/uvicorn terratwin_api.main:app --host 127.0.0.1 --port 8710 --workers 1 --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-server-header
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+# --- resources: this box also runs production services. Expected RSS is ~400 MB; cached analyses
+# can grow it, so memory is reclaimed above 1.2 GB and the service restarts above 2 GB. Its OOM score
+# sits just below the GIS worker's (1000), so the kernel picks TerraTwin before other services.
+MemoryAccounting=yes
+CPUAccounting=yes
+MemoryHigh=1200M
+MemoryMax=2G
+TasksMax=128
+OOMScoreAdjust=900
+
+# --- hardening ---
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/terratwin/data/cache
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target
