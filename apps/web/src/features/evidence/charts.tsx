@@ -261,7 +261,10 @@ export function SupportStrip({ m, targetSite, fig }: { m: EvidenceModel; targetS
           const isA = r.site === active;
           return (
             <span key={r.site} aria-hidden
-              className={cx("absolute -translate-x-1/2", isT ? "z-10 h-[10px] w-[10px] bg-mars" : "h-2 w-2 bg-muted", isA ? "z-20 bg-ink ring-2 ring-ink/40" : "ring-1 ring-space")}
+              className={cx("absolute -translate-x-1/2",
+                // The search target keeps its Mars colour when read; other zones brighten to ink.
+                isT ? "h-[10px] w-[10px] bg-mars" : cx("h-2 w-2", isA ? "bg-ink" : "bg-muted"),
+                isA ? "z-20 ring-2 ring-ink/50" : cx("ring-1 ring-space", isT && "z-10"))}
               style={{ left: `${s.at(r.fraction)}%`, bottom: 5 + levels[i] * step }} />
           );
         })}
