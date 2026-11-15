@@ -401,3 +401,47 @@ def test_unreadable_gis_data_is_503_not_500(client, fake):
     GIS.clear_caches()
     r = client.get("/api/gis/mars/features?lat=1&lon=2")
     assert r.status_code == 503 and "could not be read" in r.json()["detail"]["reason"]
+
+
+def test_published_pool_run_is_reachable_but_not_queued(client, fake):
+    rid = hashlib.sha1(json.dumps([17.6756, 77.0127, "rover_mobility", 40, 600, 50, None, True, PROCESSING]).encode()).hexdigest()[:12]
+    (Path(fake.C.DERIVED) / "runs" / f"{rid}.json").write_text(json.dumps({"run_id": rid, "status": "ok"}))
+    body = {"lat": 17.6756, "lon": 77.0127, "mission": "rover_mobility", "n_refine": 40, "include_research_pool": True}
+    d = client.post("/api/gis/discovery", json=body).json()
+    assert d["status"] == "done" and d["run_id"] == rid
+    r = client.post("/api/gis/discovery", json={**body, "lat": 10.0})
+    assert r.status_code == 422 and "research pool" in r.json()["detail"]["reason"]
+    assert client.post("/api/gis/discovery", json={**body, "lat": 10.0, "include_research_pool": False, "n_refine": 30}).status_code == 200
+
+
+def test_window_relief_reads_the_gis_cache(client, fake, tmp_path):
+    cache = tmp_path / "ew"; cache.mkdir()
+    fake.EW = SimpleNamespace(CACHE=cache, window_id=lambda lat, lon, h=25.0: f"glo90_{lat:+08.4f}_{lon:+09.4f}_h{h:g}")
+    assert client.get("/api/gis/windows/relief?lat=1&lon=2").status_code == 404
+    z = np.arange(108 * 108, dtype=float).reshape(108, 108); z[0, 0] = np.nan
+    np.save(cache / "glo90_+01.0000_+002.0000_h25.npy", z)
+    (cache / "glo90_+01.0000_+002.0000_h25.json").write_text(json.dumps({"latitude": 1.0, "longitude": 2.0, "pixel_m": 463.09, "window_km": 50.0}))
+    d = client.get("/api/gis/windows/relief?lat=1&lon=2").json()
+    assert d["rows"] == 108 and d["elevation"][0] is None and d["source"]["representation"] == "as_measured" and d["planet"] == "earth"
+
+
+def test_compare_provider_serves_a_cached_run_or_points_to_discovery(fake):
+    rid = "3e66a1ed234c"
+    rec = {"run_id": rid, "status": "ok", "refinement": {
+        "target": {"site": None, "lat": 4.502, "lon": 135.623, "window_km": 50}, "mission": "rover_mobility", "window_km": 50,
+        "representation": "mars_observation_space", "operator": {"status": "ok"}, "candidate_pool_scope": "global_tier1_shortlist",
+        "number_of_windows_refined": 40, "decision": {"type": "tied_set", "members": ["a"]},
+        "candidates": [{"id": "a", "lat": 1.0, "lon": 2.0, "S": 0.7, "coverage": 1.0}], "disclaimers": [], "shortlist_selection": {"n_requested": 40}}}
+    (Path(fake.C.DERIVED) / "runs" / f"{rid}.json").write_text(json.dumps(rec))
+    out = GIS.compare_provider(lat=4.502, lon=135.623, mission="rover_mobility", window_km=50, representation="mars_observation_space")
+    assert out["source"] == "gis_discovery_run" and out["decision"]["rotations_checked"] == 4 and out["candidates"][0]["window_km"] == 50
+    none = GIS.compare_provider(lat=1.0, lon=1.0, mission="rover_mobility", window_km=50, representation="mars_observation_space")
+    assert none["decision"]["type"] == "insufficient_evidence" and "POST /api/gis/discovery" in none["operator"]["reason"]
+
+
+def test_analyses_survive_a_restart(monkeypatch, tmp_path):
+    from terratwin_api.services import analysis_store as AS
+    monkeypatch.setenv("TERRATWIN_ANALYSIS_DIR", str(tmp_path))
+    aid = AS.put({"kind": "mars"})
+    AS._items.clear()
+    assert AS.get(aid) == {"kind": "mars", "id": aid} and AS.get("../etc") is None

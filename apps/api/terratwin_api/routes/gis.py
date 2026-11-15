@@ -69,7 +69,8 @@ class DiscoveryRequest(BaseModel):
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=360)
     mission: str = "landing_site"
-    n_refine: Literal[20, 40] = 40
+    n_refine: Literal[20, 30, 40] = 40
+    include_research_pool: bool = False
     site: str | None = Field(default=None, description="Exploration Zone id: the run uses the zone's centre")
 
 
@@ -85,7 +86,7 @@ def discovery(req: DiscoveryRequest):
         if req.site not in fp.index:
             raise HTTPException(404, detail=f"unknown site {req.site!r}")
         lat, lon, name = float(fp.loc[req.site].lat_c), float(fp.loc[req.site].lon_c), req.site
-    return _call(gis.submit_discovery, lat, lon, mission, req.n_refine, name)
+    return _call(gis.submit_discovery, lat, lon, mission, req.n_refine, name, req.include_research_pool)
 
 
 @router.get("/jobs/{job_id}")
@@ -112,6 +113,15 @@ def discovery_run(run_id: str):
     if r is None:
         raise HTTPException(404, detail="no such discovery run")
     return r
+
+
+@router.get("/windows/relief")
+def window_relief(lat: float = Lat, lon: float = Lon):
+    """Elevation grid of a refined discovery window (GIS window cache; never extracted on request)."""
+    rec = _call(gis.window_relief, lat, lon)
+    if rec is None:
+        raise HTTPException(404, detail="this window is not cached on the server (it was not refined by a discovery run)")
+    return rec
 
 
 @router.get("/grid/{planet}/info")

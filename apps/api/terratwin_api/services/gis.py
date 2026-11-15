@@ -36,8 +36,9 @@ MAX_ACTIVE_DISCOVERY = 2
 MAX_SUBMISSIONS_PER_HOUR = 12
 #: The worker logs a resource sample every minute; older than this means it is not running.
 HEARTBEAT_MAX_AGE_S = 180
-#: Windows a discovery run refines. 40 is the GIS default; 20 halves the run time.
-N_REFINE_CHOICES = (20, 40)
+#: Windows a discovery run refines. 40 is the GIS default; 20 halves the run time; 30 reproduces the published
+#: Meridiani run.
+N_REFINE_CHOICES = (20, 30, 40)
 #: Fixed by terratwin_gis.pipeline.run_discovery (tier-1 candidates considered, refinement window).
 TIER1_TOP_N = 600
 WINDOW_KM = 50
@@ -86,13 +87,13 @@ def _load() -> SimpleNamespace:
     except ImportError as e:
         raise GisUnavailable("GDAL is not installed on this server", ["GDAL Python bindings (osgeo)"]) from e
     try:
-        from terratwin_gis import (adapters, config, context_layers, earth_index, grids, jobs, mars,
-                                   pipeline)
+        from terratwin_gis import (adapters, config, context_layers, earth_index, earth_windows, grids, jobs,
+                                   mars, pipeline)
     except ImportError as e:
         raise GisUnavailable("The GIS library is not installed on this server",
                              ["terratwin_gis on PYTHONPATH (repo fahim-tech/terratwin-dataset)"]) from e
-    return SimpleNamespace(AD=adapters, C=config, CL=context_layers, EI=earth_index, grids=grids, jobs=jobs,
-                           MARS=mars, PL=pipeline)
+    return SimpleNamespace(AD=adapters, C=config, CL=context_layers, EI=earth_index, EW=earth_windows, grids=grids,
+                           jobs=jobs, MARS=mars, PL=pipeline)
 
 
 def lib() -> SimpleNamespace:
@@ -227,7 +228,7 @@ def tier1_search(lat: float, lon: float, mission: str, top_n: int = 50) -> dict:
 
 
 # ------------------------------------------------------------------------------------------ discovery
-def discovery_params(lat: float, lon: float, mission: str, n_refine: int) -> dict:
+def discovery_params(lat: float, lon: float, mission: str, n_refine: int, include_research_pool: bool = False) -> dict:
     """The job parameters, normalised exactly as terratwin_gis.pipeline.run_discovery normalises them."""
     L = lib()
     try:
@@ -240,13 +241,14 @@ def discovery_params(lat: float, lon: float, mission: str, n_refine: int) -> dic
     if n_refine not in N_REFINE_CHOICES:
         raise GisInputError(f"n_refine must be one of {list(N_REFINE_CHOICES)}")
     return {"lat": lat, "lon": lon, "mission": mission, "n_refine": int(n_refine), "window_km": WINDOW_KM,
-            "gate_mode": None}
+            "gate_mode": None, "include_research_pool": bool(include_research_pool)}
 
 
 def run_id_for(p: dict) -> str:
     """The run id terratwin_gis.pipeline.run_discovery gives these parameters (same hash, same order)."""
     L = lib()
-    key = [p["lat"], p["lon"], p["mission"], p["n_refine"], TIER1_TOP_N, p["window_km"], p["gate_mode"], False,
+    key = [p["lat"], p["lon"], p["mission"], p["n_refine"], TIER1_TOP_N, p["window_km"], p["gate_mode"],
+           bool(p.get("include_research_pool", False)),
            L.C.PROCESSING_VERSION]
     return hashlib.sha1(json.dumps(key).encode()).hexdigest()[:12]
 
@@ -269,14 +271,19 @@ def _rate_check() -> None:
                       "try again later")
 
 
-def submit_discovery(lat: float, lon: float, mission: str, n_refine: int = 40, name: str | None = None) -> dict:
+def submit_discovery(lat: float, lon: float, mission: str, n_refine: int = 40, name: str | None = None,
+                     include_research_pool: bool = False) -> dict:
     """Return the cached run for these parameters, the run already queued for them, or a new queued job."""
     L = lib()
-    p = discovery_params(lat, lon, mission, n_refine)
+    p = discovery_params(lat, lon, mission, n_refine, include_research_pool)
     rid = run_id_for(p)
     if (_runs_dir(L) / f"{rid}.json").is_file():
         return {"job_id": None, "status": "done", "state_label": STATE_LABELS["done"], "run_id": rid,
                 "cached": True, "params": {**p, "name": name}}
+    if p["include_research_pool"]:
+        raise GisInputError("The GIS worker queue runs global-shortlist discoveries only; a run that adds the "
+                            "230-window research pool exists only where it was published")
+    p.pop("include_research_pool")
     ds = discovery_status(L)
     if ds["status"] != "available":
         raise GisUnavailable(ds["reason"], ds["missing_inputs"])
@@ -453,3 +460,79 @@ def clear_caches() -> None:
     _mars_features.cache_clear()
     _tier1.cache_clear()
     _run_file.cache_clear()
+
+
+# ------------------------------------------------------------------------------------------ live windows + compare
+def window_relief(lat: float, lon: float) -> dict | None:
+    """Elevation grid of a refined discovery window, read from the GIS window cache (never extracted on request).
+    Same shape as the research-pool relief; Earth as measured (Copernicus GLO-90 with its water mask)."""
+    L = lib()
+    wid = L.EW.window_id(float(lat), float(lon), 25.0)
+    npy, js = Path(L.EW.CACHE) / f"{wid}.npy", Path(L.EW.CACHE) / f"{wid}.json"
+    if not (npy.is_file() and js.is_file()):
+        return None
+    import numpy as np
+    meta = json.loads(js.read_text())
+    z = np.asarray(np.load(npy, allow_pickle=False), dtype=np.float64)
+    finite_ = np.isfinite(z)
+    r1 = lambda v: round(float(v), 1) + 0.0  # noqa: E731
+    return {
+        "id": wid, "lat": float(meta.get("latitude", lat)), "lon": float(meta.get("longitude", lon)),
+        "kind": "global_tier1_shortlist", "planet": "earth", "rows": int(z.shape[0]), "cols": int(z.shape[1]),
+        "cell_m": float(meta.get("pixel_m")), "window_km": float(meta.get("window_km", 50.0)), "units": "m",
+        "z_min": r1(np.nanmin(z)) if finite_.any() else None, "z_max": r1(np.nanmax(z)) if finite_.any() else None,
+        "valid_fraction": float(finite_.mean()),
+        "elevation": [r1(v) if ok else None for v, ok in zip(z.ravel().tolist(), finite_.ravel().tolist())],
+        "orientation": {"row0": "north", "col0": "west", "order": "row-major",
+                        "frame": "local azimuthal-equidistant grid centred on the window (WGS84); grid north is true north at the centre"},
+        "source": {"dataset": "copernicus_glo90_live", "title": "Copernicus DEM GLO-90 window (GIS discovery run)",
+                   "file": f"{wid}.npy", "representation": "as_measured",
+                   "vertical_reference": "EGM2008 geoid (Copernicus DEM heights)",
+                   "nodata": "null = no elevation (water-masked or void cell)",
+                   "note": "Copernicus DEM GLO-90 surface model (includes vegetation and buildings), area-averaged to 463.09 m "
+                           "cells on a local azimuthal-equidistant grid, water-masked with its WBM. Earth as measured: the MOLA "
+                           "observation operator is not applied. Extracted on demand by a GIS discovery run.",
+                   "quality_flags": meta.get("quality_flags", [])},
+    }
+
+
+def compare_provider(*, lat: float, lon: float, mission: str, window_km: int, representation: str) -> dict:
+    """TERRATWIN_GIS_PROVIDER for /v1/compare at points outside the research zones: the newest cached discovery
+    run at this point for the mission (G5 shape plus scope), or a typed unavailable record pointing to discovery."""
+    from . import tier2
+    from .catalog import MISSION_BY_ID
+
+    m = MISSION_BY_ID.get(mission)
+    key = m.research_key if m else mission
+    best = None
+    try:
+        lat_n, lon_n = round(float(lat), 4), round(float(lon), 4)
+        for r in runs():
+            t = r["target"]
+            if (r["mission"] == key and r["status"] == "ok" and t["lat"] is not None
+                    and round(t["lat"], 4) == lat_n and round(t["lon"], 4) == lon_n):
+                best = r
+                break
+    except GisUnavailable:
+        best = None
+    if best is None:
+        return tier2._unavailable(lat, lon, window_km, "No live discovery run for this point yet: start one with "
+                                  "POST /api/gis/discovery (it runs on the GIS worker, 1 to 6 minutes).",
+                                  ["GIS discovery run for this point and mission"], representation)
+    rec = run(best["run_id"])["refinement"]
+    if representation == "as_measured":
+        return tier2._unavailable(lat, lon, window_km, "A live run reports the as-measured view per candidate "
+                                  "(as_measured_comparison); no decision is made in that representation.",
+                                  [], representation)
+    dec = dict(rec["decision"])
+    dec.setdefault("rotations_checked", 4)
+    dec.setdefault("label", None)
+    return {
+        **rec, "tier": 2, "source": "gis_discovery_run", "run_id": best["run_id"], "decision": dec,
+        "candidates": [{**c, "window_km": rec.get("window_km", window_km)} for c in rec["candidates"]],
+        "as_measured_baseline": None,
+        "candidate_pool": {"scope": rec.get("candidate_pool_scope"), "n_windows": rec.get("number_of_windows_refined"),
+                           "window_km": rec.get("window_km"), "note": "GIS discovery run: global tier-1 shortlist, "
+                           "Copernicus GLO-90 windows extracted on demand"},
+        "validation_status": "synthetic_twins_only", "live_refinement": tier2.live_status(),
+    }
