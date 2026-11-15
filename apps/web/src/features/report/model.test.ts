@@ -57,6 +57,16 @@ describe("report model", () => {
     expect(resolveCandidate(s, null)).toBeNull();
   });
 
+  it("exports tie members west to east, not in the API's S order", () => {
+    const s = makeSearch("tied_set");
+    // API order is S-descending; place the highest-S member furthest east.
+    (s.tier2.candidates as { lon: number }[]).forEach((c, i) => { c.lon = 30 - i * 10; });
+    const json = buildReportJson(s, null, null, "t") as { tier2_decision: { members: string[] } };
+    expect(json.tier2_decision.members).toEqual(["rand_d8_224", "rand_d8_217", "rand_d8_233"]);
+    const ids = buildCsv(s, null).split("\n").filter((l) => l.startsWith("research_comparison")).map((l) => l.split(",")[3]);
+    expect(ids).toEqual(["rand_d8_224", "rand_d8_217", "rand_d8_233"]);
+  });
+
   it("never presents a tie member as a winner", () => {
     const s = makeSearch("tied_set");
     const c = resolveCandidate(s, "t2:rand_d8_217")!;

@@ -222,7 +222,7 @@ export function buildReportJson(search: AnalogSearch, c: ReportCandidate | null,
       known_analog_status: c.t1?.known_analog.status ?? c.t2?.kind ?? null,
       novelty_claim: "not_assessed",
     } : null,
-    tier2_decision: { ...t2.decision, headline: decisionHeadline(search), members_unordered: t2.decision.type === "tied_set" },
+    tier2_decision: { ...t2.decision, members: memberOrder(t2), headline: decisionHeadline(search), members_unordered: t2.decision.type === "tied_set" },
     operator: t2.operator,
     landcover_gate: t2.landcover_gate,
     as_measured_baseline: t2.as_measured_baseline,
@@ -278,7 +278,12 @@ export function buildCsv(search: AnalogSearch, c: ReportCandidate | null, eviden
       rows.push({ section: "terrain_comparison", tier: 1, representation: "as_measured", id: terrain!.cell, key: r.key, label: r.label, mars_value: r.mars, earth_value: r.earth, unit: r.unit, score: r.s, score_name: "similarity_component", decision: "context_not_research_score", note: r.interpretation });
     }
   }
-  for (const x of t2.candidates) {
+  // Decision members first in the order the screens use (west to east for a tie: the API returns them
+  // by S, which would read as a ranking), then the remaining windows.
+  const order = memberOrder(t2);
+  const byId = new Map(t2.candidates.map((x) => [x.id, x]));
+  const researchRows = [...order.map((id) => byId.get(id)).filter((x): x is Tier2Candidate => !!x), ...t2.candidates.filter((x) => !order.includes(x.id))];
+  for (const x of researchRows) {
     rows.push({ section: "research_comparison", tier: 2, representation: t2.representation, id: x.id, label: windowLabel(x.id), lat: x.lat, lon: x.lon, score: x.S, score_name: "S_research", unit: "index 0-1", coverage: x.coverage, decision: t2.decision.members.includes(x.id) ? t2.decision.type : "not_a_decision_member", note: t2.decision.type === "tied_set" && t2.decision.members.includes(x.id) ? "tie member; equivalent at this resolution, not ranked" : "" });
   }
   const b = t2.as_measured_baseline;
