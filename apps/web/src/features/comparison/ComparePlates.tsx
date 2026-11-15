@@ -1,9 +1,10 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { AltitudeReadout, ScaleBar } from "../../components/map/Instruments";
 import { cx } from "../../components/ui";
 import type { Planet } from "../../globes/protocol";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { useGlobes } from "../../store/globes";
-import { FootprintGauge } from "./FootprintGauge";
+import { CORNERS, FootprintGauge } from "./FootprintGauge";
 import { PlanetLabel } from "./marks";
 import type { CompareTargets } from "./model";
 
@@ -36,12 +37,16 @@ export function ComparePlates({ targets, planets, whyOpen = false, compact = fal
   );
 }
 
+/** Gap kept between a plate and the compared square, px. */
+const CLEARANCE = 8;
+
 function Plate({ planet, targets, compact }: { planet: Planet; targets: CompareTargets; compact: boolean }) {
   const t = planet === "mars" ? targets.mars : targets.earth;
   const sub = planet === "earth" ? targets.earth.sub : null;
+  const noteClear = useNoteClearance(planet, !!sub && !compact);
   return (
     // A dark glass plate (not a scrim), so the labels stay legible over bright terrain and cloud.
-    <section aria-label={`${planet === "mars" ? "Mars" : "Earth"} location`}
+    <section ref={noteClear.plate} aria-label={`${planet === "mars" ? "Mars" : "Earth"} location`} title={sub && !noteClear.show ? sub : undefined}
       className="surface frame absolute left-3 top-3 w-max max-w-[min(280px,calc(100%-24px))] rounded-surface px-3.5 pb-3 pt-2.5 [--frame-l:8px]">
       <PlanetLabel planet={planet} role={planet === "mars" ? "Target" : "Candidate"} />
       <div className="toponym mt-2 text-[20px] leading-[1.02] tracking-[0.04em] text-ink">{t.name}</div>
@@ -53,10 +58,39 @@ function Plate({ planet, targets, compact }: { planet: Planet; targets: CompareT
           <span>{t.footprint}</span>
         </div>
       )}
-      {/* The pool note makes the plate tall; narrower halves leave it to the Why brief so the plate stays clear of the footprint. */}
-      {sub && !compact && <div className="mt-1.5 hidden border-t border-line pt-1.5 text-caption text-faint @min-[680px]:line-clamp-3" title={sub}>{sub}</div>}
+      {/* The pool note makes the plate taller; narrow halves keep its first line, and it gives way entirely
+          when it would reach the compared square (in full on hover and in the Why brief). */}
+      {sub && !compact && noteClear.show && (
+        <div ref={noteClear.note} className="mt-1.5 line-clamp-1 border-t border-line pt-1.5 text-caption text-faint @min-[680px]:line-clamp-3" title={sub}>{sub}</div>
+      )}
     </section>
   );
+}
+
+/**
+ * Whether the plate's note fits above the compared square as projected (the footprint gauge's anchors),
+ * so a plate never covers the footprint. The decision uses the plate's size *with* the note (its height
+ * remembered from the last time it showed), so hiding the note cannot flip the answer back.
+ */
+function useNoteClearance(planet: Planet, wanted: boolean) {
+  const plate = useRef<HTMLElement>(null);
+  const note = useRef<HTMLDivElement>(null);
+  const noteH = useRef(34);
+  const [show, setShow] = useState(true);
+  const anchors = useGlobes((s) => s.anchors[planet]);
+  useLayoutEffect(() => {
+    const el = plate.current;
+    if (!wanted || !el) return;
+    if (note.current) noteH.current = note.current.offsetHeight + 6;
+    const pts = CORNERS.map((id) => anchors[id]);
+    if (pts.some((p) => !p || !p.visible)) { setShow(true); return; }
+    const top = Math.min(...pts.map((p) => p!.y));
+    const left = Math.min(...pts.map((p) => p!.x));
+    const bottom = el.offsetTop + el.offsetHeight + (note.current ? 0 : noteH.current);
+    const right = el.offsetLeft + (note.current ? el.offsetWidth : Math.min(280, (el.parentElement?.clientWidth ?? 0) - 24));
+    setShow(!(left < right + CLEARANCE && top < bottom + CLEARANCE));
+  });
+  return { plate, note, show };
 }
 
 /** Live scale and altitude for one half, bottom-left of its free area and clear of the imagery credit. */
