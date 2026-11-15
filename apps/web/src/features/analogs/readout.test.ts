@@ -6,6 +6,7 @@ const tie = { type: "tied_set", members: ["rand_d8_233", "rand_d8_217", "rand_d8
 describe("tieNote", () => {
   it("names the tied set and its size for a member", () => {
     expect(tieNote(tie, "rand_d8_217")).toBe("One of 3 tied windows");
+    expect(tieNote(tie, "rand_d8_217", true)).toBe("One of 3 tied");
   });
   it("gives every member the same words, so no member reads as first", () => {
     const notes = new Set(tie.members.map((id) => tieNote(tie, id)));

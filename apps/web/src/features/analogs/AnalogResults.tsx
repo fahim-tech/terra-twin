@@ -80,7 +80,8 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
   }
   const isT2 = current.tier === 2;
   // A tie member belongs to an unordered set: say so without a position ("2 of 3" would read as a rank).
-  const tie = isT2 ? tieNote(d, current.t2!.id) : null;
+  // Phones print the short form in the basis line ("… · one of 3 tied"), so the line stays on one row.
+  const tie = isT2 ? tieNote(d, current.t2!.id, phone) : null;
   const n = isT2 ? measuresOf(current.coverage, T2_MEASURES) : current.t1?.n_features_used ?? null;
   const total = isT2 ? T2_MEASURES : T1_MEASURES;
   const winKm = isT2 ? researchWindowKm(search, current.t2) : null;
