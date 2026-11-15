@@ -155,6 +155,25 @@ describe("framing and probe", () => {
     expect(fitDistance(m, 0.1, 0.5, 0.5)).toBeGreaterThan(fitDistance(m, 0.1, 2, 0.5)); // portrait needs more distance
   });
 
+  it("keeps the whole box in a wide or tall frame at every tilt, plan view included", () => {
+    for (const [w, h] of [[880, 460], [1840, 860], [390, 380], [300, 560]]) {
+      for (const elDeg of [8, 30, 60, 88]) {
+        for (const azDeg of [0, 25, 45, 135, 205, 300]) {
+          const c = camera(m, { ...homePose(8), az: (azDeg * Math.PI) / 180, el: (elDeg * Math.PI) / 180 }, w, h);
+          for (const [x, z] of [[-m.hx, -m.hz], [m.hx, -m.hz], [m.hx, m.hz], [-m.hx, m.hz]]) {
+            for (const y of [0, (m.zMax - m.zBase) * c.ys]) {
+              const s = project(c.viewProj, [x, y, z], w, h);
+              expect(s.x).toBeGreaterThanOrEqual(0);
+              expect(s.x).toBeLessThanOrEqual(w);
+              expect(s.y).toBeGreaterThanOrEqual(0);
+              expect(s.y).toBeLessThanOrEqual(h);
+            }
+          }
+        }
+      }
+    }
+  });
+
   it("reads the cell under the pointer from the grid itself", () => {
     const s = centreOf(5, 7);
     const hit = pickCell(m, g, cam, s.x, s.y, 900, 560)!;

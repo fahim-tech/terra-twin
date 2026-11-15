@@ -425,8 +425,8 @@ export interface Camera {
 
 /**
  * Camera distance at which the whole box (floor to top) fits inside `margin` of the frame when seen
- * from elevation `el` at any of eight azimuths. Depends on the exaggeration and the frame's aspect,
- * not on the azimuth, so orbiting never changes the distance.
+ * from elevation `el` at any of eight azimuths. Depends on the exaggeration, the frame's aspect and the
+ * tilt, not on the azimuth, so orbiting never changes the distance and tilting never crops the block.
  */
 export function fitDistance(m: Model, top: number, aspect: number, el: number, margin = 0.84): number {
   const tanV = Math.tan(FOV / 2), tanH = tanV * aspect;
@@ -457,13 +457,16 @@ export function fitDistance(m: Model, top: number, aspect: number, el: number, m
  */
 const TARGET_Y = 0.32;
 
-/** Orbit camera around the box at the current exaggeration. */
+/**
+ * Orbit camera around the box at the current exaggeration, framed for the current tilt: a plan view in a
+ * wide frame stands further back than the oblique home view, so the whole block stays in the frame.
+ */
 export function camera(m: Model, pose: Pose, width: number, height: number): Camera {
   const ys = pose.ve * m.scale;
   const top = (m.zMax - m.zBase) * ys;
   const target: Vec3 = [0, top * TARGET_Y, 0];
   const aspect = Math.max(0.2, width / Math.max(1, height));
-  const d = fitDistance(m, top, aspect, HOME_EL) * pose.zoom;
+  const d = fitDistance(m, top, aspect, pose.el) * pose.zoom;
   const ce = Math.cos(pose.el);
   const eye: Vec3 = [target[0] + d * Math.sin(pose.az) * ce, target[1] + d * Math.sin(pose.el), target[2] - d * Math.cos(pose.az) * ce];
   const view = lookAt(eye, target);
