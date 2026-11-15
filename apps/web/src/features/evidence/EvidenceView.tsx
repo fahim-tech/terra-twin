@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { Fragment, useEffect, useMemo, useRef, type ReactNode } from "react";
 import { Disclosure, Kicker, SPRING, Tag, Term, Toponym } from "../../components/primitives";
+import { PlanetMark, StatusMark, type StatusKind } from "../../components/marks";
 import { Button, cx, Spinner } from "../../components/ui";
 import { G5, zoneName } from "../../lib/glossary";
 import { useDatasets, useEvidence, type DatasetsResponse } from "../../services/api";
@@ -49,7 +50,7 @@ export default function EvidenceView() {
       <header className="lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] lg:items-end lg:gap-x-16">
         <div className="min-w-0">
           <div className="flex items-center gap-3">
-            <span aria-hidden className="h-1.5 w-1.5 bg-warn" />
+            <StatusMark state="caution" />
             <Kicker className="!text-muted">Research method · synthetic validation only</Kicker>
           </div>
           <Toponym as="h1" size="lg" data-stage-heading="evidence" tabIndex={-1} style={{ outline: "none" }}
@@ -59,7 +60,7 @@ export default function EvidenceView() {
           {model?.method.summary && <p className="mt-6 max-w-[64ch] text-body text-muted sm:text-lead">{model.method.summary}</p>}
           {target && (
             <p className="mt-5 flex items-baseline gap-2.5 text-caption text-muted">
-              <span aria-hidden className="relative top-[-1px] h-1.5 w-1.5 shrink-0 bg-mars" />
+              <PlanetMark planet="mars" className="relative top-[-1px]" />
               <span>
                 <span className="label-caps mr-2 text-[10.5px] text-faint">Your search</span>
                 <span className="text-ink">{target.siteId ? zoneName(target.siteId) : target.label}</span>
@@ -74,7 +75,7 @@ export default function EvidenceView() {
       {ev.isLoading && <div className="py-16"><Spinner label="Loading the research evidence" /></div>}
       {ev.isError && (
         <div className="frame mt-12 max-w-[720px] bg-surface px-5 py-5" role="alert">
-          <div className="label-caps text-ink"><span aria-hidden className="mr-2 text-bad">⊘</span>Evidence unavailable</div>
+          <div className="label-caps flex items-center gap-2 text-ink"><StatusMark state="fault" />Evidence unavailable</div>
           <p className="mt-2 max-w-[60ch] text-body text-muted">The research evidence could not be loaded from the API. No figures are shown rather than stale or invented ones.</p>
           <p className="num mt-2 text-num-sm text-faint">{(ev.error as Error)?.message}</p>
           <Button variant="outline" className="mt-4" onClick={() => ev.refetch()}>Retry</Button>
@@ -122,7 +123,7 @@ function DocControl({ m, pkg, pkgState }: { m: EvidenceModel; pkg: DatasetsRespo
 }
 
 function SyntheticTag() {
-  return <Tag tone="warn" title={G5.validation}>⚠ Synthetic</Tag>;
+  return <Tag tone="warn" title={G5.validation}><StatusMark state="caution" size={6} />Synthetic</Tag>;
 }
 
 /* ---- key figures ------------------------------------------------------------------------------- */
@@ -166,7 +167,7 @@ function KeyFig({ label, value, basis, scale, warn }: { label: string; value: Re
   return (
     <div className="flex min-w-0 flex-col bg-surface px-5 py-5 sm:px-6">
       <dt className={cx("text-[10.5px] font-semibold uppercase leading-snug tracking-[0.12em]", warn ? "text-warn" : "text-muted")}>
-        {warn && <span aria-hidden className="mr-1.5">⚠</span>}{label}
+        {warn && <StatusMark state="caution" className="mr-1.5 -translate-y-px" />}{label}
       </dt>
       <dd className="num m-0 mt-3 whitespace-nowrap text-[28px] leading-none text-ink">{value}</dd>
       {scale && <dd className="m-0 mt-4">{scale}</dd>}
@@ -243,7 +244,7 @@ function IndexRail({ active }: { active: SectionId | null }) {
       </ol>
       <div className="mt-5 border-t border-line pt-3.5">
         <div className="flex items-center gap-2">
-          <span aria-hidden className="h-1.5 w-1.5 bg-warn" />
+          <StatusMark state="caution" />
           <span className="kicker !text-warn">Validation</span>
         </div>
         <p className="mt-2 text-caption text-muted"><Term k="synthetic">Synthetic twins only</Term>. Not validated against field data or expert review.</p>
@@ -279,7 +280,7 @@ function Body({ m, ds, dsLoading, dsError, targetSite }: { m: EvidenceModel; ds?
         </Note>
       </Section>
 
-      <Section id="ev-falsification" title="The method can fail, and we show where" tag={<Tag tone="warn">⚠ Adverse result kept visible</Tag>}>
+      <Section id="ev-falsification" title="The method can fail, and we show where" tag={<Tag tone="warn"><StatusMark state="caution" size={6} />Adverse result kept visible</Tag>}>
         <FalsificationChart m={m} fig={sectionNo("ev-falsification")} />
         {m.falsificationHeadline && (
           <Note label="Adverse" tone="warn"><span className="text-ink">{m.falsificationHeadline}.</span> The deployed operator was selected from Mars-observable statistics, not from this benchmark.</Note>
@@ -337,7 +338,7 @@ function Body({ m, ds, dsLoading, dsError, targetSite }: { m: EvidenceModel; ds?
             </li>
           ))}
         </ol>
-        {!m.limitations.length && <p className="text-caption text-bad">⊘ Limitations are missing from the evidence payload.</p>}
+        {!m.limitations.length && <p className="flex items-baseline gap-2 text-caption text-ink"><StatusMark state="fault" className="-translate-y-px" />Limitations are missing from the evidence payload.</p>}
       </Section>
 
       <Section id="ev-provenance" title="Datasets and integrity">
@@ -381,7 +382,7 @@ function Note({ label, tone, children }: { label: string; tone?: "warn"; childre
   return (
     <div className="mt-10 grid max-w-[980px] gap-x-6 gap-y-2 sm:grid-cols-[8rem_minmax(0,1fr)]">
       <div className={cx("border-t pt-2.5 text-[10.5px] font-semibold uppercase tracking-[0.12em]", tone === "warn" ? "border-warn/70 text-warn" : "border-line-strong text-faint")}>
-        {tone === "warn" && <span aria-hidden className="mr-1.5">⚠</span>}{label}
+        {tone === "warn" && <StatusMark state="caution" className="mr-1.5 -translate-y-px" />}{label}
       </div>
       <p className="m-0 max-w-[76ch] border-line pt-2 text-body text-muted sm:border-t sm:pt-2.5">{children}</p>
     </div>
@@ -425,7 +426,7 @@ function Controls({ m }: { m: EvidenceModel }) {
           </tbody>
         </table>
         <p className="mt-4 text-caption text-muted">
-          <span aria-hidden className="mr-1.5 text-warn">⚠</span>{bestOom !== null ? <>Best rank with OOM is <span className="num text-ink">#{bestOom}</span> of {c.poolSize ?? "?"}{m.coverage.tier2Km !== null ? <> at {m.coverage.tier2Km} km</> : null}. </> : null}Terrain geometry is not geology.
+          <StatusMark state="caution" className="mr-1.5 -translate-y-px" />{bestOom !== null ? <>Best rank with OOM is <span className="num text-ink">#{bestOom}</span> of {c.poolSize ?? "?"}{m.coverage.tier2Km !== null ? <> at {m.coverage.tier2Km} km</> : null}. </> : null}Terrain geometry is not geology.
         </p>
       </div>
       <div>
@@ -438,8 +439,9 @@ function Controls({ m }: { m: EvidenceModel }) {
           {negGate.map((g) => (
             <li key={g.name} className="flex items-center justify-between gap-3 border-t border-line py-2.5 text-label">
               <span className="text-ink">{g.name}</span>
+              {/* A negative control that passes the filter is a caution; one the filter removes is simply off. */}
               <span className={cx("inline-flex items-center gap-2 font-mono text-[10.5px] uppercase tracking-[0.06em]", g.pass ? "text-warn" : "text-muted")}>
-                <span aria-hidden className={cx("h-1.5 w-1.5", g.pass ? "bg-warn" : "ring-1 ring-inset ring-muted")} />
+                <StatusMark state={g.pass ? "caution" : "off"} />
                 {g.pass ? "Passes the filter" : "Removed by the filter"}
               </span>
             </li>
@@ -454,7 +456,7 @@ function Controls({ m }: { m: EvidenceModel }) {
               <li key={g.name} className="flex justify-between gap-3 border-b border-line py-1.5 text-caption">
                 <span className="text-muted">{g.name}</span>
                 <span className={cx("inline-flex items-center gap-2", g.pass ? "text-ink" : "text-faint")}>
-                  <span aria-hidden className={cx("h-1.5 w-1.5", g.pass ? "bg-ink" : "ring-1 ring-inset ring-faint")} />
+                  <StatusMark state={g.pass ? "on" : "off"} />
                   {g.pass ? "eligible" : "not cleared"}
                 </span>
               </li>
@@ -469,17 +471,21 @@ function Controls({ m }: { m: EvidenceModel }) {
 
 /* ---- provenance -------------------------------------------------------------------------------- */
 
-/** Dataset status: square mark (filled = in use, outlined = absent) plus the word, never colour alone. */
-const STATUS: Record<string, { word: string; cls: string; mark: string }> = {
-  imported: { word: "Imported", cls: "text-ink", mark: "bg-ink" },
-  partial: { word: "Partial", cls: "text-warn", mark: "bg-[linear-gradient(90deg,var(--color-warn)_50%,transparent_50%)] ring-1 ring-inset ring-warn" },
-  missing: { word: "Missing", cls: "text-bad", mark: "ring-1 ring-inset ring-bad" },
-  visualization_only: { word: "Visualization only", cls: "text-muted", mark: "ring-1 ring-inset ring-muted" },
+/**
+ * Dataset status with the shared status marks plus the word, never colour alone: filled = imported, half =
+ * partial, outlined = visualization only (never measured), struck = missing (not in this package). A
+ * missing dataset is a gap in the inputs, not a fault, so it is not drawn red.
+ */
+const STATUS: Record<string, { word: string; cls: string; mark: StatusKind }> = {
+  imported: { word: "Imported", cls: "text-ink", mark: "on" },
+  partial: { word: "Partial", cls: "text-ink", mark: "partial" },
+  missing: { word: "Missing", cls: "text-muted", mark: "struck" },
+  visualization_only: { word: "Visualization only", cls: "text-muted", mark: "off" },
 };
 
 function Provenance({ ds, loading, error }: { ds?: DatasetsResponse; loading: boolean; error: boolean }) {
   if (loading) return <Spinner label="Loading datasets" />;
-  if (error || !ds) return <p className="text-body text-muted"><span aria-hidden className="mr-1.5 text-bad">⊘</span>Dataset provenance could not be loaded.</p>;
+  if (error || !ds) return <p className="flex items-baseline gap-2 text-body text-muted"><StatusMark state="fault" className="-translate-y-px" />Dataset provenance could not be loaded.</p>;
   const okN = ds.integrity_checks.filter((c) => c.ok).length;
   const th = "py-2 pr-4 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-faint";
   return (
@@ -496,7 +502,7 @@ function Provenance({ ds, loading, error }: { ds?: DatasetsResponse; loading: bo
           </thead>
           <tbody>
             {ds.datasets.map((d) => {
-              const st = STATUS[d.status] ?? { word: d.status.replace(/_/g, " "), cls: "text-muted", mark: "ring-1 ring-inset ring-muted" };
+              const st = STATUS[d.status] ?? { word: d.status.replace(/_/g, " "), cls: "text-muted", mark: "off" as StatusKind };
               return (
                 <tr key={d.id} className="border-t border-line align-top first:border-t-0">
                   <td className="py-3.5 pr-4">
@@ -515,7 +521,7 @@ function Provenance({ ds, loading, error }: { ds?: DatasetsResponse; loading: bo
                   </td>
                   <td className="hidden py-3.5 pr-4 text-caption text-muted md:table-cell">{d.role}</td>
                   <td className={cx("whitespace-nowrap py-3.5 text-caption", st.cls)}>
-                    <span className="inline-flex items-center gap-2"><span aria-hidden className={cx("h-1.5 w-1.5 shrink-0", st.mark)} />{st.word}</span>
+                    <span className="inline-flex items-center gap-2"><StatusMark state={st.mark} />{st.word}</span>
                   </td>
                 </tr>
               );
@@ -534,7 +540,7 @@ function Provenance({ ds, loading, error }: { ds?: DatasetsResponse; loading: bo
             {ds.integrity_checks.map((c) => (
               <li key={c.name} className="grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 border-t border-line py-2 text-caption first:border-t-0 @lg:grid-cols-[3rem_minmax(0,1fr)_auto]">
                 <span className={cx("inline-flex items-center gap-1.5 font-mono text-[10.5px] uppercase", c.ok ? "text-ink" : "text-bad")}>
-                  <span aria-hidden className={cx("h-1.5 w-1.5 shrink-0", c.ok ? "bg-ink" : "ring-1 ring-inset ring-bad")} />{c.ok ? "Pass" : "Fail"}
+                  <StatusMark state={c.ok ? "on" : "fault"} />{c.ok ? "Pass" : "Fail"}
                 </span>
                 <span className={c.ok ? "text-muted" : "text-bad"}>{c.name.replace(/_/g, " ")}</span>
                 <span className="num col-start-2 min-w-0 break-words text-num-sm text-faint @lg:col-start-auto @lg:text-right">{c.detail}</span>
@@ -565,7 +571,7 @@ function Provenance({ ds, loading, error }: { ds?: DatasetsResponse; loading: bo
             <div className="mt-8">
               <h3 className="m-0 border-b border-line pb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-ink">Live research comparison</h3>
               <p className="mt-3 flex items-baseline gap-2 text-caption text-muted">
-                <span aria-hidden className={cx("relative top-[-1px] h-1.5 w-1.5 shrink-0", ds.live_refinement.status === "available" ? "bg-ink" : "ring-1 ring-inset ring-muted")} />
+                <StatusMark state={ds.live_refinement.status === "available" ? "on" : "struck"} className="relative top-[-1px]" />
                 {ds.live_refinement.status === "available" ? "Available" : "Not available — research comparisons come from the published research record."}
               </p>
               {ds.live_refinement.missing_inputs.length > 0 && (
