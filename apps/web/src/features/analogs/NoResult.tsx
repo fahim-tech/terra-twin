@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { Disclosure } from "../../components/primitives";
+import { Disclosure, PanelFooter } from "../../components/primitives";
 import { Button } from "../../components/ui";
 import { zoneName } from "../../lib/glossary";
 import { nearestSite } from "../../lib/instruments";
@@ -9,6 +9,7 @@ import { KmFigure } from "../explorer/OutsideZone";
 import type { SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
 import { Readout, Readouts, SectionHead, StatusMark } from "./instruments";
+import { DecisionHead } from "./Verdict";
 
 /** "USGS MOLA 463 m mosaic (TERRATWIN_MOLA_MOSAIC)" → plain name + env name in mono, marked not connected. */
 function MissingInput({ text }: { text: string }) {
@@ -37,33 +38,32 @@ export function missingInputs(search: AnalogSearch): string[] {
   return all.filter((s) => { const k = key(s); if (seen.has(k)) return false; seen.add(k); return true; });
 }
 
-/** No Earth comparison is possible for this target: say so plainly and offer the next step. */
-export function NoResult({ search, target }: { search: AnalogSearch; target: SearchTarget }) {
+/**
+ * The research zone nearest to an off-zone target. A target inside a zone has no "nearest zone" to go to
+ * (it would be itself), so only off-zone targets get one.
+ */
+function useNearestZone(search: AnalogSearch, target: SearchTarget) {
   const sites = useSites();
-  const near = nearestSite(sites.data, target.lat, target.lon);
+  const offZone = !search.mars.site;
+  return { sites, offZone, near: offZone ? nearestSite(sites.data, target.lat, target.lon) : null };
+}
+
+/** No Earth comparison is possible for this target: say so plainly; the next step is the footer action. */
+export function NoResult({ search, target }: { search: AnalogSearch; target: SearchTarget }) {
+  const { sites, offZone, near } = useNearestZone(search, target);
   const reason = (search.tier2.operator as { reason?: string }).reason ?? search.mars.unavailable?.reason ?? search.tier2.decision.label;
   const missing = missingInputs(search);
   const owner = search.mars.unavailable?.owner ?? (search.tier2.live_refinement as { owner?: string }).owner;
-  const offZone = !search.mars.site;
   // The zone count comes from the zone list itself; until it loads the sentence names no number.
   const nZones = sites.data?.length;
 
-  const goNearest = () => {
-    if (!near) return;
-    const app = useApp.getState();
-    app.select({ lat: near.site.lat, lon: near.site.lon, siteId: near.site.id, label: zoneName(near.site.id) });
-    app.go("mars");
-    app.announce(`Moved to ${zoneName(near.site.id)}, the nearest research zone.`);
-  };
-
   return (
     <section aria-labelledby="no-result-title" className="pb-2">
-      <SectionHead index="01">Status</SectionHead>
-      <div className="mt-2.5 border border-line-strong">
-        <div className="flex min-h-[40px] items-center gap-2.5 bg-bad/[0.07] px-3 py-2">
-          <StatusMark state="fault" />
-          <span className="label-caps text-ink">Not enough evidence</span>
-        </div>
+      {/* Phones hide the section rules (kept for screen readers) so the status and the nearest zone fit at half height. */}
+      <SectionHead index="01" className="max-md:sr-only">Status</SectionHead>
+      {/* The annunciator names the decision the record actually made (glossary term on demand), never a fixed label. */}
+      <div className="mt-2.5 border border-line-strong max-md:mt-0">
+        <DecisionHead t2={search.tier2} as="div" />
         <div className="border-t border-line px-3 py-3">
           <h4 id="no-result-title" className="text-title text-ink">No Earth comparison for this point</h4>
           <p className="mt-1.5 text-caption text-muted">
@@ -74,10 +74,10 @@ export function NoResult({ search, target }: { search: AnalogSearch; target: Sea
         </div>
       </div>
 
-      <SectionHead index="02" className="mt-6">Next step</SectionHead>
-      {near ? (
+      {near && (
         <>
-          <Readouts className="mt-2.5" label="Nearest research zone">
+          <SectionHead index="02" className="mt-6 max-md:sr-only">Next step</SectionHead>
+          <Readouts className="mt-2.5 max-md:mt-3" label="Nearest research zone">
             <Readout label="Nearest zone">
               <span className="flex flex-wrap items-baseline justify-between gap-x-3">
                 <span className="toponym text-[15px] tracking-[0.04em] text-ink">{zoneName(near.site.id)}</span>
@@ -85,14 +85,7 @@ export function NoResult({ search, target }: { search: AnalogSearch; target: Sea
               </span>
             </Readout>
           </Readouts>
-          <Button variant="primary-mars" className="mt-3 w-full" onClick={goNearest}>
-            Go to nearest research zone <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Button>
         </>
-      ) : (
-        <Button variant="primary-mars" className="mt-3 w-full" onClick={() => useApp.getState().go("mars")} disabled={sites.isLoading}>
-          {sites.isLoading ? "Finding the nearest research zone…" : "Back to Mars"}
-        </Button>
       )}
 
       <Disclosure className="mt-5" summary="What's missing">
@@ -105,5 +98,32 @@ export function NoResult({ search, target }: { search: AnalogSearch; target: Sea
         {owner && <p className="mt-2 text-caption text-faint">Owner: {owner}. No comparison is substituted in the meantime.</p>}
       </Disclosure>
     </section>
+  );
+}
+
+/** The sticky footer action of the no-result state: go to the nearest research zone, else back to Mars. */
+export function NoResultFooter({ search, target }: { search: AnalogSearch; target: SearchTarget }) {
+  const { sites, offZone, near } = useNearestZone(search, target);
+
+  const goNearest = () => {
+    if (!near) return;
+    const app = useApp.getState();
+    app.select({ lat: near.site.lat, lon: near.site.lon, siteId: near.site.id, label: zoneName(near.site.id) });
+    app.go("mars");
+    app.announce(`Moved to ${zoneName(near.site.id)}, the nearest research zone.`);
+  };
+
+  return (
+    <PanelFooter className="border-t border-line">
+      {near ? (
+        <Button variant="primary-mars" className="w-full" onClick={goNearest}>
+          Go to nearest research zone <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+        </Button>
+      ) : (
+        <Button variant="primary-mars" className="w-full" onClick={() => useApp.getState().go("mars")} disabled={offZone && sites.isLoading}>
+          {offZone && sites.isLoading ? "Finding the nearest research zone…" : "Back to Mars"}
+        </Button>
+      )}
+    </PanelFooter>
   );
 }

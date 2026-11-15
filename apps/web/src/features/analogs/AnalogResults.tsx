@@ -13,7 +13,7 @@ import { type CandidateView, candidateList, measuresOf, prettyWindow, researchWi
 import { EarthLookup } from "./EarthLookup";
 import { GlobalStage } from "./GlobalStage";
 import { Readout, Readouts, StatusMark } from "./instruments";
-import { NoResult } from "./NoResult";
+import { NoResult, NoResultFooter } from "./NoResult";
 import { sText, tieNote } from "./readout";
 import { ResearchStage } from "./ResearchStage";
 import { switchTier } from "./tierMemory";
@@ -178,7 +178,8 @@ export function AnalogResults() {
         </div>
       </PanelBody>
 
-      {!noResult && <Footer current={current} search={search} target={target} phone={phone} />}
+      {/* The next step is the sticky footer action in every state, so it stays in reach at half height on phones. */}
+      {noResult ? <NoResultFooter search={search} target={target} /> : <Footer current={current} search={search} target={target} phone={phone} />}
     </div>
   );
 }
