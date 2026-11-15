@@ -221,13 +221,14 @@ export function ProcessFigure({ m }: { m: EvidenceModel }) {
           return (
             <li key={s.n} aria-current={active === i ? "step" : undefined}
               onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
-              className={cx("relative min-w-0 rounded-control transition-opacity duration-200 motion-reduce:transition-none", dim && "opacity-45")}>
+              className="relative min-w-0 rounded-control">
               <div className="flex h-6 items-center gap-2">
                 <span className={cx("num text-num-sm", on ? "text-ink" : "text-faint")}>{s.n.padStart(2, "0")}</span>
                 <span className="text-label text-ink">{s.title}</span>
                 {i < stages.length - 1 && <span aria-hidden className="ml-auto hidden text-faint lg:inline">→</span>}
               </div>
-              <div className={cx("mt-3 rounded-control px-1 py-2 transition-[box-shadow,background] duration-200 motion-reduce:transition-none", on ? "bg-ink/[0.05] shadow-[inset_0_0_0_1px_rgb(255_255_255/.14)]" : "bg-ink/[0.025]")}>
+              {/* Only the drawing dims when another stage is in focus; text keeps full contrast. */}
+              <div className={cx("mt-3 rounded-control px-1 py-2 transition-[box-shadow,background,opacity] duration-200 motion-reduce:transition-none", on ? "bg-ink/[0.05] shadow-[inset_0_0_0_1px_rgb(255_255_255/.14)]" : "bg-ink/[0.025]", dim && "opacity-35")}>
                 <div className="mx-auto max-w-[260px]">{s.art}</div>
               </div>
               <p className="mt-3 text-caption text-muted">{s.caption}</p>
