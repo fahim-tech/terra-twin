@@ -344,6 +344,9 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
       cv.removeEventListener("wheel", wheel);
       refs.kick.current = () => {};
       r.dispose();
+      // Browsers cap live WebGL contexts: give this one back once the canvas has really left the page
+      // (a re-render with new data, or StrictMode's rehearsal, keeps the same canvas and context).
+      if (!cv.isConnected) gl.getExtension("WEBGL_lose_context")?.loseContext();
     };
   }, [model, grid, planet, anchors]); // refs are stable
 
