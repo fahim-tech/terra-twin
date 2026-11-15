@@ -1,5 +1,4 @@
 import { motion } from "motion/react";
-import { Fragment } from "react";
 import { cx } from "../components/ui";
 import { useDatasets, useEarthPool, useSites } from "../services/api";
 import { firstInt, type Readout, readoutGroups } from "./introStats";
@@ -95,14 +94,15 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
 function ReadoutCell({ r }: { r: Readout }) {
   return (
     <div className="min-w-0">
-      <dt className="sr-only">{r.term}</dt>
-      <dd aria-hidden className="whitespace-nowrap text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-faint">{r.label}</dd>
+      <dt className="whitespace-nowrap text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-faint">
+        <span aria-hidden>{r.label}</span><span className="sr-only">{r.term}</span>
+      </dt>
       <dd className="num mt-2 whitespace-nowrap text-[22px] leading-none text-ink sm:text-[24px]">
         {r.value === null ? <span className="text-faint">—</span> : (
-          <Fragment>
+          <>
             {r.value.toLocaleString("en-US")}
             {r.unit && <span className="ml-1 font-sans text-[12px] text-muted">{r.unit}</span>}
-          </Fragment>
+          </>
         )}
       </dd>
     </div>
