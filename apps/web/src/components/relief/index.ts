@@ -2,3 +2,4 @@
 export { ReliefView, EXAGGERATIONS, type Exaggeration, type ReliefViewProps } from "./ReliefView";
 export { homePose } from "./reliefMath";
 export { renderReliefSnapshot, type Snapshot, type SnapshotOptions } from "./snapshot";
+export { reliefWindowId, type WindowRef } from "./windows";
