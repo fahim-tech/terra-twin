@@ -1,3 +1,4 @@
+import { SFigure, StatusMark } from "../../components/marks";
 import { Disclosure, Measure, radioGroupKeys } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
@@ -66,20 +67,16 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
                 className={cx("hit relative flex w-full items-start gap-3 px-3.5 py-3 text-left transition-colors duration-150 active:duration-0 focus-visible:z-10",
                   i > 0 && "border-t border-line-strong",
                   on ? "bg-white/[0.05]" : "hover:bg-white/[0.03] active:bg-white/[0.07]")}>
-                {/* Selected: an ink bar on the leading edge and a filled square in the radio mark. */}
+                {/* Selected: an ink bar on the leading edge and the radio square filled (on), outlined when off. Never
+                    two nested squares, which is the tie's outcome mark. */}
                 {on && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-ink" />}
-                <span aria-hidden className={cx("mt-[3px] grid h-3 w-3 shrink-0 place-items-center ring-1 ring-inset", on ? "ring-ink" : "ring-faint")}>
-                  {on && <span className="h-1.5 w-1.5 bg-ink" />}
-                </span>
+                <span aria-hidden className={cx("mt-[3px] h-2.5 w-2.5 shrink-0", on ? "bg-ink" : "ring-1 ring-inset ring-faint")} />
                 <span className="min-w-0 flex-1">
                   <span className={cx("block text-label", on ? "text-ink" : "text-muted")}>{o.title}</span>
                   <span className="mt-0.5 block text-caption text-muted">{o.who}</span>
                   <span className="mt-0.5 block text-caption text-faint">{o.note}</span>
                 </span>
-                <span className="shrink-0 text-right">
-                  <span className="kicker block">S</span>
-                  <Measure value={o.figure} digits={3} className={cx("mt-1 block text-[20px] leading-none", on ? "text-ink" : "text-muted")} />
-                </span>
+                <SFigure value={o.figure} className={cx("shrink-0 self-center text-[20px] leading-none", on ? "text-ink" : "text-muted")} />
               </button>
             );
           })}
@@ -128,7 +125,7 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
             <ul className="space-y-1.5 text-caption text-muted">
               {rob.leaderSame50vs25 !== null && (
                 <li className="flex items-baseline gap-2.5 text-ink">
-                  <span aria-hidden className={cx("inline-block h-2 w-2 shrink-0 translate-y-[1px]", rob.leaderSame50vs25 ? "bg-ink" : "ring-1 ring-inset ring-warn")} />
+                  <StatusMark state={rob.leaderSame50vs25 ? "on" : "caution"} size={7} className="translate-y-[-1px]" />
                   <span>{rob.leaderSame50vs25 ? "Leader is the same at 25 km windows" : <><span className="kicker mr-2 !text-warn">Caution</span>Leader differs at 25 km windows</>}
                     {rob.spearman50vs25 !== null && <span className="text-muted"> · rank agreement <span className="num">ρ {rob.spearman50vs25.toFixed(2)}</span></span>}
                   </span>
@@ -136,14 +133,14 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
               )}
               {rob.leaderChangedVsBaseline !== null && (
                 <li className="flex items-baseline gap-2.5">
-                  <span aria-hidden className="inline-block h-2 w-2 shrink-0 translate-y-[1px] ring-1 ring-inset ring-faint" />
+                  <StatusMark state="off" size={7} className="translate-y-[-1px]" />
                   <span>{rob.leaderChangedVsBaseline ? "Observation matching changes the leader versus the as-measured comparison" : "Same leader with and without observation matching"}
                     {rob.spearmanBaselineVsOom !== null && <> · <span className="num">ρ {rob.spearmanBaselineVsOom.toFixed(2)}</span></>}
                     {rob.top10Overlap !== null && <> · top-10 overlap <span className="num">{rob.top10Overlap}</span></>}
                   </span>
                 </li>
               )}
-              <li className="pl-[18px] text-faint">{rob.note ?? "Ungated research diagnostics."} {G5.scale}.</li>
+              <li className="pl-[17px] text-faint">{rob.note ?? "Ungated research diagnostics."} {G5.scale}.</li>
             </ul>
           ) : <p className="text-caption text-faint">No robustness diagnostics in the record. {G5.scale}.</p>}
         </section>

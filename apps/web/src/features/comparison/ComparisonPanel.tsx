@@ -1,7 +1,8 @@
 import { ChevronDown } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { IconButton, Measure, SPRING } from "../../components/primitives";
+import { SFigure } from "../../components/marks";
+import { IconButton, SPRING } from "../../components/primitives";
 import { Button, cx } from "../../components/ui";
 import { useLayout } from "../../app/useLayout";
 import { useApp } from "../../store/app";
@@ -139,7 +140,7 @@ export function ComparisonPanel() {
             <ModeHeader index={modeIndex} title={modeSpec.title}
               basis={keepFigures(`Global-screen descriptors${cellKm !== null ? `, ${cellKm} km` : ""}, as measured — ${c.tier === 2 ? "context, not the research score" : "the descriptors this screening S was computed from"}`)}>
               {t1 && <>
-                {c.tier === 2 && <>Global-screen S <Measure value={t1.S} digits={3} className="text-num" /> for this pair {keepFigures(`(the ${cellKm !== null ? `${cellKm} km ` : "screening "}cell under the window centre)`)}. </>}
+                {c.tier === 2 && <>Global-screen <SFigure value={t1.S} className="text-num text-ink/90" /> for this pair {keepFigures(`(the ${cellKm !== null ? `${cellKm} km ` : "screening "}cell under the window centre)`)}. </>}
                 {keepFigures(`Mars: median of the zone’s ${cellKm !== null ? `${cellKm} km ` : "screening "}cells from the 463 m MOLA grid; Earth: GMTED2010.`)}
               </>}
             </ModeHeader>

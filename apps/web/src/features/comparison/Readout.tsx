@@ -1,6 +1,6 @@
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
-import { Measure } from "../../components/primitives";
+import { OutcomeMark, SFigure } from "../../components/marks";
 import { Button, cx } from "../../components/ui";
 import type { Planet } from "../../globes/protocol";
 import { formatLat, formatLon } from "../../lib/geodesy";
@@ -8,7 +8,7 @@ import { G5 } from "../../lib/glossary";
 import { useApp } from "../../store/app";
 import type { CandidateView } from "../analogs/candidates";
 import { CompareTerm as Term } from "./CompareTerm";
-import { NO_RING, PlanetLabel, PlanetMark, VerdictMark } from "./marks";
+import { NO_RING, PlanetLabel, PlanetMark } from "./marks";
 import type { CompareTargets, Verdict } from "./model";
 
 /**
@@ -26,25 +26,24 @@ export interface ReadoutProps {
 
 const verdictTermKey = (v: Verdict) => (v.kind === "leader" ? "stableLeader" : v.kind === "tie_member" ? "tie" : v.kind === "insufficient" ? "notEnough" : null);
 
-/** "■ Stable leader" — the decision mark and headline (with its G5 definition on demand). */
-export function VerdictLine({ verdict, className }: { verdict: Verdict; className?: string }) {
+/**
+ * The decision mark and headline (with its G5 definition on demand): the shared outcome mark, always
+ * beside its words. `short` drops the listing note of a tied window, for one-line readouts.
+ */
+export function VerdictLine({ verdict, className, short = false, markSize }: { verdict: Verdict; className?: string; short?: boolean; markSize?: number }) {
   const k = verdictTermKey(verdict);
+  const words = short ? verdict.short : verdict.headline;
   return (
-    <span className={cx("inline-flex items-center gap-2 text-label text-ink", className)}>
-      <VerdictMark kind={verdict.kind} />
-      <span>{k ? <Term k={k}>{verdict.headline}</Term> : verdict.headline}</span>
+    <span className={cx("inline-flex items-baseline gap-2 text-label text-ink", className)}>
+      <OutcomeMark kind={verdict.mark} size={markSize} />
+      <span>{k ? <Term k={k}>{words}</Term> : words}</span>
     </span>
   );
 }
 
-/** "S 0.614": the similarity symbol (with its definition) and the figure in mono. */
-export function ScoreFigure({ c, className, symbolClassName }: { c: CandidateView; className?: string; symbolClassName?: string }) {
-  return (
-    <span className="inline-flex items-baseline gap-2">
-      <span className={cx("text-caption text-muted", symbolClassName)}><Term k="similarity">S</Term></span>
-      <Measure value={c.score} digits={3} className={cx("text-ink", className)} missing="no score" />
-    </span>
-  );
+/** "S 0.614": the shared similarity figure, its symbol linked to the definition (popover outside the strip's clip). */
+export function ScoreFigure({ c, className }: { c: CandidateView; className?: string }) {
+  return <SFigure value={c.score} symbol={<Term k="similarity">S</Term>} missing="no score" className={cx("text-ink", className)} />;
 }
 
 /**
@@ -133,14 +132,14 @@ export function TelemetryReadout({ c, basis, targets, verdict, onWhy, narrow }: 
         <Coords lat={targets.earth.lat} lon={targets.earth.lon} className="col-start-2 row-start-2 border-l border-line px-4 pb-3 pt-1.5" />
 
         <Cell label="Similarity" className="col-start-3 row-span-2 row-start-1 border-l border-line">
-          <div className="mt-1.5"><ScoreFigure c={c} className="text-[30px] leading-none tracking-[-0.01em]" symbolClassName="text-[15px]" /></div>
+          <div className="mt-1.5"><ScoreFigure c={c} className="text-[30px] leading-none tracking-[-0.01em]" /></div>
           <p className="mt-2 text-caption text-ink/85">{basis}</p>
         </Cell>
 
         <Cell label="Decision" className={cx("col-start-1 row-start-3 border-t border-line @min-[1080px]:col-span-1 @min-[1080px]:col-start-4 @min-[1080px]:row-span-2 @min-[1080px]:row-start-1 @min-[1080px]:border-l @min-[1080px]:border-t-0",
           narrow ? "col-span-3" : "col-span-2")}>
           {/* The outcome carries the cell: a step up from the label size, so it reads before its explanation. */}
-          <div className="mt-1.5"><VerdictLine verdict={verdict} className="!text-[16px] !leading-snug" /></div>
+          <div className="mt-1.5"><VerdictLine verdict={verdict} markSize={10} className="!gap-2.5 !text-[16px] !leading-snug" /></div>
           <p className="mt-1 text-caption text-muted">{verdict.detail}</p>
         </Cell>
 
@@ -176,7 +175,7 @@ export function CompactReadout({ c, basis, targets, verdict, onWhy, narrow }: Re
           <span className="inline-flex items-center gap-2"><PlanetMark planet="earth" />{targets.earth.name}</span>
         </h2>
         <ScoreFigure c={c} className="text-[20px] leading-none" />
-        <VerdictLine verdict={verdict} />
+        <VerdictLine verdict={verdict} short />
         {!narrow && <WhyButton onWhy={onWhy} className="ml-auto" />}
       </div>
       <p className="mt-2 text-caption text-muted">
@@ -199,7 +198,7 @@ export function PhoneReadout({ c, basis, targets, verdict, expanded }: ReadoutPr
           <span className="inline-flex items-center gap-1.5"><PlanetMark planet="earth" />{targets.earth.name}</span>
         </h2>
         <div className="mt-1.5 flex items-center justify-between gap-3">
-          <VerdictLine verdict={verdict} />
+          <VerdictLine verdict={verdict} short />
           <ScoreFigure c={c} className="text-[17px] leading-none" />
         </div>
       </div>
@@ -216,7 +215,7 @@ export function PhoneReadout({ c, basis, targets, verdict, expanded }: ReadoutPr
       </h2>
       <div className="shrink-0 px-4 pb-2.5 pt-2">
         <div className="flex items-center justify-between gap-3">
-          <VerdictLine verdict={verdict} />
+          <VerdictLine verdict={verdict} short />
           <ScoreFigure c={c} className="text-[24px] leading-none" />
         </div>
         <p className="mt-1.5 text-caption text-ink/85">{basis}</p>

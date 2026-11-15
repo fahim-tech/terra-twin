@@ -1,7 +1,8 @@
 import { X } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
-import { IconButton, Measure, SPRING } from "../../components/primitives";
+import { SFigure } from "../../components/marks";
+import { IconButton, SPRING } from "../../components/primitives";
 import { cx, pct } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { G5 } from "../../lib/glossary";
@@ -92,7 +93,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
           <div className="border border-line-strong bg-space/50">
             <div className="flex items-center justify-between gap-4 border-b border-line px-3.5 py-2.5">
               <VerdictLine verdict={v} />
-              <span className="flex items-baseline gap-2"><span className="text-caption text-faint">S</span><Measure value={c.score} digits={3} className="text-[22px] leading-none" missing="no score" /></span>
+              <SFigure value={c.score} missing="no score" className="shrink-0 text-[22px] leading-none text-ink" />
             </div>
             <div className="px-3.5 py-2.5">
               <p className="text-caption text-ink/90">{v.detail}</p>
@@ -150,7 +151,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
           <dl className="space-y-2 text-caption">
             <Pair term="Mars">USGS MOLA 463 m mosaic; MEGDR 128 ppd counts (observed fraction <span className="num text-ink/90">{pct(search.mars.observation_support?.observed_fraction ?? null, 0)}</span>). See <Term k="operator" />.</Pair>
             <Pair term="Earth">{c.tier === 2 ? "Copernicus GLO-90 window (463 m grid), ESA WorldCover 2021" : "GMTED2010 30″ global-screen cell"}.</Pair>
-            <Pair term="Method">{c.tier === 2 ? "observation-operator matching, research record" : "global screen"}; whether this site is a known analog is not assessed here.</Pair>
+            <Pair term="Method">{c.tier === 2 ? "observation-operator matching, research record" : "global screen"}; whether this site is a documented analog is not assessed here.</Pair>
           </dl>
         </Section>
       </div>

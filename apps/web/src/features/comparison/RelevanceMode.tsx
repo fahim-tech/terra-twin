@@ -14,11 +14,11 @@ export const DIMENSIONS = (c: CandidateView) => [
   { name: "Resources", status: "not_evaluated" as DimensionStatus, detail: "Ice and mineral resource layers are not connected." },
 ];
 
-/** Status words; the square marks (marks.tsx StatusMark) carry the same three states on screen. */
-export const STATUS_COPY: Record<DimensionStatus, { glyph: string; word: string }> = {
-  evaluated: { glyph: "■", word: "Evaluated" },
-  partial: { glyph: "◧", word: "Partial" },
-  not_evaluated: { glyph: "□", word: "Not evaluated" },
+/** Status words; the shared status marks (filled, half filled, outlined) carry the same three states on screen. */
+export const STATUS_COPY: Record<DimensionStatus, { word: string }> = {
+  evaluated: { word: "Evaluated" },
+  partial: { word: "Partial" },
+  not_evaluated: { word: "Not evaluated" },
 };
 
 type LandcoverGate = { bare_min: number; veg_max: number } | null | undefined;
@@ -50,7 +50,8 @@ export function RelevanceMode({ c, gate }: { c: CandidateView; gate: LandcoverGa
             const s = STATUS_COPY[d.status];
             return (
               <li key={d.name} className="grid grid-cols-[124px_minmax(0,1fr)] gap-x-4 border-t border-line py-2.5 first:border-t-0">
-                <span className={cx("flex items-center gap-2 self-start pt-0.5 text-[11px] font-semibold uppercase leading-none tracking-[0.1em]", d.status === "evaluated" ? "text-ink" : d.status === "partial" ? "text-warn" : "text-faint")}>
+                {/* Partial is a limit of the evaluation, not a caution: ink like evaluated, the half-filled mark says it. */}
+                <span className={cx("flex items-center gap-2 self-start pt-0.5 text-[11px] font-semibold uppercase leading-none tracking-[0.1em]", d.status === "not_evaluated" ? "text-faint" : "text-ink")}>
                   <StatusMark status={d.status} />{s.word}
                 </span>
                 <span>
