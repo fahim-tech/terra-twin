@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo } from "react";
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, RotateCcw } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { GlobeFrame } from "../globes/GlobeFrame";
 import type { GlobeToParent } from "../globes/protocol";
 import { cx, Spinner } from "../components/ui";
@@ -16,6 +16,9 @@ import { AnalogResults } from "../features/analogs/AnalogResults";
 import { SearchContext } from "../features/analogs/SearchContext";
 import { ComparisonPanel } from "../features/comparison/ComparisonPanel";
 import { selectedCandidate } from "../features/analogs/candidates";
+import { AltitudeReadout, CenterReadout, NavControls, Reticle, ScaleBar } from "../components/map/Instruments";
+import { AnnotationLayer } from "../components/map/Annotations";
+import { formatLat, formatLon } from "../lib/geodesy";
 
 const EvidenceView = lazy(() => import("../features/evidence/EvidenceView"));
 const ReportView = lazy(() => import("../features/report/ReportView"));
@@ -69,6 +72,12 @@ function Workspace() {
             stage === "mars" || split || (fullPage && s.previousStage === "mars") ? "opacity-100 scale-100" : "pointer-events-none scale-[0.86] opacity-0",
             split && "hidden md:block")}>
             <GlobeFrame ref={mars} planet="mars" onMessage={onMars} />
+            {stage === "mars" && !introOpen && <Reticle planet="mars" />}
+            {stage === "mars" && selection && (
+              <AnnotationLayer planet="mars" items={[{ id: "sel", lat: selection.lat, lon: selection.lon, tone: "mars", content: (
+                <div className="whitespace-nowrap"><div className="text-[13px] text-ink">{selection.label}</div>
+                  <div className="num font-mono text-[10.5px] text-muted">{formatLat(selection.lat, 2)} {formatLon(selection.lon, 2)}</div></div>) }]} />
+            )}
             {split && <GlobeLabel planet="mars" text={selection?.label ?? "Mars target"} />}
           </div>
           <div className={cx("absolute inset-y-0 right-0 transition-all duration-[900ms] ease-[var(--ease-out-soft)]",
@@ -89,10 +98,12 @@ function Workspace() {
             <SidePanel side="right" open={rightOpen} onToggle={() => set({ rightOpen: !rightOpen })}>
               {stage === "mars" ? <MarsInspector /> : <AnalogResults />}
             </SidePanel>
-            <button onClick={() => bus.send(stage === "mars" ? "mars" : "earth", { t: "reset" })}
-              className="no-print panel absolute bottom-4 left-1/2 z-10 hidden -translate-x-1/2 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11.5px] text-muted hover:text-ink md:inline-flex">
-              <RotateCcw className="h-3 w-3" /> Reset view
-            </button>
+            <div className="no-print absolute bottom-4 z-10 hidden items-end gap-6 md:flex" style={{ left: leftOpen ? 332 : 60 }}>
+              <ScaleBar planet={stage === "mars" ? "mars" : "earth"} />
+              <AltitudeReadout planet={stage === "mars" ? "mars" : "earth"} />
+              <CenterReadout planet={stage === "mars" ? "mars" : "earth"} />
+            </div>
+            <NavControls planet={stage === "mars" ? "mars" : "earth"} className="no-print absolute bottom-4 z-10 hidden md:flex" style={{ right: rightOpen ? 376 : 60 }} />
           </>
         )}
 
