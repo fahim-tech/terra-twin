@@ -114,7 +114,8 @@ export function AnalogResults() {
   const current = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
   const root = useRef<HTMLDivElement>(null);
   const phone = useLayout() === "phone";
-  const fit = useSheetFit(root, phone);
+  // Enabled only once the results column (not the placeholder) is the element behind `root`.
+  const fit = useSheetFit(root, phone && !!target);
 
   if (!search || !target) return <div ref={root} className="p-6"><Spinner label="No search yet" /></div>;
 
