@@ -198,12 +198,18 @@ function Caption({ earth, earthLine, mars, zone, ve, both, tier, marsWhy }: {
             : !zone ? "No Exploration Zone, so no Mars grid." : marsWhy ?? "Checking for a Mars elevation grid."}
         </dd>
       </div>
+      {/* The exaggeration is stated only for a grid that is drawn with it. */}
+      {(earth || mars) && (
+        <div className={row}>
+          <dt className="kicker">Scale</dt>
+          <dd className="text-muted">
+            {both ? <>Same vertical exaggeration on both halves: <span className="num text-ink">×{ve}</span>.</> : <>Vertical exaggeration <span className="num text-ink">×{ve}</span>.</>}
+          </dd>
+        </div>
+      )}
       <div className={row}>
-        <dt className="kicker">Scale</dt>
-        <dd className="text-muted">
-          {both ? <>Same vertical exaggeration on both halves: <span className="num text-ink">×{ve}</span>.</> : <>Vertical exaggeration <span className="num text-ink">×{ve}</span>.</>}
-          {" "}{scoreBasisLine(tier, "comparison")}
-        </dd>
+        <dt className="kicker">Score</dt>
+        <dd className="text-muted">{scoreBasisLine(tier, "comparison")}</dd>
       </div>
     </dl>
   );
