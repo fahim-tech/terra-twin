@@ -1,22 +1,35 @@
 import { R_EARTH_MEAN_M } from "../../lib/geodesy";
+import { lonSpan } from "../../globes/ground";
 import type { CameraTelemetry } from "../../globes/protocol";
 import { Tier1Result, type Tier1Candidate } from "../../types/contracts";
 import { getJson } from "./earthApi";
 
 export interface ViewBox { west: number; south: number; east: number; north: number }
 
+/** Widest box worth querying: half the globe across in longitude, a quarter in latitude (as before). */
+const MAX_SPAN = { lat: 90, lon: 180 };
+
 /**
- * The ground box around the view centre, from live camera telemetry (centre + metres per pixel at the
- * centre) and the unobstructed frame size. Approximate by nature — it is a query region, not a measurement —
- * and null when the centre is off the planet or the view is too wide for metres-per-pixel to mean anything.
+ * The ground box of the view, as a query region (approximate by nature, not a measurement). Taken from the
+ * ground the globe reports as visible in the free area (telemetry `view`: the free area's border projected on
+ * the planet, out to the horizon), which holds for tilted views too — there every row up the screen covers more
+ * ground than the one below it, so a box from the centre's metres per pixel held only part of the view. A globe
+ * that does not report it falls back to that box, which is right looking straight down. Null when the centre is
+ * off the planet or the view is too wide for a box to mean anything.
  */
 export function viewBox(cam: CameraTelemetry | null, freeW: number, freeH: number): ViewBox | null {
-  if (!cam?.center || !cam.metersPerPixel || freeW <= 0 || freeH <= 0) return null;
+  if (!cam?.center) return null;
+  if (cam.view !== undefined) {
+    const v = cam.view;
+    if (!v || v.north - v.south > MAX_SPAN.lat || lonSpan(v) > MAX_SPAN.lon) return null;
+    return { west: v.west, south: v.south, east: v.east, north: v.north };
+  }
+  if (!cam.metersPerPixel || freeW <= 0 || freeH <= 0) return null;
   const halfW = (cam.metersPerPixel * freeW) / 2, halfH = (cam.metersPerPixel * freeH) / 2;
   const dLat = (halfH / R_EARTH_MEAN_M) * (180 / Math.PI);
   const cosLat = Math.max(Math.cos((cam.center.lat * Math.PI) / 180), 0.05);
   const dLon = (halfW / (R_EARTH_MEAN_M * cosLat)) * (180 / Math.PI);
-  if (dLat > 45 || dLon > 90) return null;
+  if (2 * dLat > MAX_SPAN.lat || 2 * dLon > MAX_SPAN.lon) return null;
   const wrap = (l: number) => ((l + 540) % 360) - 180;
   return {
     west: wrap(cam.center.lon - dLon), east: wrap(cam.center.lon + dLon),
