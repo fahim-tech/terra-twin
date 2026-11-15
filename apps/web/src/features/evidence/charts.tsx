@@ -1,7 +1,7 @@
 import { Disclosure } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { zoneName } from "../../lib/glossary";
-import { useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { Fragment, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { Axis, Chart, FigTitle, Grid, IntervalSwatch, Key, Mark, RingSwatch, Row, ROW_GRID, RuleSwatch, scale, Seg, SolidSwatch, StruckSwatch, Ticks, useWidth } from "./chartKit";
 import { Gloss } from "./Gloss";
 import { CHAIN_NAMES, fmtInt, fmtNum, fmtPct, niceTicks, zoomedTicks, type EvidenceModel } from "./model";
@@ -10,6 +10,8 @@ const mrrAxis = scale(0, 1, [0, 0.2, 0.4, 0.6, 0.8, 1]);
 /** Greek symbols inside mono lines are set in the text face, which draws them in their standard form. */
 const Greek = ({ children }: { children: ReactNode }) => <span className="font-sans text-[1.08em]">{children}</span>;
 const fmtAxis = (v: number) => (v === 0 || v === 1 ? String(v) : v.toFixed(1));
+/** Gap between a row label and its status tag: a breakable en space, so the tag moves to the next line whole. */
+const EN_SPACE = "\u2002";
 
 /** Ranked square markers with 95 % bootstrap intervals for the five methods. */
 export function MethodChart({ m, fig }: { m: EvidenceModel; fig?: string }) {
@@ -34,7 +36,7 @@ export function MethodChart({ m, fig }: { m: EvidenceModel; fig?: string }) {
           const direct = r.code === "M0_baseline";
           return (
             <Row key={r.code} emphasis={deployed}
-              label={<>{r.name}{r.note && <span className={cx("ml-2 font-mono text-[10.5px] uppercase tracking-[0.06em]", deployed ? "text-ink" : "text-faint")}>{r.note}</span>}</>}
+              label={<>{r.name}{r.note && <>{EN_SPACE}<span className={cx("whitespace-nowrap font-mono text-[10.5px] uppercase tracking-[0.06em]", deployed ? "text-ink" : "text-faint")}>{r.note}</span></>}</>}
               value={<>
                 MRR {fmtNum(r.mrr)}
                 {r.lo !== null && r.hi !== null && <span className="hidden sm:inline"> [{fmtNum(r.lo)}–{fmtNum(r.hi)}]</span>}
@@ -77,7 +79,8 @@ export function FalsificationChart({ m, fig }: { m: EvidenceModel; fig?: string 
           const ok = c.direct !== null && c.deployed !== null;
           return (
             <Row key={c.chain} emphasis={c.adverse}
-              className={cx(c.adverse && "-mx-3 bg-warn/[0.06] px-3 shadow-[inset_2px_0_0_var(--color-warn)]")}
+              // The amber band bleeds into the left margin only, so its right edge stays on the axis end.
+              className={cx(c.adverse && "-ml-3 bg-warn/[0.06] pl-3 shadow-[inset_2px_0_0_var(--color-warn)]")}
               label={<>{c.adverse && <span aria-hidden className="mr-1.5 text-warn">⚠</span>}<span className="sr-only">True chain: </span>{c.name}</>}
               value={<><span className="sr-only">direct </span>{fmtNum(c.direct)} → {fmtNum(c.deployed)}{c.adverse && <span className="text-warn"> · worse</span>}</>}
               srText={c.adverse ? "Adverse result: the deployed operator ranks twins worse than no correction." : undefined}
@@ -160,7 +163,7 @@ export function InterpolatorChart({ m, fig }: { m: EvidenceModel; fig?: string }
       <ol className="list-none p-0">
         {m.interp.rows.map((r) => (
           <Row key={r.label} emphasis={r.selected}
-            label={<>{r.label}{r.selected && <span className="ml-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-ink">selected</span>}</>}
+            label={<>{r.label}{r.selected && <>{EN_SPACE}<span className="whitespace-nowrap font-mono text-[10.5px] uppercase tracking-[0.06em] text-ink">selected</span></>}</>}
             value={<>error {fmtNum(r.error)}<span className="block sm:inline"><span className="hidden sm:inline"> · </span><Greek>ρ</Greek> {fmtNum(r.rho)} · <Greek>κ</Greek> {fmtNum(r.kappa)}</span></>}
           >
             <Grid s={s} />
@@ -290,10 +293,11 @@ export function SupportStrip({ m, targetSite, fig }: { m: EvidenceModel; targetS
 function ZoneSquares({ named, ties, label }: { named: number | null; ties: { size: number; count: number }[]; label: string }) {
   if (named === null) return <p className="text-caption text-faint">Not in the evidence payload.</p>;
   const cells: ("named" | number)[] = [...Array(named).fill("named"), ...ties.flatMap((t) => Array(t.count).fill(t.size))];
+  const parts = [`${named} stable leader${named === 1 ? "" : "s"}`, ...ties.map((t) => `${t.count} tie${t.count === 1 ? "" : "s"} of ${t.size}`)];
   return (
     <div>
       <div className="mb-2.5 text-[10.5px] font-semibold uppercase tracking-[0.12em] text-muted">{label}</div>
-      <div role="img" aria-label={`${named} stable leaders; ${ties.map((t) => `${t.count} ties of ${t.size}`).join(", ")}.`}
+      <div role="img" aria-label={`${parts.join("; ")}.`}
         className="grid max-w-[260px] grid-cols-[repeat(13,minmax(0,1fr))] gap-[3px]">
         {cells.map((c, i) => (
           <span key={i} className={cx("relative aspect-square", c === "named" ? "bg-ink" : "border border-muted")}>
@@ -301,8 +305,9 @@ function ZoneSquares({ named, ties, label }: { named: number | null; ties: { siz
           </span>
         ))}
       </div>
+      {/* Each count stays on one line; the line breaks only at a separator. */}
       <div className="num mt-2.5 text-num-sm text-muted">
-        {named} stable leader{named === 1 ? "" : "s"}{ties.map((t) => ` · ${t.count} tie${t.count === 1 ? "" : "s"} of ${t.size}`).join("")}
+        {parts.map((p, i) => <Fragment key={p}>{i > 0 && " · "}<span className="whitespace-nowrap">{p}</span></Fragment>)}
       </div>
     </div>
   );
