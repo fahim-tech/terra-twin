@@ -822,6 +822,34 @@ export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: nu
   return [...out.filter((l) => !n.drop.includes(l.key)), n.label];
 }
 
+/**
+ * Closest zoom (at most 1) at which one fixed view still shows the whole block and the anchor of every scale label
+ * it draws, `pad` CSS px inside the frame. For stills: a view the reader can orbit keeps `camera`'s framing for every
+ * side (zoom 1), while a still only has to frame the side it shows.
+ */
+export function fitZoom(m: Model, pose: Pose, width: number, height: number, pad = 18): number {
+  const anchors = labelAnchors(m);
+  const inside = (zoom: number) => {
+    const cam = camera(m, { ...pose, zoom }, width, height);
+    const place = axisPlacement(cam);
+    const top = (m.zMax - m.zBase) * cam.ys;
+    const pts: Vec3[] = [];
+    for (const [x, z] of corners(m.hx, m.hz)) pts.push([x, 0, z], [x, top, z]);
+    for (const a of anchors) if (anchorShown(a, place)) pts.push([a.p[0], worldY(m, a.p[1], cam.ys), a.p[2]]);
+    return pts.every((p) => {
+      const s = project(cam.viewProj, p, width, height);
+      return s.visible && s.x >= pad && s.x <= width - pad && s.y >= pad && s.y <= height - pad;
+    });
+  };
+  if (!inside(1)) return 1;
+  let lo = 0.3, hi = 1; // hi: inside
+  for (let i = 0; i < 24; i++) {
+    const mid = (lo + hi) / 2;
+    if (inside(mid)) hi = mid; else lo = mid;
+  }
+  return hi;
+}
+
 // ---------------------------------------------------------------- shading shared by WebGL and 2D
 
 /**

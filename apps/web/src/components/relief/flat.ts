@@ -8,6 +8,7 @@ import { contourSegments, fmtNum, hillshade, TINT, type Grid, type Model } from 
 export const FONT_MONO = '"IBM Plex Mono", ui-monospace, SFMono-Regular, monospace';
 export const FONT_SANS = '"Barlow", ui-sans-serif, system-ui, sans-serif';
 const INK = "242, 244, 245";
+const PAPER_INK = "17, 17, 17";
 
 export interface FlatOptions {
   /** CSS pixels. */
@@ -18,6 +19,8 @@ export interface FlatOptions {
   ve: number;
   planet: "earth" | "mars";
   background?: string;
+  /** Ground of the drawing: the app's near-black scene, or white paper (dark frame, scales and hatch). */
+  ground?: "dark" | "paper";
 }
 
 /** Plot square (CSS px) inside the canvas, leaving room for the scale labels. */
@@ -38,6 +41,8 @@ export function drawFlat(ctx: CanvasRenderingContext2D, model: Model, grid: Grid
     ctx.fillStyle = o.background;
     ctx.fillRect(0, 0, o.width, o.height);
   }
+  const paper = o.ground === "paper";
+  const ink = paper ? PAPER_INK : INK; // linework and labels on the ground (contours stay light: they lie on the image)
   const { left, top, side } = flatLayout(o.width, o.height);
   const pxPerM = side / Math.max(model.widthM, model.heightM);
   const w = model.widthM * pxPerM, h = model.heightM * pxPerM;
@@ -47,9 +52,9 @@ export function drawFlat(ctx: CanvasRenderingContext2D, model: Model, grid: Grid
   ctx.beginPath();
   ctx.rect(left, top, w, h);
   ctx.clip();
-  ctx.fillStyle = "rgb(8, 9, 10)";
+  ctx.fillStyle = paper ? "rgb(240, 240, 238)" : "rgb(8, 9, 10)";
   ctx.fillRect(left, top, w, h);
-  ctx.strokeStyle = `rgba(${INK}, 0.12)`;
+  ctx.strokeStyle = `rgba(${ink}, ${paper ? 0.22 : 0.12})`;
   ctx.lineWidth = 1;
   for (let d = -h; d < w + h; d += 7) {
     ctx.beginPath();
@@ -88,10 +93,10 @@ export function drawFlat(ctx: CanvasRenderingContext2D, model: Model, grid: Grid
   }
 
   // Frame and km scale (distance from the south-west corner).
-  ctx.strokeStyle = `rgba(${INK}, 0.55)`;
+  ctx.strokeStyle = `rgba(${ink}, 0.55)`;
   ctx.lineWidth = 1;
   ctx.strokeRect(left + 0.5, top + 0.5, w - 1, h - 1);
-  ctx.fillStyle = `rgba(${INK}, 0.85)`;
+  ctx.fillStyle = `rgba(${ink}, 0.85)`;
   ctx.font = `11px ${FONT_MONO}`;
   ctx.textBaseline = "top";
   ctx.textAlign = "center";
@@ -123,7 +128,7 @@ export function drawFlat(ctx: CanvasRenderingContext2D, model: Model, grid: Grid
   ctx.moveTo(cx - 4, top - 17);
   ctx.lineTo(cx, top - 22);
   ctx.lineTo(cx + 4, top - 17);
-  ctx.strokeStyle = `rgba(${INK}, 0.85)`;
+  ctx.strokeStyle = `rgba(${ink}, 0.85)`;
   ctx.stroke();
   ctx.font = `600 11px ${FONT_SANS}`;
   ctx.textAlign = "left";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  anchorShown, ariaSummary, axisPlacement, baseElevation, boxEdges, buildModel, camera, contourInterval, contourSegments, gradients, gridStats,
+  anchorShown, ariaSummary, axisPlacement, baseElevation, boxEdges, buildModel, camera, contourInterval, contourSegments, fitZoom, gradients, gridStats,
   fitDistance, fmtHeading, fmtPitch, hillshade, homePose, labelAnchors, labelBox, layoutLabels, meshElevation, niceStep, niceTicks, NORTH_ARROW, pickCell, project, representationNote, sunVector, TINT,
   toGrid, worldY, type Grid,
 } from "./reliefMath";
@@ -380,6 +380,30 @@ describe("scale labels from every side", () => {
       expect(elev[1].text).toMatch(/ m$/); // the unit stays on the highest label
     }
     expect(found).toBe(true);
+  });
+});
+
+describe("still framing", () => {
+  const real = buildModel(plane(108, 108, 463.0935415503709, 0.004, 0.012))!;
+  const anchors = labelAnchors(real);
+  const shownInside = (zoom: number, w: number, h: number, pad: number) => {
+    const cam = camera(real, { ...homePose(4), zoom }, w, h);
+    const place = axisPlacement(cam);
+    return anchors.filter((a) => anchorShown(a, place)).every((a) => {
+      const s = project(cam.viewProj, [a.p[0], worldY(real, a.p[1], cam.ys), a.p[2]], w, h);
+      return s.visible && s.x >= pad - 1e-6 && s.x <= w - pad + 1e-6 && s.y >= pad - 1e-6 && s.y <= h - pad + 1e-6;
+    });
+  };
+
+  it("frames one fixed view closer than an orbiting view, keeping every scale it draws in the frame", () => {
+    for (const [w, h] of [[1000, 500], [358, 268], [960, 600]]) {
+      const z = fitZoom(real, homePose(4), w, h);
+      expect(z).toBeLessThan(1);
+      expect(shownInside(z, w, h, 18)).toBe(true);
+      expect(shownInside(z * 0.97, w, h, 18)).toBe(false); // as close as it can be
+      const placed = layoutLabels(real, anchors, camera(real, { ...homePose(4), zoom: z }, w, h), w, h);
+      for (const text of ["0", "50 km E", "50 km N", "N"]) expect(placed.some((l) => l.text === text)).toBe(true);
+    }
   });
 });
 

@@ -50,6 +50,7 @@ uniform vec2 u_contour;
 uniform float u_dpr;
 uniform vec3 u_eye;
 uniform vec2 u_fog;
+uniform vec3 u_fogc;
 out vec4 o;
 ${ISO}
 void main() {
@@ -65,7 +66,7 @@ void main() {
     col = mix(col, vec3(0.94, 0.955, 0.96), max(c * 0.17, ci * 0.38));
   }
   // Depth cue: the far side of the block recedes slightly toward the background.
-  col = mix(col, vec3(0.012, 0.016, 0.02), 0.32 * smoothstep(u_fog.x, u_fog.y, distance(u_eye, v_p)));
+  col = mix(col, u_fogc, 0.32 * smoothstep(u_fog.x, u_fog.y, distance(u_eye, v_p)));
   o = vec4(col, 1.0);
 }`;
 
@@ -97,13 +98,15 @@ uniform vec3 u_tint;
 uniform vec2 u_contour;
 uniform float u_dpr;
 uniform float u_top;
+uniform vec3 u_wall;
+uniform vec3 u_strata;
 out vec4 o;
 ${ISO}
 void main() {
   float sun = max(dot(normalize(v_n), u_sun), 0.0);
-  vec3 col = vec3(0.062, 0.07, 0.078) * (0.8 + 0.2 * u_tint) * (0.75 + 1.1 * sun);
+  vec3 col = u_wall * (0.8 + 0.2 * u_tint) * (0.75 + 1.1 * sun);
   if (u_contour.x > 0.0) {
-    col = mix(col, vec3(0.94, 0.955, 0.96), max(iso(v_elev, u_contour.x, 1.0, u_dpr) * 0.07, iso(v_elev, u_contour.y, 1.0, u_dpr) * 0.2));
+    col = mix(col, u_strata, max(iso(v_elev, u_contour.x, 1.0, u_dpr) * 0.07, iso(v_elev, u_contour.y, 1.0, u_dpr) * 0.2));
   }
   col *= mix(0.55, 1.0, smoothstep(0.0, max(u_top, 1e-4), v_y));
   o = vec4(col, 1.0);
@@ -189,9 +192,18 @@ export interface FrameState {
   /** Which edges carry the scales for this view (see `axisPlacement`). */
   place: Placement;
   dpr: number;
+  /** Ground the drawing sits on: the app's near-black scene, or white paper (print stills: dark linework, fog toward white). */
+  ground?: "dark" | "paper";
 }
 
 const INK: [number, number, number] = [0.949, 0.957, 0.961];
+const PAPER_INK: [number, number, number] = [0.067, 0.067, 0.067];
+const FOG = { dark: [0.012, 0.016, 0.02], paper: [0.96, 0.96, 0.955] } as const;
+/** Block walls: a dark cut face with light strata on screen; on paper a light grey face with dark strata. */
+const WALL = {
+  dark: { base: [0.062, 0.07, 0.078], strata: [0.94, 0.955, 0.96] },
+  paper: { base: [0.47, 0.48, 0.48], strata: [0.08, 0.08, 0.08] },
+} as const;
 
 export class ReliefRenderer {
   private readonly gl: WebGL2RenderingContext;
@@ -205,8 +217,8 @@ export class ReliefRenderer {
     this.gl = gl;
     const common = ["u_vp", "u_ys", "u_zbase"];
     this.p = {
-      terrain: compile(gl, TERRAIN_VS, TERRAIN_FS, [...common, "u_ve", "u_sun", "u_tint", "u_zmin", "u_zmax", "u_contour", "u_dpr", "u_eye", "u_fog"]),
-      wall: compile(gl, WALL_VS, WALL_FS, [...common, "u_sun", "u_tint", "u_contour", "u_dpr", "u_top"]),
+      terrain: compile(gl, TERRAIN_VS, TERRAIN_FS, [...common, "u_ve", "u_sun", "u_tint", "u_zmin", "u_zmax", "u_contour", "u_dpr", "u_eye", "u_fog", "u_fogc"]),
+      wall: compile(gl, WALL_VS, WALL_FS, [...common, "u_sun", "u_tint", "u_contour", "u_dpr", "u_top", "u_wall", "u_strata"]),
       floor: compile(gl, FLOOR_VS, FLOOR_FS, ["u_vp", "u_hatch"]),
       line: compile(gl, LINE_VS, LINE_FS, [...common, "u_yoff", "u_color", "u_fade"]),
     };
@@ -288,6 +300,8 @@ export class ReliefRenderer {
     gl.uniform2fv(p.u.u_contour, contour);
     gl.uniform1f(p.u.u_dpr, f.dpr);
     gl.uniform1f(p.u.u_top, top);
+    gl.uniform3fv(p.u.u_wall, WALL[f.ground ?? "dark"].base);
+    gl.uniform3fv(p.u.u_strata, WALL[f.ground ?? "dark"].strata);
     gl.bindVertexArray(g.walls);
     gl.drawArrays(gl.TRIANGLES, 0, g.nWall);
 
@@ -306,6 +320,7 @@ export class ReliefRenderer {
     gl.uniform3fv(p.u.u_eye, f.cam.eye);
     const range = Math.hypot(f.cam.eye[0] - f.cam.target[0], f.cam.eye[1] - f.cam.target[1], f.cam.eye[2] - f.cam.target[2]);
     gl.uniform2f(p.u.u_fog, range * 0.85, range + Math.max(m.hx, m.hz) * 1.6);
+    gl.uniform3fv(p.u.u_fogc, FOG[f.ground ?? "dark"]);
     gl.bindVertexArray(g.terrain);
     gl.drawElements(gl.TRIANGLES, g.nIndex, gl.UNSIGNED_INT, 0);
     gl.disable(gl.POLYGON_OFFSET_FILL);
@@ -320,10 +335,11 @@ export class ReliefRenderer {
     gl.uniform1f(p.u.u_ys, f.cam.ys);
     gl.uniform1f(p.u.u_zbase, m.zBase);
     gl.bindVertexArray(g.lines);
+    const ink = f.ground === "paper" ? PAPER_INK : INK;
     const lines = (range: [number, number], alpha: number, opts: { fade?: number; yoff?: number; depth?: boolean } = {}) => {
       if (!range[1]) return;
       if (opts.depth === false) gl.disable(gl.DEPTH_TEST); else gl.enable(gl.DEPTH_TEST);
-      gl.uniform4f(p.u.u_color, INK[0], INK[1], INK[2], alpha);
+      gl.uniform4f(p.u.u_color, ink[0], ink[1], ink[2], alpha);
       gl.uniform1f(p.u.u_fade, opts.fade ?? 0);
       gl.uniform1f(p.u.u_yoff, opts.yoff ?? 0);
       gl.drawArrays(gl.LINES, range[0], range[1]);
