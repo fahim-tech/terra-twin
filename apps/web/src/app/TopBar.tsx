@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { cx } from "../components/ui";
 import { formatLat, formatLon } from "../lib/geodesy";
 import { clock, marsTime } from "../lib/instruments";
-import { useHealth } from "../services/api";
+import { useDatasets, useHealth } from "../services/api";
 import { type Stage, useApp } from "../store/app";
 import { useGlobes } from "../store/globes";
 import { searchTarget } from "../store/searchTarget";
@@ -182,19 +182,26 @@ export function TopBar({ compact }: { compact: boolean }) {
   );
 }
 
+/**
+ * Imagery layers. `dataset` is the /api/datasets record whose `native_resolution` the menu shows (the true
+ * colour mosaic has no record, so it shows a dash rather than a typed-in figure).
+ */
 const MARS_LAYERS = [
-  { id: "viking_color", label: "Viking colour mosaic", note: "232 m" },
-  { id: "mola_shade", label: "MOLA shaded relief", note: "463 m · colour = elevation" },
+  { id: "viking_color", label: "Viking colour mosaic", dataset: "mars_trek_viking", sub: null },
+  { id: "mola_shade", label: "MOLA shaded relief", dataset: "mars_trek_mola_shade", sub: "Colour = elevation" },
 ];
 const EARTH_LAYERS = [
-  { id: "blue_marble_relief", label: "Blue Marble relief", note: "500 m" },
-  { id: "blue_marble_ng", label: "Blue Marble true colour", note: "500 m" },
+  { id: "blue_marble_relief", label: "Blue Marble relief", dataset: "gibs_blue_marble", sub: null },
+  { id: "blue_marble_ng", label: "Blue Marble true colour", dataset: null, sub: null },
 ];
 
 function MoreMenu() {
   const [open, setOpen] = useState(false);
   const { marsLayer, earthLayer, graticule, set } = useApp();
   const health = useHealth();
+  const datasets = useDatasets();
+  const resolution = (dataset: string | null) =>
+    (dataset ? datasets.data?.datasets.find((d) => d.id === dataset)?.native_resolution : null) || "—";
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -219,11 +226,15 @@ function MoreMenu() {
     const next = e.relatedTarget as Node | null;
     if (next && !menu.current?.contains(next) && !btn.current?.contains(next)) setOpen(false);
   };
-  const item = (on: boolean, label: string, note: string, act: () => void, role: "menuitemradio" | "menuitemcheckbox" = "menuitemradio") => (
+  // Label (with an optional qualifier line under it) on the left, the mono figure on the right, never wrapped.
+  const item = (on: boolean, label: string, note: string, act: () => void, role: "menuitemradio" | "menuitemcheckbox" = "menuitemradio", sub: string | null = null) => (
     <button key={label} role={role} aria-checked={on} onClick={act} tabIndex={-1}
-      className="flex w-full items-center justify-between gap-4 rounded-control px-2.5 py-2 text-left hover:bg-white/[0.05] focus-visible:bg-white/[0.05]">
-      <span className="flex items-center gap-2.5 text-label"><span aria-hidden className={cx("h-1.5 w-1.5", on ? "bg-ink" : "ring-1 ring-inset ring-faint")} />{label}</span>
-      <span className="num text-num-sm text-faint">{note}</span>
+      className="flex w-full items-start justify-between gap-4 rounded-control px-2.5 py-2 text-left hover:bg-white/[0.05] focus-visible:bg-white/[0.05]">
+      <span className="flex min-w-0 items-start gap-2.5 text-label">
+        <span aria-hidden className={cx("mt-1.5 h-1.5 w-1.5 shrink-0", on ? "bg-ink" : "ring-1 ring-inset ring-faint")} />
+        <span className="min-w-0">{label}{sub && <span className="block text-caption text-faint">{sub}</span>}</span>
+      </span>
+      <span className="num shrink-0 whitespace-nowrap pt-px text-num-sm text-faint">{note}</span>
     </button>
   );
   const apiTone = health.isError ? "API unreachable" : health.data?.research_data ? "API connected · research data verified" : health.data ? "API connected · research data missing" : "Checking API…";
@@ -236,9 +247,9 @@ function MoreMenu() {
       {open && (
         <div ref={menu} role="menu" aria-label="Layers and status" onKeyDown={onMenuKey} onBlur={onMenuBlur} className="surface-solid frame absolute right-0 top-11 z-50 w-[320px] rounded-control p-2">
           <div className="kicker px-2.5 pb-1 pt-1.5">Mars imagery</div>
-          {MARS_LAYERS.map((l) => item(marsLayer === l.id, l.label, l.note, () => set({ marsLayer: l.id })))}
+          {MARS_LAYERS.map((l) => item(marsLayer === l.id, l.label, resolution(l.dataset), () => set({ marsLayer: l.id }), "menuitemradio", l.sub))}
           <div className="kicker px-2.5 pb-1 pt-3">Earth imagery</div>
-          {EARTH_LAYERS.map((l) => item(earthLayer === l.id, l.label, l.note, () => set({ earthLayer: l.id })))}
+          {EARTH_LAYERS.map((l) => item(earthLayer === l.id, l.label, resolution(l.dataset), () => set({ earthLayer: l.id }), "menuitemradio", l.sub))}
           <div className="kicker px-2.5 pb-1 pt-3">Overlays</div>
           {item(graticule, "Latitude–longitude grid", "30°", () => set({ graticule: !graticule }), "menuitemcheckbox")}
           <p className="px-2.5 pb-1 pt-3 text-caption text-faint">Imagery is visual context only; measurements come from the analysis datasets.</p>
