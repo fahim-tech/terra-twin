@@ -253,7 +253,7 @@ function IndexRail({ active }: { active: SectionId | null }) {
       </div>
       <div className="mt-4 border-t border-line pt-3.5">
         <span className="kicker">Source</span>
-        <p className="num mt-1.5 text-num-sm leading-relaxed text-muted">/api/evidence<br />/api/datasets</p>
+        <p className="num mt-1.5 text-num-sm leading-relaxed text-muted">/api/evidence<br />/api/datasets<br />/api/gis/status</p>
       </div>
     </nav>
   );
@@ -349,7 +349,7 @@ function Body({ m, ds, dsLoading, dsError, targetSite }: { m: EvidenceModel; ds?
 
       <p className="mt-20 max-w-[78ch] border-t border-line pt-5 text-caption text-faint">
         {/* "Measured value", not "number": section and figure numbers are document structure, and FIG 01 is a drawing. */}
-        Every measured value on this page is read from the research package served by <span className="num text-muted">/api/evidence</span> and <span className="num text-muted">/api/datasets</span>; the FIG {sectionNo("ev-process")} drawings are schematic. Gate thresholds and verdict cut-offs are working assumptions.
+        Every measured value on this page is read from the research package served by <span className="num text-muted">/api/evidence</span> and <span className="num text-muted">/api/datasets</span>, and the GIS integration from <span className="num text-muted">/api/gis/status</span>; the FIG {sectionNo("ev-process")} drawings are schematic. Gate thresholds and verdict cut-offs are working assumptions.
       </p>
     </>
   );

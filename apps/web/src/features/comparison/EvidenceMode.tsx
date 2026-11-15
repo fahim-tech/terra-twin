@@ -7,7 +7,7 @@ import type { AnalogSearch } from "../../types/contracts";
 import type { CandidateView } from "../analogs/candidates";
 import { CompareTerm as Term } from "./CompareTerm";
 import { PlanetMark, SectionRule } from "./marks";
-import { keepFigures, measuresLabel, molaGridText, notLoadedReasons, robustness } from "./model";
+import { earthName, keepFigures, measuresLabel, molaGridText, notLoadedReasons, poolKindShort, robustness } from "./model";
 import { TIER2_LABELS } from "./science";
 
 type Rep = "mars_observation_space" | "as_measured";
@@ -42,10 +42,15 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
     );
   }
 
+  // The window's name and pool stratum as Compare names it everywhere ("Window 233 · stratified random · roughness decile 8").
+  const en = earthName(c);
+  const isRandom = /^rand_d\d_\d+$/.test(c.t2?.id ?? "");
+  const subLine = isRandom ? en.sub : poolKindShort(c.t2?.kind);
+  const whoLine = subLine ? `${en.name} · ${subLine.charAt(0).toLowerCase()}${subLine.slice(1)}` : en.name;
   const options: { value: Rep; title: string; figure: number | null; who: string; note: string }[] = [
     {
       value: "mars_observation_space", title: G5.toggleOom, figure: c.score,
-      who: c.label, note: keepFigures(`Research record · rotation 0°, equal weights${measuresLabel(c) ? ` · ${measuresLabel(c)}` : ""}`),
+      who: whoLine, note: keepFigures(`Research record · rotation 0°, equal weights${measuresLabel(c) ? ` · ${measuresLabel(c)}` : ""}`),
     },
     {
       value: "as_measured", title: G5.toggleMeasured, figure: base?.S ?? null,

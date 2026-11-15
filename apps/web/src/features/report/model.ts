@@ -11,6 +11,7 @@ import { searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, MissionProfile, Tier1Candidate, Tier2Candidate } from "../../types/contracts";
 import { memberOrder, researchWindowKm, screenCellKm, T2_MEASURES } from "../analogs/candidates";
 import { tiedWindowsListed } from "../analogs/readout";
+import { gridMetres } from "../explorer/readouts";
 import { interpret, PLANETARY_DIFFERENCES, TIER1_SPECS } from "../comparison/science";
 import { indexLabel } from "./typeset";
 
@@ -241,6 +242,8 @@ export function buildReportJson(search: AnalogSearch, c: ReportCandidate | null,
   const terrain = c ? terrainRows(search, c) : null;
   const cellKm = screenCellKm(search);
   const winKm = researchWindowKm(search);
+  // The research windows sit on the MOLA grid; its spacing is read from the Mars record, never assumed.
+  const gridM = gridMetres(search.mars.tier1_features as { native_resolution_m?: number | null }[]);
   return {
     product: "TerraTwin characterization report",
     status: "candidate_identification — not validation of a new analog",
@@ -259,7 +262,7 @@ export function buildReportJson(search: AnalogSearch, c: ReportCandidate | null,
     earth_candidate: c ? {
       id: c.id, label: c.label, tier: c.tier, role, lat: c.lat, lon: c.lon,
       unit: c.tier === 2
-        ? `${researchWindowKm(search, c.t2) !== null ? `${researchWindowKm(search, c.t2)} km ` : ""}window, 463 m local AEQD`
+        ? `${researchWindowKm(search, c.t2) !== null ? `${researchWindowKm(search, c.t2)} km ` : ""}window${gridM !== null ? `, ${gridM} m local AEQD` : ", local AEQD"}`
         : `${cellKm !== null ? `${cellKm} km ` : ""}GMTED2010 cell`,
       score: c.score, score_name: c.tier === 2 ? "S (research comparison, rotation 0°, equal weights)" : "screen similarity (global screen, mission weights)",
       coverage: c.coverage, measures: c.measures,

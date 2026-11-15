@@ -6,7 +6,7 @@ export interface ModeSpec {
   value: CompareMode;
   /** Switch label (short, set in caps). */
   label: string;
-  /** Narrow-phone label (< 380 px), when the full one would not fit five cells across. */
+  /** Phone label (< 640 px), when the full one would not fit five cells across. */
   short?: string;
   /** Section title of the expanded panel. */
   title: string;

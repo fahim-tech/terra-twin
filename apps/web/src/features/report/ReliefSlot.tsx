@@ -11,6 +11,7 @@ import { useApp } from "../../store/app";
 import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, Relief } from "../../types/contracts";
 import { fmtLat, fmtLon, type ReportCandidate } from "./model";
+import { recordDigits } from "../comparison/model";
 import { DISPLAY } from "./parts";
 import { splitDesignation } from "./typeset";
 
@@ -86,7 +87,8 @@ function ReliefPlate({ plate, planet, kicker, name, q }: { plate: string; planet
     : stills.status === "empty" ? "Every cell of this grid is empty; there is no surface to draw." : stills.status === "failed" ? "The relief still could not be rendered." : null;
   const busy = !error && (!relief || stills.status === "loading");
   const contour = relief && relief.z_min !== null && relief.z_max !== null ? contourInterval(relief.z_max - relief.z_min) : null;
-  const where = relief ? `${fmtLat(relief.lat, 3)} ${fmtLon(relief.lon, 3)}` : null;
+  // The record's own precision (a named control is stored to 2 dp), as the plates and the header print it.
+  const where = relief ? `${fmtLat(relief.lat, recordDigits(relief.lat, relief.lon))} ${fmtLon(relief.lon, recordDigits(relief.lat, relief.lon))}` : null;
 
   return (
     <figure className="m-0 min-w-0">

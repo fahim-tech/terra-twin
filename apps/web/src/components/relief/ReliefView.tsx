@@ -22,6 +22,7 @@ import { Measure, radioGroupKeys } from "../primitives";
 import { cx, Spinner } from "../ui";
 import { drawFlat } from "./flat";
 import { Orbit } from "./orbit";
+import { recordDigits } from "./precision";
 import { ReliefRenderer, reliefContext } from "./reliefGl";
 import {
   ariaSummary, axisPlacement, buildModel, camera, fmtHeading, fmtNum, fmtPitch, homePose, labelAnchors, layoutLabels, pickCell, project, rampColor,
@@ -142,7 +143,7 @@ function Header({ planet, name, relief, where }: {
         <div className="min-w-0">
           <h3 className="toponym truncate text-toponym-sm text-ink">{name ?? "—"}</h3>
           <p className="num mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-num-sm text-muted">
-            {where ? <span>{formatLat(where.lat, 3)}  {formatLon(where.lon, 3)}</span> : <span className="text-faint">—</span>}
+            {where ? <span>{formatLat(where.lat, recordDigits(where.lat, where.lon))}  {formatLon(where.lon, recordDigits(where.lat, where.lon))}</span> : <span className="text-faint">—</span>}
             {where && <span className="font-sans text-[10.5px] font-semibold uppercase tracking-[0.12em] text-faint">{where.kind}</span>}
           </p>
         </div>

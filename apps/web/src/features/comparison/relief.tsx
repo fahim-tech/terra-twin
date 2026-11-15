@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type RefObject } from "react";
 import { radioGroupKeys, Term } from "../../components/primitives";
-import { ExaggerationSwitch, fmtElevRange, GridFacts, ReliefNotice, ReliefView, reliefWindowId, scoreBasisLine, unavailableWords, type Exaggeration } from "../../components/relief";
+import { ExaggerationSwitch, GridFacts, ReliefNotice, ReliefView, reliefWindowId, scoreBasisLine, unavailableWords, type Exaggeration } from "../../components/relief";
 import { StatusMark } from "../../components/marks";
 import { cx, Spinner } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
@@ -159,10 +159,10 @@ function Half({ planet, name, kind, relief, children }: { planet: "mars" | "eart
           {/* The kind and the relief figure only where the half is wide enough to keep the name whole. */}
           {kind.toLowerCase() !== name.toLowerCase() && <span className="kicker hidden truncate xl:inline">{kind}</span>}
         </span>
-        {relief && relief.z_min !== null && relief.z_max !== null && (
+        {/* The span only: the key under or inside the scene carries the range itself (fmtElevRange), so it is printed once. */}
+        {range !== null && (
           <span className="num shrink-0 text-num-sm text-muted">
-            {fmtElevRange(relief.z_min, relief.z_max)}<span className="font-sans text-[11px]"> m</span>
-            {range !== null && <span className="max-xl:hidden"> · relief {m(range)}<span className="font-sans text-[11px]"> m</span></span>}
+            <span className="kicker mr-1.5 !text-[10px]">Relief</span>{m(range)}<span className="font-sans text-[11px]"> m</span>
           </span>
         )}
       </div>
@@ -219,7 +219,9 @@ function Caption({ earth, earthLine, mars, zone, ve, both, tier, marsWhy }: {
       <div className={row}>
         <dt className="kicker !text-mars">Mars</dt>
         <dd className="text-muted">
-          {mars ? <>Mars as measured · {mars.source.title} · <GridFacts relief={mars} /></>
+          {mars ? <>Mars as measured · {mars.source.title} · <GridFacts relief={mars} />
+            {/* The record's own note beside the Mars figures: the grid spacing is not an observation resolution. */}
+            {mars.source.note && <span className="mt-1 block text-faint">{mars.source.note}</span>}</>
             : !zone ? "No research zone, so no Mars grid." : marsWhy ?? "Checking for a Mars elevation grid."}
         </dd>
       </div>

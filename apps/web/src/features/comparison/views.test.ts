@@ -3,7 +3,7 @@ import type { AnalogSearch } from "../../types/contracts";
 import type { CandidateView } from "../analogs/candidates";
 import { tieScoreRange, windowLabel } from "../report/model";
 import { compareTargets, documentationLine, molaGridText, poolKindLabel, poolKindShort, recordDigits, robustness } from "./model";
-import { fmtElevRange } from "../../components/relief/reliefMath";
+import { fmtNum } from "../../components/relief/reliefMath";
 
 type Decision = AnalogSearch["tier2"]["decision"];
 
@@ -70,9 +70,9 @@ describe("grid and precision from the record", () => {
     expect(recordDigits(-24.1, -70)).toBe(1);
   });
 
-  it("formats elevation ranges in whole metres with a true minus and no double dash", () => {
-    expect(fmtElevRange(759.3, 2419.0)).toBe("759 … 2,419");
-    expect(fmtElevRange(-2918.4, -1155.2)).toBe("−2,918 … −1,155");
+  it("prints elevations in whole metres with a true minus (the one precision every relief key uses)", () => {
+    expect(fmtNum(759.3)).toBe("759");
+    expect(fmtNum(-2918.4)).toBe("−2,918");
   });
 });
 
