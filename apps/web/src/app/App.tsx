@@ -99,8 +99,9 @@ function Workspace() {
       <TopBar compact={phone} />
       <StatusBanner />
       <main ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden">
-        {/* Globe stage: both viewers stay mounted; stages change layout and opacity only (no WebGL resize animation). */}
-        <div className={cx("absolute inset-0 transition-opacity duration-500", fullPage && "opacity-35")}>
+        {/* Globe stage: both viewers stay mounted; stages change layout and opacity only (no WebGL resize animation).
+            Full pages (Evidence, Report) hide it entirely (spec §15), so no globe or Cesium credit shows under the text. */}
+        <div aria-hidden={fullPage || undefined} className={cx("absolute inset-0 transition-opacity duration-500", fullPage && "pointer-events-none opacity-0")}>
           <div ref={marsFrame} {...inert(!marsActive)}
             className={cx("absolute inset-y-0 left-0 transition-[opacity,transform] duration-[600ms] ease-[var(--ease-out-soft)]",
               split && !phone ? "w-1/2" : "w-full",
