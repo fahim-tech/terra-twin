@@ -43,8 +43,9 @@ Contrast: `faint` on `space` ≥ 5:1; never put text in `line` colours.
 
 - Radii: `rounded-control` = 2 px, `rounded-surface` = 2 px. `rounded-full` only for true circles
   in data graphics (map markers, chart points) — never for buttons, tags, tabs or containers.
-- `.surface`: near-black glass (`rgb(5 7 9 / .82)`, 18 px blur), 1 px `rgb(255 255 255/.09)`
-  border. `.frame` adds corner brackets (10 px, 1 px, ink at 55 %).
+- `.surface`: near-black glass (`rgb(5 7 9 / .84)`, 18 px blur), 1 px `rgb(255 255 255/.09)`
+  border. `.frame` adds corner brackets (10 px, 1 px, ink at 55 %). Shared classes live in
+  `@layer components`, so a utility on the same element always wins (see foundation-api.md).
 - Buttons (`Button` in `components/ui.tsx`): rectangular, UPPERCASE 12 px +0.12em.
   `primary` = solid ink with space text; `primary-mars` / `primary-earth` = solid ink with a
   planet-colour square marker; `outline` = 1 px line-strong; `ghost` = text only.
@@ -65,13 +66,21 @@ with corner brackets. A mission clock in the top bar shows real UTC and Mars Coo
 ## 6. 3D
 
 - Globes: oblique approach (camera pitched ≈ −50°) when flying to a site, with a TILT control to
-  switch top-down ⇄ oblique; research windows drawn as translucent 3D scan volumes; Phobos and
+  switch top-down ⇄ oblique; research windows, screened cells and the user's footprint drawn as
+  translucent 3D scan volumes that grow in with their size on screen (research zones stay flat
+  outlines; wall height is visual only, never a measurement); Phobos and
   Deimos orbits drawn around Mars at true scale (semi-major axes 9,376 km and 23,463 km); strong
   but honest lighting with a soft terminator and atmosphere limb.
-- Terrain relief: a WebGL heightfield of the real 50 km Earth research window, resampled as MOLA
-  would observe it (108 × 108 cells at 463 m), with labelled vertical exaggeration, km axes and
-  an elevation scale in metres. Drag to orbit with momentum, keyboard arrows rotate. Mars relief
-  appears only if a MOLA mosaic is connected; otherwise the panel says so.
+- Terrain relief: a WebGL heightfield of a real 50 km Earth research window **as measured** —
+  Copernicus DEM GLO-90 elevations aggregated to 463.09 m cells (the MOLA mosaic grid spacing) on a
+  local azimuthal-equidistant grid centred on the window, 108 × 108 cells. The MOLA observation
+  operator is not applied (the relief payload's `source.note` says so), so the relief is labelled
+  "Earth as measured" and never "as MOLA would observe it"; that phrase belongs to the research
+  comparison, whose decision does compare Earth as MOLA would observe it. Labelled vertical
+  exaggeration, km axes and an elevation scale in metres, all from the payload. Drag to orbit with
+  momentum, keyboard arrows rotate. Mars relief appears only when a MOLA mosaic is connected
+  (`GET /api/mars/relief` answers 503 with the reason until then); otherwise the panel says so and
+  nothing is substituted.
 
 ## 7. Motion
 
