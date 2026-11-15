@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useSites } from "../../services/api";
 import { useDiscoveryRun } from "../../services/gis";
 import { liveCompareActive, useApp } from "../../store/app";
 import { type LivePair, livePair } from "./live";
@@ -19,11 +20,13 @@ export function useLiveCompare(): LiveCompare {
   const runId = useApp((s) => s.liveRunId);
   const cand = useApp((s) => s.liveCandidate);
   const run = useDiscoveryRun(active ? runId : null);
+  const sites = useSites();
+  const zoneIds = useMemo(() => sites.data?.map((s) => s.id) ?? null, [sites.data]);
   return useMemo<LiveCompare>(() => {
     if (!active) return { state: "off" };
     if (run.isError) return { state: "error", message: (run.error as Error).message };
     if (!run.data) return { state: "loading" };
-    const pair = livePair(run.data, cand);
+    const pair = livePair(run.data, cand, zoneIds);
     return pair ? { state: "ready", pair } : { state: "missing" };
-  }, [active, run.data, run.isError, run.error, cand]);
+  }, [active, run.data, run.isError, run.error, cand, zoneIds]);
 }

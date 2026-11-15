@@ -7,7 +7,7 @@ import { useWindowRelief } from "../../services/gis";
 import { useApp } from "../../store/app";
 import { cellLabel, disclaimerText, scopeText, westToEast } from "../analogs/discoveryModel";
 import { DescriptorTable } from "../comparison/LiveComparison";
-import { asMeasured, type LivePair, liveBasis, liveGate, liveMarsName, liveMeasures, liveOrigin, liveVerdict, liveVersions, numAt, rotationRange, strAt } from "../comparison/live";
+import { asMeasured, type LivePair, liveBasis, liveGate, liveMarsKind, liveMarsName, liveMeasures, liveOrigin, liveVerdict, liveVersions, numAt, rotationRange, strAt } from "../comparison/live";
 import { recordDigits } from "../comparison/model";
 import type { LiveCompare } from "../comparison/useLive";
 import { Designation, Field } from "./DossierHeader";
@@ -84,7 +84,7 @@ function LiveDossier({ pair }: { pair: LivePair }) {
   const earthDisk = useSnapshot("earth", c.lat, c.lon, true, diskKm.earth, null);
   // Plate C: the run's own GLO-90 window grid, only when the server holds it; D: the Mars zone grid.
   const earthRelief = useWindowRelief({ lat: c.lat, lon: c.lon });
-  const zone = r.target.site ?? null;
+  const zone = pair.zone;
   const marsRelief = useMarsRelief(earthRelief.data ? zone : null);
 
   const Section = ({ id, aside, children }: { id: string; aside?: ReactNode; children: ReactNode }) => {
@@ -121,7 +121,7 @@ function LiveDossier({ pair }: { pair: LivePair }) {
           </div>
           <h1 data-stage-heading="report" tabIndex={-1}
             className="grid gap-y-4 px-4 pb-7 pt-6 outline-none! md:grid-cols-[minmax(0,1fr)_96px_minmax(0,1fr)] md:gap-x-2 md:px-6 md:pb-9 md:pt-8 print:grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)]">
-            <Designation tone="mars" kicker={zone ? "Mars · Research zone" : "Mars · Search target"} name={marsName} coord={fmtCoord(r.target.lat, r.target.lon)} coordSpoken={!zone} />
+            <Designation tone="mars" kicker={`Mars · ${liveMarsKind(pair)}`} name={marsName} coord={fmtCoord(r.target.lat, r.target.lon)} coordSpoken={!zone} />
             <span aria-hidden className="flex items-center md:justify-center md:pt-[30px]">
               <svg width="76" height="10" viewBox="0 0 76 10" className="hidden text-faint md:block print:block print:w-[60px]">
                 <path d="M1 5h74M5 1L1 5l4 4M71 1l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1" />
@@ -152,7 +152,7 @@ function LiveDossier({ pair }: { pair: LivePair }) {
 
         <Section id="plates" aside={earthRelief.data ? "NASA imagery · terrain relief · visualization only" : "NASA imagery · visualization only"}>
           <div className="grid gap-8 md:grid-cols-2 md:gap-7 print:grid-cols-2 print:gap-5">
-            <LocationPlate planet="mars" plate="A" lat={r.target.lat} lon={r.target.lon} frame={marsFrame} kicker={zone ? "Mars · Research zone" : "Mars · Search target"}
+            <LocationPlate planet="mars" plate="A" lat={r.target.lat} lon={r.target.lon} frame={marsFrame} kicker={`Mars · ${liveMarsKind(pair)}`}
               name={marsName} imagery="NASA Mars Trek imagery" snapshot={marsSnap} held={held} aspect={aspect} disk={{ snapshot: marsDisk, heightKm: diskKm.mars }} />
             <LocationPlate planet="earth" plate="B" lat={c.lat} lon={c.lon} frame={earthFrame} kicker="Earth · Discovery window" name="Discovery window"
               imagery="NASA GIBS imagery" snapshot={earthSnap} held={held} aspect={aspect} disk={{ snapshot: earthDisk, heightKm: diskKm.earth }} />

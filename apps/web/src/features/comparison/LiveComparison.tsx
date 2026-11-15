@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { SFigure, StatusMark as SharedStatus } from "../../components/marks";
 import { Term as GlobalTerm } from "../../components/primitives";
-import { ExaggerationSwitch, GridFacts, ReliefNotice, ReliefView, type Exaggeration } from "../../components/relief";
+import { ExaggerationSwitch, GridFacts, ReliefNotice, ReliefView, unavailableWords, type Exaggeration } from "../../components/relief";
 import { cx, pct, Spinner } from "../../components/ui";
 import { useLayout } from "../../app/useLayout";
 import { G5 } from "../../lib/glossary";
@@ -13,7 +13,7 @@ import { disclaimerText, formatValue, scopeText } from "../analogs/discoveryMode
 import { CompareNotice, CompareStrip } from "./ComparisonPanel";
 import { CompareTerm as Term } from "./CompareTerm";
 import {
-  asMeasured, descriptorRows, liveBasis, liveGate, liveMarsName, liveOrigin, liveRatioRows, liveTargets, liveVerdict, liveVersions, liveView,
+  asMeasured, descriptorRows, liveBasis, liveGate, liveMarsKind, liveMarsName, liveOrigin, liveRatioRows, liveTargets, liveVerdict, liveVersions, liveView,
   type LivePair, numAt, rotationRange, rotationScores, strAt,
 } from "./live";
 import { PlanetMark, SectionRule } from "./marks";
@@ -102,7 +102,7 @@ export function DescriptorTable({ pair, className }: { pair: LivePair; className
   if (!rows.length) return <p className="text-body text-muted">The run record holds no descriptor values for this window.</p>;
   const th = "kicker py-1.5 pr-3 text-right align-bottom font-normal";
   return (
-    <div className={cx("overflow-x-auto scroll-thin", className)}>
+    <div className={cx("max-w-[920px] overflow-x-auto scroll-thin", className)}>
       <table className="w-full min-w-[560px] text-left text-caption">
         <thead>
           <tr className="border-b border-line-strong">
@@ -202,7 +202,7 @@ function LiveEvidence({ pair }: { pair: LivePair }) {
 
 function LiveRelief({ pair, targets, phone }: { pair: LivePair; targets: CompareTargets; phone: boolean }) {
   const { r, c } = pair;
-  const zone = r.target.site ?? null;
+  const zone = pair.zone;
   const earth = useWindowRelief({ lat: c.lat, lon: c.lon });
   const mars = useMarsRelief(zone);
   const [ve, setVe] = useState<Exaggeration>(4);
@@ -211,11 +211,11 @@ function LiveRelief({ pair, targets, phone }: { pair: LivePair; targets: Compare
   const notice = scene + 28;
   const earth404 = earth.isError && earth.error instanceof ApiError && earth.error.status === 404;
   const earthWhy = earth.isError ? (earth404 ? "This window's elevation grid is not cached on this server." : `The elevation grid could not be read: ${(earth.error as Error).message}`) : null;
-  const marsWhy = !zone ? "Mars relief is served per research zone, and this run's target is a free point: there is no zone grid." : mars.isError ? `No Mars grid: ${(mars.error as Error).message}` : null;
+  const marsWhy = !zone ? `Mars relief is served per research zone, and this run's target is ${r.target.site ? "not one of them" : "a free point"}: there is no zone grid.` : mars.isError ? unavailableWords("mars", mars.error instanceof ApiError ? mars.error : { message: (mars.error as Error).message }).plain : null;
   const both = !!earth.data && !!mars.data;
 
   const half = (p: "mars" | "earth") => p === "mars" ? (
-    <Half planet="mars" name={targets.mars.name} kind={zone ? "Research zone" : "Search target"} relief={mars.data ?? null}>
+    <Half planet="mars" name={targets.mars.name} kind={liveMarsKind(pair)} relief={mars.data ?? null}>
       {zone && !mars.isError ? (
         <ReliefView planet="mars" id={zone} title={targets.mars.name} density="compact" controls="deck" sceneHeight={scene}
           wheel="modifier" exaggeration={ve} onExaggerationChange={setVe} exaggerationControl={!both} />

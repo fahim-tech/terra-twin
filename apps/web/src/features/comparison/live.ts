@@ -16,19 +16,32 @@ import { VERDICT_MARK } from "./model";
 import { ratioRow, type RatioRow } from "./science";
 
 type Refinement = NonNullable<DiscoveryRun["refinement"]>;
-export interface LivePair { run: DiscoveryRun; r: Refinement; c: DiscoveryCandidate }
+export interface LivePair {
+  run: DiscoveryRun; r: Refinement; c: DiscoveryCandidate;
+  /** The run's target as one of the app's research zones (it has a zone grid), or null: a named or free point. */
+  zone: string | null;
+}
 
-/** The run and the selected window, or null when the run has no refinement or does not list that window. */
-export function livePair(run: DiscoveryRun | null | undefined, candidateId: string | null): LivePair | null {
+/**
+ * The run and the selected window, or null when the run has no refinement or does not list that window. A run's
+ * target `site` is a research zone only when the app's zone list has that id (GIS runs may name other targets).
+ */
+export function livePair(run: DiscoveryRun | null | undefined, candidateId: string | null, zoneIds?: readonly string[] | null): LivePair | null {
   const r = run?.refinement;
   if (!run || !r || !candidateId) return null;
   const c = r.candidates.find((x) => x.id === candidateId);
-  return c ? { run, r, c } : null;
+  const site = r.target.site ?? null;
+  return c ? { run, r, c, zone: site && zoneIds?.includes(site) ? site : null } : null;
 }
 
-/** The Mars target of the run: the research zone's name, else "Selected point" (its coordinates stay in mono). */
+/** The Mars target of the run: its named target (a zone's name), else "Selected point" (its coordinates stay in mono). */
 export function liveMarsName(r: Refinement): string {
   return r.target.site ? zoneName(r.target.site) : "Selected point";
+}
+
+/** What the Mars target is: a research zone, a named target of the run, or a point. */
+export function liveMarsKind(p: Pick<LivePair, "r" | "zone">): string {
+  return p.zone ? "Research zone" : p.r.target.site ? "Run target" : "Search target";
 }
 
 /** Where the window came from, in words ("Global tier-1 shortlist", "Research pool ..."); null when the payload does not say. */
@@ -43,8 +56,9 @@ export const LIVE_WINDOW_NAME = "Discovery window";
 export function liveTargets({ r, c }: LivePair): CompareTargets {
   const km = r.window_km;
   const win = `${km} km discovery window`;
+  // The plate already prints the coordinates: the note line says where the window came from.
   const origin = liveOrigin(c);
-  const sub = [cellLabel(c.lat, c.lon), origin].filter(Boolean).join(" · ");
+  const sub = origin;
   return {
     mars: { name: liveMarsName(r), lat: r.target.lat, lon: r.target.lon, km: r.target.window_km, size: `${r.target.window_km} km`, footprint: `${r.target.window_km} km target window` },
     earth: { name: LIVE_WINDOW_NAME, sub, subShort: origin ?? cellLabel(c.lat, c.lon), lat: c.lat, lon: c.lon, km, size: `${km} km`, footprint: win },
