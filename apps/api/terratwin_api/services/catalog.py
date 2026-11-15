@@ -153,5 +153,14 @@ def datasets_now() -> list[dict]:
             if n:
                 rec["status"] = "connected"
                 rec["coverage"] = f"{n} of 16 tiles connected on this server; 10 of 16 cover the 39 EZs"
+        elif d.id == "copernicus_glo90_live":
+            from . import gis
+            try:
+                live = gis.discovery_status(gis.lib())["status"] == "available"
+            except gis.GisUnavailable:
+                live = False
+            if live:
+                rec["status"] = "connected"
+                rec["coverage"] = "extracted on demand by GIS discovery runs (global tier-1 shortlist), cached on this server"
         out.append(rec)
     return out
