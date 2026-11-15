@@ -8,19 +8,23 @@ export type Outcome = ResearchSiteSummary["exclude"] & { gateMode: "exclude" | "
 /**
  * Research outcome per Exploration Zone for the active mission: field-test missions use the
  * gate-then-rank records, Terrain Geometry Only uses the report-only records. Real research data
- * from /api/research/summary; nothing is computed here.
+ * from /api/research/summary; nothing is computed here. A mission without a research configuration
+ * (or before mission profiles have loaded) has no outcome at all — never another mission's.
  */
-export function useSiteOutcomes(): { bySite: Record<string, Outcome>; loading: boolean; gateMode: "exclude" | "report" } {
+export function useSiteOutcomes(): { bySite: Record<string, Outcome>; loading: boolean; gateMode: "exclude" | "report" | null } {
   const summary = useResearchSummary();
   const missions = useMissions();
   const mission = useApp((s) => s.mission);
-  const gateMode = missions.data?.find((m) => m.id === mission)?.gate_mode ?? "exclude";
+  const profile = missions.data?.find((m) => m.id === mission);
+  // Same rule as the API (`gate_mode or "report"`), but only for missions it can run.
+  const gateMode = profile?.available ? profile.gate_mode ?? "report" : null;
   const bySite = useMemo(() => {
     const out: Record<string, Outcome> = {};
+    if (!gateMode) return out;
     for (const s of summary.data ?? []) out[s.site] = { ...s[gateMode], gateMode };
     return out;
   }, [summary.data, gateMode]);
-  return { bySite, loading: summary.isLoading, gateMode };
+  return { bySite, loading: summary.isLoading || missions.isLoading, gateMode };
 }
 
 export const OUTCOME_COPY: Record<Outcome["type"], { short: string; long: string }> = {

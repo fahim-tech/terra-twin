@@ -41,7 +41,7 @@ export function MarsSearch() {
   const select = useApp((s) => s.select);
   const selection = useApp((s) => s.selection);
   const mission = useApp((s) => s.mission);
-  const { bySite } = useSiteOutcomes();
+  const { bySite, gateMode } = useSiteOutcomes();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -157,7 +157,7 @@ export function MarsSearch() {
           </ul>
           {!coord && (
             <p className="border-t border-line px-4 py-2 text-caption text-faint">
-              {missionLabel}: <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◉</span> stable leader</span> · <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◎</span> tie</span> · <span className="whitespace-nowrap"><span aria-hidden>○</span> no verdict</span> · <span className="whitespace-nowrap"><span aria-hidden>—</span> not loaded</span>
+              {!gateMode && missions.data ? <>{missionLabel}: <span aria-hidden>—</span> no research outcomes for this mission</> : <>{missionLabel}: <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◉</span> stable leader</span> · <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◎</span> tie</span> · <span className="whitespace-nowrap"><span aria-hidden>○</span> no verdict</span> · <span className="whitespace-nowrap"><span aria-hidden>—</span> not loaded</span></>}
             </p>
           )}
         </div>
