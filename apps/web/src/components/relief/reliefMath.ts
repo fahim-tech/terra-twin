@@ -974,9 +974,10 @@ export function ariaSummary(
 }
 
 /**
- * What the grid shows, in words, for captions and legends. An Earth grid is either as measured or
- * resampled as MOLA would observe it; a Mars grid is the planet's own measurement, so the MOLA
- * observation-operator clause never applies to it.
+ * What the grid shows, in words, for captions and legends, from the payload's `source.representation`. The
+ * research-pool relief is Earth as measured (GLO-90 aggregated to the MOLA grid spacing; the MOLA observation
+ * operator is not applied); the contract also names the observed representation, worded as the research does.
+ * A Mars grid is the planet's own measurement, so the MOLA observation-operator clause never applies to it.
  */
 export function representationNote(planet: "earth" | "mars", representation: string): string {
   if (planet === "mars") return "Mars as measured";
