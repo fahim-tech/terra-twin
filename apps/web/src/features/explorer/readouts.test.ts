@@ -1,0 +1,111 @@
+import { describe, expect, it } from "vitest";
+import {
+  availabilityItems, baselineFromExplanation, calloutGeometry, gridMetres, LEADER_DX, nextActive, revealDelta, scalesFromEvidence,
+} from "./readouts";
+
+describe("scalesFromEvidence", () => {
+  it("reads cell, window and zone counts from the evidence coverage", () => {
+    const ev = { coverage: { tier1: { n_cells: 249165, cell_km: 25 }, tier2: { n_windows: 230, window_km: 50 }, mars: { n_targets: 39 } } };
+    expect(scalesFromEvidence(ev)).toEqual({ cellKm: 25, windowKm: 50, zones: 39 });
+  });
+  it("never invents a default for missing or malformed values", () => {
+    expect(scalesFromEvidence(undefined)).toEqual({ cellKm: null, windowKm: null, zones: null });
+    expect(scalesFromEvidence({ coverage: { tier1: { cell_km: "25" }, tier2: { window_km: 0 }, mars: null } }))
+      .toEqual({ cellKm: null, windowKm: null, zones: null });
+    expect(scalesFromEvidence({ coverage: [] })).toEqual({ cellKm: null, windowKm: null, zones: null });
+  });
+});
+
+describe("gridMetres", () => {
+  it("rounds a shared grid spacing", () => {
+    expect(gridMetres([{ native_resolution_m: 463.0935 }, { native_resolution_m: 463.2 }])).toBe(463);
+  });
+  it("is null when absent or when the measures disagree", () => {
+    expect(gridMetres([])).toBeNull();
+    expect(gridMetres([{ native_resolution_m: null }, {}])).toBeNull();
+    expect(gridMetres([{ native_resolution_m: 463 }, { native_resolution_m: 926 }])).toBeNull();
+  });
+});
+
+describe("baselineFromExplanation", () => {
+  it("takes the quoted baseline from the API text", () => {
+    expect(baselineFromExplanation("Height change between points ~1.85 km apart (N-S, directional screen statistic).")).toBe("1.85 km");
+    expect(baselineFromExplanation("points ~926 m apart")).toBe("926 m");
+  });
+  it("is null when the text quotes none", () => {
+    expect(baselineFromExplanation("Average terrain inclination at the stated baseline.")).toBeNull();
+    expect(baselineFromExplanation(null)).toBeNull();
+  });
+});
+
+describe("availabilityItems", () => {
+  const base = { tier1_features: [{ value: 2.7 }], ez_features: [], observation_support: { observed_fraction: 0.31 } };
+  it("orders terrain, observation support, then known factors, then unknown ones in API order", () => {
+    const items = availabilityItems({
+      ...base,
+      unavailable_factors: [
+        { key: "solar_energy", label: "Solar energy", value: null },
+        { key: "zz_new", label: "New factor", value: 3 },
+        { key: "thermal_inertia", label: "Thermal inertia", value: null },
+        { key: "aa_new", label: "Other factor", value: null },
+      ],
+    });
+    expect(items.map((i) => i.key)).toEqual(["terrain", "observation_support", "thermal_inertia", "solar_energy", "zz_new", "aa_new"]);
+    expect(items.map((i) => i.label)).toEqual(["Terrain", "Observation support", "Thermal", "Solar", "New factor", "Other factor"]);
+    expect(items.map((i) => i.on)).toEqual([true, true, false, false, true, false]);
+  });
+  it("marks terrain and observation support off when the API has no values", () => {
+    const items = availabilityItems({ tier1_features: [{ value: null }], ez_features: [{ value: null }], observation_support: null, unavailable_factors: [] });
+    expect(items).toEqual([{ key: "terrain", label: "Terrain", on: false }, { key: "observation_support", label: "Observation support", on: false }]);
+  });
+});
+
+describe("nextActive", () => {
+  it("steps and stops at the ends", () => {
+    expect(nextActive("ArrowDown", 0, 3)).toBe(1);
+    expect(nextActive("ArrowDown", 2, 3)).toBe(2);
+    expect(nextActive("ArrowUp", 0, 3)).toBe(0);
+    expect(nextActive("Home", 2, 3)).toBe(0);
+    expect(nextActive("End", 0, 3)).toBe(2);
+    expect(nextActive("PageDown", 1, 30)).toBe(9);
+    expect(nextActive("PageUp", 3, 30)).toBe(0);
+  });
+  it("ignores other keys and empty lists", () => {
+    expect(nextActive("a", 1, 3)).toBeNull();
+    expect(nextActive("ArrowDown", 0, 0)).toBeNull();
+  });
+});
+
+describe("revealDelta", () => {
+  const view = { top: 100, bottom: 300 };
+  it("is 0 for a visible row and moves just enough otherwise", () => {
+    expect(revealDelta({ top: 150, bottom: 180 }, view, 12)).toBe(0);
+    expect(revealDelta({ top: 290, bottom: 320 }, view, 12)).toBe(32);
+    expect(revealDelta({ top: 90, bottom: 120 }, view, 12)).toBe(-22);
+  });
+});
+
+describe("calloutGeometry", () => {
+  it("runs up and right for a north-east label, starting on the mark's edge", () => {
+    const g = calloutGeometry({ x: 100, y: 200 }, "ne", 38, { square: 4.5 });
+    expect(g.sx).toBe(1);
+    expect(g.sy).toBe(-1);
+    expect(g.end).toEqual({ x: 100 + LEADER_DX, y: 162 });
+    expect(g.elbow.y).toBe(162);
+    // The start lies on the square mark's boundary (|dy| = half size, since the leg is steeper than 45°).
+    expect(Math.abs(g.start.y - 200)).toBeCloseTo(4.5);
+    expect(g.start.x).toBeGreaterThan(100);
+  });
+  it("mirrors for a south-west label", () => {
+    const g = calloutGeometry({ x: 100, y: 200 }, "sw", 60);
+    expect(g.end).toEqual({ x: 100 - LEADER_DX, y: 260 });
+    expect(g.start.x).toBeLessThan(100);
+    expect(g.start.y).toBeGreaterThan(200);
+  });
+  it("starts outside a round globe marker at its radius", () => {
+    const g = calloutGeometry({ x: 0, y: 0 }, "se", 38, { circle: 12 });
+    expect(Math.hypot(g.start.x, g.start.y)).toBeCloseTo(12);
+    expect(g.start.x).toBeGreaterThan(0);
+    expect(g.start.y).toBeGreaterThan(0);
+  });
+});
