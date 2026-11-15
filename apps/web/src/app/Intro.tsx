@@ -10,8 +10,11 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
   const stagger = (i: number) => ({ initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const, delay: 0.15 + i * 0.08 } });
   return (
     <div
-      className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-full items-end bg-gradient-to-t from-space via-space/70 to-transparent md:w-[min(46vw,620px)] md:items-center md:bg-gradient-to-r md:from-space/95 md:via-space/70 md:to-transparent">
-      <div className="pointer-events-auto w-full max-w-[520px] px-6 pb-10 md:px-14 md:pb-0">
+      className="pointer-events-none absolute inset-y-0 left-0 z-10 flex w-full items-end bg-gradient-to-t from-space via-space/70 to-transparent md:w-[min(52vw,680px)] md:items-center md:bg-none 2xl:w-[min(50vw,860px)]">
+      {/* One eased fall-off into space (no stacked via layer, so no visible bands at the stop edges). */}
+      <div aria-hidden className="absolute inset-0 -z-10 hidden md:block"
+        style={{ backgroundImage: "linear-gradient(to right, rgb(5 7 10 / 0.96) 0%, rgb(5 7 10 / 0.93) 30%, rgb(5 7 10 / 0.84) 45%, rgb(5 7 10 / 0.68) 58%, rgb(5 7 10 / 0.47) 70%, rgb(5 7 10 / 0.27) 80%, rgb(5 7 10 / 0.12) 89%, rgb(5 7 10 / 0.03) 96%, rgb(5 7 10 / 0) 100%)" }} />
+      <div className="pointer-events-auto w-full max-w-[520px] px-6 pb-10 md:px-14 md:pb-0 2xl:ml-[6vw]">
         <motion.div {...stagger(0)}><Kicker tone="mars">AstroSUST · NASA Space Apps 2026</Kicker></motion.div>
         <motion.h1 {...stagger(1)} data-stage-heading="intro" className="toponym mt-4 text-[44px] leading-[1.02] tracking-[-0.02em] md:text-display">TerraTwin</motion.h1>
         <motion.p {...stagger(2)} className="toponym mt-2 text-toponym-sm italic text-ink/85">Two worlds. Shared terrain.</motion.p>
