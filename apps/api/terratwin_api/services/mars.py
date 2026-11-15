@@ -41,13 +41,16 @@ EXPLAIN = {
     "hurst_2pt": "How roughness scales with distance, from two baselines only (screen statistic).",
 }
 # Factors the brief asks for that no connected dataset provides.
+# Factors the research record does not carry. Where the GIS factor library is installed (the production host)
+# all six are served by GET /api/gis/mars/factors and the app shows those records instead of these entries.
+_NO_GIS = "not served by this API process: needs the GIS factor library (terratwin_gis.factors)"
 UNAVAILABLE_FACTORS = [
-    ("rock_abundance", "Rock abundance", "%", "TES/THEMIS rock abundance not connected"),
-    ("thermal_inertia", "Thermal inertia", "J m⁻² K⁻¹ s⁻½", "TES thermal inertia evaluated (D5) but not ingested"),
-    ("geologic_unit", "Geologic unit", "class", "USGS SIM 3292 geologic map not ingested"),
-    ("surface_temperature", "Surface temperature", "K", "No Mars climate product connected"),
-    ("water_ice", "Water-ice potential", "index", "SWIM ice consistency products not ingested"),
-    ("solar_energy", "Solar-energy potential", "W m⁻²", "No insolation model connected"),
+    ("rock_abundance", "Rock abundance", "%", f"TES rock abundance {_NO_GIS}"),
+    ("thermal_inertia", "Thermal inertia", "J m⁻² K⁻¹ s⁻½", f"TES thermal inertia {_NO_GIS}"),
+    ("geologic_unit", "Geologic unit", "class", f"USGS SIM 3292 geologic unit {_NO_GIS}"),
+    ("surface_temperature", "Surface temperature", "K", f"Modelled surface temperature {_NO_GIS}"),
+    ("water_ice", "Water-ice potential", "index", f"SWIM ice consistency {_NO_GIS}"),
+    ("solar_energy", "Solar-energy potential", "W m⁻²", f"Solar-energy potential {_NO_GIS}"),
 ]
 
 
