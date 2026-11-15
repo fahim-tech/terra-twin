@@ -48,6 +48,7 @@ function SimilarityLegend({ lg, km }: { lg: VisualizationLegend["tier1_similarit
   const digits = tickDigits(ticks, 2);
   const gradient = rampGradient(lg.stops);
   const lo = lg.opacity.transparent_below;
+  const hi = lg.opacity.opaque_above;
   const hidden = rampPosition(lg.domain, lo);
   return (
     <div>
@@ -56,7 +57,7 @@ function SimilarityLegend({ lg, km }: { lg: VisualizationLegend["tier1_similarit
         <span className="text-caption text-faint">{km !== null && <><span className="num text-num-sm">{km}</span> km · </>}as measured</span>
       </div>
       <div className="relative mt-2 h-2.5" role="img"
-        aria-label={`${lg.name} colour scale from ${lg.domain[0]} to ${lg.domain[1]}; values below ${lo.toFixed(2)} are not drawn`}>
+        aria-label={`${lg.name} colour scale from ${lg.domain[0]} to ${lg.domain[1]}; values below ${lo.toFixed(2)} are not drawn and values up to ${hi.toFixed(2)} fade in`}>
         <div className="absolute inset-0" style={gradient ? { background: gradient } : undefined} />
         {hidden !== null && hidden > 0 && (
           <div className="absolute inset-y-0 left-0 border-r border-ink/80"
@@ -76,8 +77,9 @@ function SimilarityLegend({ lg, km }: { lg: VisualizationLegend["tier1_similarit
           </span>
         ))}
       </div>
+      {/* How the globe draws the field (from the record's opacity), then the record's own caveat, verbatim. */}
       <p className="mt-2 text-caption text-faint">
-        Not a probability. Hatched: not drawn below <span className="num">{lo.toFixed(2)}</span>; display opacity is not an analysis threshold.
+        Hatched: not drawn below <span className="num">{lo.toFixed(2)}</span>; fades in up to <span className="num">{hi.toFixed(2)}</span>. {lg.caveat}
       </p>
     </div>
   );
