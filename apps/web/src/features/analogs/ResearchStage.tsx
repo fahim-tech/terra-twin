@@ -160,6 +160,9 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
 
       {t2.as_measured_baseline && (
         <Disclosure className="mt-2" summary="Uncorrected comparator">
+          <p className="mb-2 text-caption text-muted">
+            The score above uses “{G5.toggleOom}”. For contrast, the uncorrected comparison with Earth terrain {G5.toggleMeasured}:
+          </p>
           <div className="rounded-control bg-elevated px-3 py-2.5">
             <div className="text-caption text-muted">Earth terrain: {G5.toggleMeasured}</div>
             <div className="mt-1 flex items-baseline justify-between gap-3">
