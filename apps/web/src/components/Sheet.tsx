@@ -113,12 +113,12 @@ export function Sheet({ children, label, snap, onSnapChange, peek = 112, header,
 
   return (
     <motion.section ref={host} aria-label={label} style={{ y }} data-occludes={occludes} data-sheet=""
-      className={cx("absolute inset-x-0 top-0 z-20 flex flex-col rounded-t-[18px] bg-surface shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_-12px_40px_rgba(0,0,0,0.5)]", className)}
+      className={cx("absolute inset-x-0 top-0 z-20 flex flex-col bg-surface shadow-[inset_0_1px_0_rgb(255_255_255/0.14),0_-12px_40px_rgba(0,0,0,0.6)]", className)}
       >
       <div className="touch-none select-none" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
         <button type="button" onKeyDown={onKey} onClick={onHandleClick} aria-label={`${label}: ${snap === "full" ? "expanded" : snap === "half" ? "half open" : "collapsed"}. Press to change, arrow keys to resize.`}
           className="mx-auto flex h-6 w-full items-center justify-center focus-visible:outline-offset-[-4px]">
-          <span className="h-1 w-9 rounded-full bg-ink/25" />
+          <span className="h-[3px] w-10 bg-ink/30" />
         </button>
         {header}
       </div>

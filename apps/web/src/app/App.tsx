@@ -145,10 +145,11 @@ function Workspace() {
           <>
             {phone && (
               <div role="radiogroup" aria-label="Planet" onKeyDown={radioGroupKeys<Planet>(["mars", "earth"], phonePlanet, setPhonePlanet)}
-                className="surface no-print absolute left-1/2 top-3 z-20 flex -translate-x-1/2 rounded-full p-1">
+                className="surface no-print absolute left-1/2 top-3 z-20 flex -translate-x-1/2 divide-x divide-line-strong rounded-control">
                 {(["mars", "earth"] as Planet[]).map((p) => (
                   <button key={p} role="radio" aria-checked={phonePlanet === p} tabIndex={phonePlanet === p ? 0 : -1} onClick={() => setPhonePlanet(p)}
-                    className={cx("hit rounded-full px-4 py-1.5 text-label", phonePlanet === p ? (p === "mars" ? "bg-mars text-space" : "bg-earth text-space") : "text-muted")}>
+                    className={cx("hit label-caps flex items-center gap-2 px-4 py-1.5", phonePlanet === p ? "bg-ink text-space" : "text-muted")}>
+                    <span aria-hidden className={cx("h-1.5 w-1.5", p === "mars" ? "bg-mars" : "bg-earth")} />
                     {p === "mars" ? "Mars" : "Earth"}
                   </button>
                 ))}
@@ -193,7 +194,7 @@ function ContextSurface({ stage, phone, open, children }: { stage: "mars" | "ear
           className="no-print pointer-events-none absolute bottom-3 right-3 top-3 z-20 flex w-[min(380px,calc(100%-24px))] flex-col">
           {/* The aside keeps the full-height box (globe framing uses it); the surface itself is sized to
               its content and capped at the stage, so it appears only as tall as what it has to say. */}
-          <div className="surface pointer-events-auto flex max-h-full min-h-0 flex-col overflow-hidden rounded-surface">
+          <div className="surface frame pointer-events-auto flex max-h-full min-h-0 flex-col overflow-hidden rounded-surface">
             {children}
           </div>
         </motion.aside>
@@ -210,7 +211,7 @@ function Instruments({ planet, phone }: { planet: Planet; phone: boolean }) {
     // covers the bottom of the globe (sheet peek, comparison strip), as measured by the insets.
     return (
       <>
-        <div className="no-print on-imagery pointer-events-none absolute z-10 rounded-[8px] bg-[rgb(5_7_10/0.5)] px-2 py-1.5 transition-[left,bottom] duration-300"
+        <div className="no-print on-imagery pointer-events-none absolute z-10 bg-[rgb(2_3_4/0.55)] px-2 py-1.5 transition-[left,bottom] duration-300"
           style={{ left: ins.left + 12, bottom: ins.bottom + 12 }}>
           <ScaleBar planet={planet} maxPx={88} />
         </div>
@@ -221,7 +222,7 @@ function Instruments({ planet, phone }: { planet: Planet; phone: boolean }) {
   return (
     <>
       {/* A small dark backing keeps the readouts legible over bright terrain without becoming a surface. */}
-      <div className="no-print on-imagery pointer-events-none absolute z-10 flex items-end gap-6 rounded-[10px] bg-[rgb(5_7_10/0.5)] px-3 py-2 transition-[left,bottom] duration-300"
+      <div className="no-print on-imagery frame pointer-events-none absolute z-10 flex items-end gap-6 bg-[rgb(2_3_4/0.55)] px-3.5 py-2.5 [--frame-l:6px] transition-[left,bottom] duration-300"
         style={{ left: ins.left + 12, bottom: ins.bottom + 24 }}>
         <ScaleBar planet={planet} />
         <AltitudeReadout planet={planet} />
