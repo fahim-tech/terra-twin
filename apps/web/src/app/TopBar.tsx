@@ -194,8 +194,8 @@ export function TopBar({ compact }: { compact: boolean }) {
   return (
     <header className={cx("chrome-scale no-print relative z-30 flex h-[52px] shrink-0 items-center border-b border-white/[0.07] px-3 sm:gap-5 sm:px-5",
       compact ? "gap-2 max-xs:gap-1.5" : "gap-3",
-      // Full pages scroll text right under the rail: give it a solid backing there (the globe stages keep the scrim).
-      fullPage ? "bg-space" : "bg-space/85 backdrop-blur-md")}>
+      // A solid rail on every stage: an instrument edge, not frosted glass.
+      "bg-space")}>
       <Wordmark compact={compact} />
       {fullPage ? (
         <BackButton compact={compact} onClick={back} />
