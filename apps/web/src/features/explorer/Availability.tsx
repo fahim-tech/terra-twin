@@ -25,7 +25,7 @@ export function Availability({ a }: { a: MarsAnalysis }) {
   const missing = factors.filter((f) => f.value === null);
   return (
     <div>
-      <ul className="flex flex-wrap items-center gap-x-4 gap-y-2.5" aria-label="Evidence availability">
+      <ul className="grid grid-cols-2 items-center gap-x-4 gap-y-2" aria-label="Evidence availability">
         <li className="flex items-center gap-1.5 text-caption">
           <Dot on={terrain} /><span className={terrain ? "text-ink" : "text-faint"}>Terrain</span>
           <span className="sr-only">{terrain ? "available" : "not available"}</span>

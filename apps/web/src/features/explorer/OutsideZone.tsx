@@ -20,10 +20,11 @@ export function OutsideBody({ a }: { a: MarsAnalysis | undefined }) {
   return (
     <div className="py-3">
       <p className="text-body text-ink">TerraTwin measures Mars terrain only inside 39 research zones for now.</p>
-      <p className="mt-1.5 text-caption text-muted">
+      {/* The nearby zones come first so they are visible in a half-open phone sheet. */}
+      <NearbyZones lat={a?.coordinate.lat ?? selection?.lat} lon={a?.coordinate.lon ?? selection?.lon} />
+      <p className="mt-3 text-caption text-muted">
         No terrain values are shown for this point and no Earth comparison can be run from it — nothing here is estimated or borrowed from a nearby zone.
       </p>
-      <NearbyZones lat={a?.coordinate.lat ?? selection?.lat} lon={a?.coordinate.lon ?? selection?.lon} />
       {isKept && (
         <p role="status" className="mt-3 text-caption text-muted">
           ✓ Point kept. Its marker stays on the globe; pick a research zone from search whenever you are ready.
@@ -59,7 +60,7 @@ function NearbyZones({ lat, lon }: { lat?: number; lon?: number }) {
     .sort((x, y) => x.km - y.km)
     .slice(0, 3);
   return (
-    <div className="mt-5">
+    <div className="mt-3">
       <div className="flex items-baseline justify-between gap-3">
         <h3 className="text-label text-ink">Nearest research zones</h3>
         <span className="text-caption text-faint">distance to zone centre</span>
@@ -83,7 +84,7 @@ function NearbyZones({ lat, lon }: { lat?: number; lon?: number }) {
 }
 
 /** Distance with a mono figure and a text-face unit (great-circle distance to the zone centre). */
-function KmFigure({ km }: { km: number }) {
+export function KmFigure({ km }: { km: number }) {
   const [v, u] = formatKm(km).split(" ");
   return <span><span className="num">{v}</span> {u}</span>;
 }

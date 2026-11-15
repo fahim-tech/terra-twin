@@ -5,6 +5,7 @@ import { zoneName } from "../../lib/glossary";
 import { nearestSite } from "../../lib/instruments";
 import { useSites } from "../../services/api";
 import { useApp } from "../../store/app";
+import { KmFigure } from "../explorer/OutsideZone";
 import type { SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
 
@@ -64,7 +65,7 @@ export function NoResult({ search, target }: { search: AnalogSearch; target: Sea
           <Button variant="primary-mars" className="w-full justify-between" onClick={goNearest}>
             <span>Go to nearest research zone</span>
             <span className="flex items-center gap-2 font-normal">
-              {zoneName(near.site.id)} · <span className="num">{Math.round(near.km).toLocaleString()} km</span><ArrowRight className="h-3.5 w-3.5" aria-hidden />
+              {zoneName(near.site.id)} · <KmFigure km={near.km} /><ArrowRight className="h-3.5 w-3.5" aria-hidden />
             </span>
           </Button>
         ) : (
