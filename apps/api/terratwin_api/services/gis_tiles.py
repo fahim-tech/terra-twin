@@ -25,7 +25,7 @@ TILE = 256
 #: Deepest level served: one tile pixel per grid cell or finer (Mars 1/64°, Earth 1/120°). The globe
 #: magnifies these beyond it instead of requesting more.
 MAX_LEVEL = {"mars": 6, "earth": 7}
-PALETTE_VERSION = "1"
+PALETTE_VERSION = "2"
 
 # Display metadata per layer: label, group, kind, and a fixed stretch where the units define one.
 # "support" layers are observation metadata (gis-contract-1.0: never a weight or a confidence).
@@ -51,7 +51,7 @@ LAYERS: dict[str, dict] = {
     "window_valid_pct": {"label": "Valid land share of the 25 km window", "group": "surface", "kind": "continuous",
                          "fixed": (0.0, 100.0)},
 }
-STRETCH_NOTE = "2nd to 98th percentile of the planet's cells with a value (display stretch, not a threshold)"
+STRETCH_NOTE = "2nd to 98th percentile of the planet's cells with a value (Earth terrain: land cells only); display stretch, not a threshold"
 
 
 def _hex(c: str) -> tuple[int, int, int]:
@@ -142,6 +142,10 @@ def _stretch(planet: str, layer: str) -> tuple[float, float]:
     if "fixed" in m:
         return m["fixed"]
     a = sample_overview(planet, layer)
+    if planet == "earth" and m["group"] == "terrain":
+        land = sample_overview(planet, "surface_class")
+        if land.shape == a.shape:
+            a = np.where(np.rint(land) == 1, a, np.nan)
     v = a[np.isfinite(a)]
     if v.size == 0:
         raise gis.GisInputError(f"{layer} has no values on {planet}")
@@ -233,6 +237,10 @@ def tile_png(planet: str, layer: str, z: int, x: int, y: int) -> bytes:
         return path.read_bytes()
     west, south, east, north = tile_bounds(z, x, y)
     a = read_window(planet, layer, west, south, east, north, "nearest" if m["kind"] == "categorical" else "average")
+    if planet == "earth" and m["group"] == "terrain":
+        # The Earth grid stores ocean elevation as 0 (no bathymetry): draw terrain on land cells only.
+        land = read_window(planet, "surface_class", west, south, east, north, "nearest")
+        a = np.where(np.rint(land) == 1, a, np.nan)
     stretch = None if m["kind"] == "categorical" else _stretch(planet, layer)
     png = _png(colorize(a, layer, stretch).reshape(-1), a.shape[1], a.shape[0])
     if path is not None:

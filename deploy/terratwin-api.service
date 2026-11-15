@@ -49,8 +49,9 @@ OOMScoreAdjust=900
 # --- hardening ---
 NoNewPrivileges=yes
 ProtectSystem=strict
-# Writes: discovery jobs into the GIS worker's queue, map tiles into the GIS cache.
-ReadWritePaths=/srv/terratwin/data/cache /srv/terratwin/data/jobs
+# Writes: discovery jobs into the GIS worker's queue, map tiles into the GIS cache, and the GIS library's own
+# per-point Mars feature cache (terratwin_gis.mars writes data/derived/mars_features/<key>.json).
+ReadWritePaths=/srv/terratwin/data/cache /srv/terratwin/data/jobs /srv/terratwin/data/derived/mars_features
 ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=yes

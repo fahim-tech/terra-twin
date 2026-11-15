@@ -28,6 +28,9 @@ def _call(fn, *args, **kwargs):
         raise HTTPException(429, detail={"status": "busy", "reason": str(e)}) from None
     except ValueError as e:  # GisInputError and the GIS library's own input errors
         raise HTTPException(422, detail={"status": "invalid_input", "reason": str(e)}) from None
+    except OSError as e:  # the GIS library could not read or write its data on this server
+        raise HTTPException(503, detail={"status": "unavailable", "owner": gis.OWNER, "missing_inputs": [],
+                                         "reason": f"The GIS data could not be read on this server ({type(e).__name__})"}) from None
 
 
 def _gis_mission(app_mission: str) -> str:

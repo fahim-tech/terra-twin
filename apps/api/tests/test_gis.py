@@ -384,3 +384,20 @@ def test_context_point_passes_through(client, fake):
 @requires_data
 def test_datasets_carry_the_gis_status(client, fake):
     assert client.get("/api/datasets").json()["gis"]["status"] == "available"
+
+
+def test_earth_terrain_tiles_draw_land_only(client, fake, monkeypatch):
+    fake.grids.info("earth")["provenance"]["layers"]["elevation_m"] = {"units": "m", "nodata": "NaN", "file": "cog/e.tif"}
+    monkeypatch.setattr(TILES, "read_window", lambda planet, layer, *a: np.full((256, 256), 2.0 if layer == "surface_class" else 0.0) if layer == "surface_class" else np.zeros((256, 256)))
+    monkeypatch.setattr(TILES, "sample_overview", lambda planet, layer: np.linspace(0, 10, 100))
+    px = _decode_png(client.get("/api/gis/grid/earth/tile/0/0/0.png?layer=elevation_m").content)
+    assert (px[..., 3] == 0).all()  # all ocean: transparent, never the colour of 0 m
+
+
+def test_unreadable_gis_data_is_503_not_500(client, fake):
+    def boom(*a, **k):
+        raise OSError(30, "Read-only file system")
+    fake.AD.get_mars_features = boom
+    GIS.clear_caches()
+    r = client.get("/api/gis/mars/features?lat=1&lon=2")
+    assert r.status_code == 503 and "could not be read" in r.json()["detail"]["reason"]
