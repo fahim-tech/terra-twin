@@ -467,15 +467,27 @@ export function fitDistance(m: Model, top: number, aspect: number, el: number, m
 const TARGET_Y = 0.32;
 
 /**
+ * Nearest camera distance that stays outside the block: beyond it the eye would be over the window and
+ * below the block's top, i.e. possibly inside the terrain.
+ */
+export function clearDistance(m: Model, top: number, az: number, el: number): number {
+  const sa = Math.abs(Math.sin(az)), ca = Math.abs(Math.cos(az)), ce = Math.cos(el), se = Math.sin(el);
+  const exit = Math.min(sa > 1e-9 ? m.hx / sa : Infinity, ca > 1e-9 ? m.hz / ca : Infinity); // leave the footprint
+  const over = se > 1e-9 ? (top * (1 - TARGET_Y)) / se : Infinity; // rise above the top
+  return 1.02 * Math.min(ce > 1e-9 ? exit / ce : Infinity, over);
+}
+
+/**
  * Orbit camera around the box at the current exaggeration, framed for the current tilt: a plan view in a
- * wide frame stands further back than the oblique home view, so the whole block stays in the frame.
+ * wide frame stands further back than the oblique home view, so the whole block stays in the frame. Zooming
+ * in (a pinch or wheel past the limit included) stops where the camera would enter the block.
  */
 export function camera(m: Model, pose: Pose, width: number, height: number): Camera {
   const ys = pose.ve * m.scale;
   const top = (m.zMax - m.zBase) * ys;
   const target: Vec3 = [0, top * TARGET_Y, 0];
   const aspect = Math.max(0.2, width / Math.max(1, height));
-  const d = fitDistance(m, top, aspect, pose.el) * pose.zoom;
+  const d = Math.max(fitDistance(m, top, aspect, pose.el) * pose.zoom, clearDistance(m, top, pose.az, pose.el));
   const ce = Math.cos(pose.el);
   const eye: Vec3 = [target[0] + d * Math.sin(pose.az) * ce, target[1] + d * Math.sin(pose.el), target[2] - d * Math.cos(pose.az) * ce];
   const view = lookAt(eye, target);

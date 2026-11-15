@@ -161,6 +161,23 @@ describe("framing and probe", () => {
     expect(fitDistance(m, 0.1, 0.5, 0.5)).toBeGreaterThan(fitDistance(m, 0.1, 2, 0.5)); // portrait needs more distance
   });
 
+  it("never puts the camera inside the block, however far a pinch or wheel zooms in", () => {
+    const tall = buildModel(plane(40, 40, 463, 0.05, 0.08))!; // steep relief: a tall block at ×8
+    for (const ve of [1, 8]) {
+      for (const elDeg of [6.5, 8, 15, 45, 89.5]) {
+        for (let azDeg = 0; azDeg < 360; azDeg += 15) {
+          const c = camera(tall, { az: (azDeg * Math.PI) / 180, el: (elDeg * Math.PI) / 180, zoom: 0.05, ve }, 880, 460);
+          const top = (tall.zMax - tall.zBase) * c.ys;
+          const over = Math.abs(c.eye[0]) < tall.hx && Math.abs(c.eye[2]) < tall.hz;
+          expect(over && c.eye[1] < top).toBe(false);
+        }
+      }
+    }
+    // The guard never moves the home view.
+    const home = camera(m, homePose(4), 900, 560), free = fitDistance(m, (m.zMax - m.zBase) * home.ys, 900 / 560, homePose(4).el);
+    expect(Math.hypot(home.eye[0] - home.target[0], home.eye[1] - home.target[1], home.eye[2] - home.target[2])).toBeCloseTo(free, 9);
+  });
+
   it("keeps the whole box in a wide or tall frame at every tilt, plan view included", () => {
     for (const [w, h] of [[880, 460], [1840, 860], [390, 380], [300, 560]]) {
       for (const elDeg of [8, 30, 60, 88]) {
