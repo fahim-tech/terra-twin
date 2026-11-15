@@ -18,6 +18,12 @@ describe("intro figures", () => {
     expect(all.find((r) => r.label === "MOLA grid")?.unit).toBe("m");
   });
 
+  it("calls the zones research zones, as every other view does, and names each figure's payload", () => {
+    const all = readoutGroups({ zones: 39, gridM: 463, cells: 1, windows: 1 }).flatMap((x) => x.items);
+    expect(all[0].label).toBe("Research zones");
+    expect(all.map((r) => r.source)).toEqual(["mars/sites", "mars_ez_tier1", "earth_global_screen", "earth_pool_463m"]);
+  });
+
   it("keeps the on-screen labels short enough for one telemetry line and the full meaning as the term", () => {
     const all = readoutGroups({ zones: 1, gridM: 1, cells: 1, windows: 1 }).flatMap((x) => x.items);
     for (const r of all) {
