@@ -1,4 +1,5 @@
 import { Fragment, useId, useState } from "react";
+import { MarkLegend } from "../../components/marks";
 import { Term } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { api } from "../../services/api";
@@ -7,7 +8,7 @@ import { useGlobes } from "../../store/globes";
 import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, Tier1Candidate } from "../../types/contracts";
 import { type CandidateView, candidateList, coord, groupNearTop, screenCellKm, unorderedMembers } from "./candidates";
-import { ACTION, AnalogMark, ReadoutStrip, rowClass, SectionHead, SegmentedField, SelectionBar, StatusMark } from "./instruments";
+import { ACTION, AnalogMark, NEAR_ANALOG, ReadoutStrip, rowClass, SectionHead, SegmentedField, SelectionBar, StatusMark } from "./instruments";
 import { sSpoken, sText } from "./readout";
 import { chooseCandidate } from "./tierMemory";
 import { contiguousCount, mergeByRank, tier1InView, type ViewBox, viewBox } from "./viewQuery";
@@ -30,7 +31,7 @@ function CellTableHead({ ranked }: { ranked: boolean }) {
   );
 }
 
-/** Row flags, drawn as marks (never typed glyphs): amber square = data-quality flag, outlined diamond = near a documented analog. */
+/** Row flags, drawn as marks (never typed glyphs): amber triangle = data-quality flag, outlined diamond = near documented analog. */
 function CellFlag({ flagged, near }: { flagged: boolean; near: boolean }) {
   return flagged ? <StatusMark state="caution" /> : near ? <AnalogMark /> : null;
 }
@@ -38,7 +39,7 @@ function CellFlag({ flagged, near }: { flagged: boolean; near: boolean }) {
 function CellRow({ c, on, approx }: { c: CandidateView; on: boolean; approx: boolean }) {
   const near = c.t1?.known_analog.status === "near_documented_analog";
   const flagged = !!c.t1?.quality_flags.some((f) => f.severity !== "info");
-  const flagText = [near && `near documented analog ${c.t1?.known_analog.name ?? ""}`.trim(), flagged && "quality flag"].filter(Boolean).join(", ");
+  const flagText = [near && `${NEAR_ANALOG.toLowerCase()} ${c.t1?.known_analog.name ?? ""}`.trim(), flagged && "data-quality flag"].filter(Boolean).join(", ");
   return (
     <li>
       <button type="button" onClick={() => chooseCandidate(c.id)} aria-pressed={on}
@@ -136,9 +137,9 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
         <div className="kicker mb-1.5">Reference set</div>
         <SegmentedField label="Reference status" value={knownFilter} onChange={(v) => set({ knownFilter: v })}
           options={[
-            { value: "all", label: "All cells" },
+            { value: "all", label: "All", title: "All cells" },
             { value: "not_in_reference_set", label: "Not in set", title: "Not in the reference set" },
-            { value: "near_documented_analog", label: "Near known analog", title: "Near a documented analog" },
+            { value: "near_documented_analog", label: NEAR_ANALOG },
           ]} />
       </div>
 
@@ -195,7 +196,7 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
           </div>
         </div>
       )}
-      {rows.length === 0 && <p className="mt-4 border-y border-line py-4 text-caption text-muted">{view ? "No screened land cell in this view matches." : "No loaded cell matches this filter. Load more cells or choose “All cells”."}</p>}
+      {rows.length === 0 && <p className="mt-4 border-y border-line py-4 text-caption text-muted">{view ? "No screened land cell in this view matches." : "No loaded cell matches this filter. Load more cells or choose “All”."}</p>}
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <span className="num text-num-sm text-faint">
@@ -218,10 +219,11 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
       {!box && search.mars.site && (
         <p id={zoomHintId} className="mt-1.5 text-caption text-muted">Zoom in to a region to rank its cells — the whole-globe view is too wide.</p>
       )}
-      <p className="mt-3 text-caption text-faint">
-        <span className="whitespace-nowrap"><AnalogMark className="mr-1.5 translate-y-[-0.5px]" />near a documented analog</span> ·{" "}
-        <span className="whitespace-nowrap"><StatusMark state="caution" className="mr-1.5 translate-y-[-1px]" />data-quality flag</span>. {t1.disclaimer}
-      </p>
+      <MarkLegend className="mt-3" label="Row marks" items={[
+        { key: "near", mark: <AnalogMark />, word: NEAR_ANALOG },
+        { key: "flag", mark: <StatusMark state="caution" />, word: "Data-quality flag" },
+      ]} />
+      <p className="mt-1.5 text-caption text-faint">{t1.disclaimer}</p>
     </section>
   );
 }
