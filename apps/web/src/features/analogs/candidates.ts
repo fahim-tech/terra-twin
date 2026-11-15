@@ -16,10 +16,22 @@ export interface CandidateView {
   t2?: Tier2Candidate;
 }
 
-/** Research-pool window ids (`rand_d8_233`) as plain names; named windows keep their name. */
-export function prettyWindow(id: string) {
+/** Randomly sampled research-pool window ids (`rand_d8_233`): roughness decile and window number; null for named windows. */
+export function parseWindowId(id: string): { decile: number; n: number } | null {
   const m = /^rand_d(\d)_(\d+)$/.exec(id);
-  return m ? `Window ${m[2]} · roughness decile ${m[1]}` : id;
+  return m ? { decile: Number(m[1]), n: Number(m[2]) } : null;
+}
+
+/** Short window name for labels and rows: `Window 233`; named windows keep their name. */
+export function shortWindow(id: string) {
+  const w = parseWindowId(id);
+  return w ? `Window ${w.n}` : id;
+}
+
+/** Research-pool window ids as plain names with their stratum; named windows keep their name. */
+export function prettyWindow(id: string) {
+  const w = parseWindowId(id);
+  return w ? `Window ${w.n} · roughness decile ${w.decile}` : id;
 }
 
 /** Coordinates in the row format of the design spec: `17.68° N 77.01° E`. */
@@ -65,6 +77,8 @@ export function measuresOf(coverage: number | null | undefined, total: number): 
 
 /** Tier-2 descriptors per research window (see `coverage_basis`). */
 export const T2_MEASURES = 8;
+/** Tier-1 descriptors per global-screen cell (`n_features_used` counts these). */
+export const T1_MEASURES = 7;
 
 /**
  * The research windows the decision is about. A named leader or a tied set lists its members;

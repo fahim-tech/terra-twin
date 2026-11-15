@@ -2,13 +2,13 @@ import { Disclosure, Kicker, Measure, Term, Toponym } from "../../components/pri
 import { cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
 import type { AnalogSearch, Tier2Candidate } from "../../types/contracts";
-import { coord, decisionMembers, measuresOf, prettyWindow, T2_MEASURES, unorderedMembers } from "./candidates";
+import { coord, decisionMembers, measuresOf, parseWindowId, prettyWindow, shortWindow, T2_MEASURES, unorderedMembers } from "./candidates";
 import { chooseCandidate, switchTier } from "./tierMemory";
 import { DECISION_COPY, decisionLabel, RotationGlyph } from "./Verdict";
 
 function windowName(c: Tier2Candidate): { name: string; sub: string | null } {
-  const m = /^rand_d(\d)_(\d+)$/.exec(c.id);
-  return m ? { name: `Window ${m[2]}`, sub: `Research pool · roughness decile ${m[1]}` } : { name: c.id, sub: c.kind && c.kind !== "random" ? c.kind : null };
+  const w = parseWindowId(c.id);
+  return w ? { name: shortWindow(c.id), sub: `Research pool · roughness decile ${w.decile}` } : { name: c.id, sub: c.kind && c.kind !== "random" ? c.kind : null };
 }
 
 /** "8/8 measures" — the descriptor coverage that every research score carries. */

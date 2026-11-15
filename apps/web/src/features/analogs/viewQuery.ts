@@ -1,7 +1,7 @@
 import { R_EARTH_MEAN_M } from "../../lib/geodesy";
-import { API_BASE } from "../../services/api";
 import type { CameraTelemetry } from "../../globes/protocol";
 import { Tier1Result, type Tier1Candidate } from "../../types/contracts";
+import { getJson } from "./earthApi";
 
 export interface ViewBox { west: number; south: number; east: number; north: number }
 
@@ -24,15 +24,13 @@ export function viewBox(cam: CameraTelemetry | null, freeW: number, freeH: numbe
   };
 }
 
-/** Tier-1 cells inside a box, keeping their global ranks (same endpoint and contract as paging). */
-export async function tier1InView(site: string, mission: string, box: ViewBox, limit = 100): Promise<Tier1Result> {
+/**
+ * Tier-1 cells inside a box, keeping their global ranks (same endpoint and contract as paging).
+ * TODO(shared): belongs in `services/api.tier1Page` as an optional bbox once the shared layer opens.
+ */
+export function tier1InView(site: string, mission: string, box: ViewBox, limit = 100): Promise<Tier1Result> {
   const q = new URLSearchParams({ site, mission, offset: "0", limit: String(limit), west: box.west.toFixed(4), south: box.south.toFixed(4), east: box.east.toFixed(4), north: box.north.toFixed(4) });
-  let res: Response;
-  try { res = await fetch(`${API_BASE}/api/analysis/tier1/candidates?${q}`); } catch { throw new Error("Scientific API is not reachable"); }
-  if (!res.ok) throw new Error(`Request failed (${res.status})`);
-  const parsed = Tier1Result.safeParse(await res.json());
-  if (!parsed.success) throw new Error("API response violated the scientific data contract");
-  return parsed.data;
+  return getJson(`/api/analysis/tier1/candidates?${q}`, Tier1Result);
 }
 
 /** Merge cells into a loaded list by global rank, without duplicates. */

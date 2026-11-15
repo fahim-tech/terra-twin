@@ -9,7 +9,8 @@ import { useMissions } from "../../services/api";
 import { useApp } from "../../store/app";
 import { resultsAreStale, searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
-import { type CandidateView, candidateList, decisionMembers, measuresOf, prettyWindow, selectedCandidate, T2_MEASURES, unorderedMembers } from "./candidates";
+import { type CandidateView, candidateList, decisionMembers, measuresOf, prettyWindow, selectedCandidate, T1_MEASURES, T2_MEASURES, unorderedMembers } from "./candidates";
+import { EarthLookup } from "./EarthLookup";
 import { GlobalStage } from "./GlobalStage";
 import { NoResult } from "./NoResult";
 import { ResearchStage } from "./ResearchStage";
@@ -63,7 +64,7 @@ function SearchScope({ search }: { search: AnalogSearch }) {
   );
 }
 
-function Footer({ current, search, target }: { current: CandidateView | null; search: AnalogSearch; target: SearchTarget }) {
+function Footer({ current, search, target, phone }: { current: CandidateView | null; search: AnalogSearch; target: SearchTarget; phone: boolean }) {
   const go = useApp((s) => s.go);
   const set = useApp((s) => s.set);
   const tier = useApp((s) => s.tier);
@@ -79,15 +80,18 @@ function Footer({ current, search, target }: { current: CandidateView | null; se
   // Position in the west-to-east listing, never in the API order (which is by S and would read as a rank).
   const tieIdx = isT2 && d.type === "tied_set" ? unorderedMembers(decisionMembers(search.tier2)).findIndex((m) => m.id === current.t2!.id) : -1;
   const n = isT2 ? measuresOf(current.coverage, T2_MEASURES) : current.t1?.n_features_used ?? null;
-  const total = isT2 ? T2_MEASURES : 7;
+  const total = isT2 ? T2_MEASURES : T1_MEASURES;
   return (
     <PanelFooter className="shadow-[0_-1px_0_rgb(255_255_255/0.06)]">
       <div className="flex items-baseline justify-between gap-3">
-        <span className={cx("truncate text-label text-earth")}>{isT2 ? prettyWindow(current.t2!.id) : `${formatLat(current.lat, 2)} ${formatLon(current.lon, 2)}`}</span>
+        <span className={cx("truncate text-earth", isT2 ? "text-label" : "num text-num")}>{isT2 ? prettyWindow(current.t2!.id) : `${formatLat(current.lat, 2)} ${formatLon(current.lon, 2)}`}</span>
         <span className="num shrink-0 text-num text-ink">S {current.score === null ? "—" : current.score.toFixed(3)} <span className="text-faint">· {n ?? "—"}/{total}</span></span>
       </div>
-      <p className="mt-0.5 truncate text-caption text-muted sm:whitespace-normal">
-        {isT2 ? `Research comparison · ${current.t2!.window_km || 50} km window · as MOLA would observe it` : `Global screen · ${search.tier1?.candidate_pool.cell_size_km ?? 25} km cell · as measured`}
+      {/* The representation is the basis of S: never truncated; phones drop the stage name instead. */}
+      <p className="mt-0.5 text-caption text-muted">
+        {isT2
+          ? `${phone ? "" : "Research comparison · "}${current.t2!.window_km || 50} km window · as MOLA would observe it`
+          : `${phone ? "" : "Global screen · "}${search.tier1?.candidate_pool.cell_size_km ?? 25} km cell · as measured`}
         {tieIdx >= 0 && <> · <span className="text-ink">member of a tie ({tieIdx + 1} of {d.members.length})</span></>}
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -109,7 +113,8 @@ export function AnalogResults() {
   const target = useMemo(() => searchTarget(search), [search]);
   const current = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
   const root = useRef<HTMLDivElement>(null);
-  const fit = useSheetFit(root, useLayout() === "phone");
+  const phone = useLayout() === "phone";
+  const fit = useSheetFit(root, phone);
 
   if (!search || !target) return <div ref={root} className="p-6"><Spinner label="No search yet" /></div>;
 
@@ -151,16 +156,20 @@ export function AnalogResults() {
         )}
       </PanelHeader>
 
-      <PanelBody className="pt-3">
+      {/* Keyed on the stage so a tab switch starts at that stage's kicker, not at the old scroll offset. */}
+      <PanelBody key={noResult ? "none" : activeTier} className="pt-3">
         {noResult ? <NoResult search={search} target={target} /> : (
           <div role="tabpanel" aria-label={activeTier === 2 ? "Research comparison" : "Global screen"}>
             {activeTier === 2 ? <ResearchStage search={search} candidateId={candidateId} /> : <GlobalStage search={search} candidateId={candidateId} />}
           </div>
         )}
-        <div className="mt-2 pb-3"><SearchScope search={search} /></div>
+        <div className="mt-2 space-y-1 pb-3">
+          <EarthLookup search={search} />
+          <SearchScope search={search} />
+        </div>
       </PanelBody>
 
-      {!noResult && <Footer current={current} search={search} target={target} />}
+      {!noResult && <Footer current={current} search={search} target={target} phone={phone} />}
     </div>
   );
 }
