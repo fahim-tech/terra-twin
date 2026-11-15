@@ -123,6 +123,8 @@ export function DataLayersControl({ planet, header, className }: { planet: Plane
   const layer = data?.layers.find((l) => l.name === chosen) ?? null;
   const pick = (n: string | null) => {
     setLayer(planet, n);
+    // Phones: the list covers the planet; once a layer is chosen it folds to its header and legend strip.
+    if (n && window.innerWidth < 768) useDataLayers.getState().setOpen(planet, false);
     const l = n ? data?.layers.find((x) => x.name === n) : null;
     useApp.getState().announce(l ? `${l.label} drawn on the ${planet === "mars" ? "Mars" : "Earth"} globe.` : "Data layer cleared.");
   };
@@ -191,6 +193,40 @@ export function DataLayersControl({ planet, header, className }: { planet: Plane
 }
 
 /**
+ * The chosen layer's legend in one line, shown while the control is folded, so a drawn layer is never without
+ * its scale: the ramp between its stretch ends with the unit, or the class swatches.
+ */
+export function LegendStrip({ planet }: { planet: Planet }) {
+  const chosen = useDataLayers((s) => s.layer[planet]);
+  const info = useGridInfo(planet);
+  const layer = chosen ? info.data?.layers.find((l) => l.name === chosen) : undefined;
+  if (!layer) return null;
+  const lg = legendFor(layer);
+  if (lg.kind === "none") return null;
+  return (
+    <div className="border-t border-line px-3 py-2">
+      {lg.kind === "ramp" ? (
+        <div className="flex items-center gap-2.5">
+          <span className="num shrink-0 text-num-sm leading-none text-ink/85">{lg.min}</span>
+          <span role="img" aria-label={`${layer.label}: viridis colour scale from ${lg.min} to ${lg.max}${lg.units ? ` ${lg.units}` : ""}`}
+            className="h-2 min-w-0 flex-1 ring-1 ring-inset ring-white/15" style={{ background: lg.gradient }} />
+          <span className="num shrink-0 text-num-sm leading-none text-ink/85">{lg.max}{unitSuffix(lg.units) && <span className="text-muted"> {unitSuffix(lg.units)}</span>}</span>
+        </div>
+      ) : (
+        <ul aria-label={`${layer.label}: classes`} className="flex flex-wrap gap-x-3 gap-y-1">
+          {lg.classes.map((c) => (
+            <li key={c.value} className="flex items-center gap-1.5 text-caption text-muted">
+              <span aria-hidden className="h-2 w-2 shrink-0 ring-1 ring-inset ring-white/25" style={{ background: c.color }} />{c.label}
+            </li>
+          ))}
+        </ul>
+      )}
+      {layer.group === "support" && <p className="mt-1.5 text-caption text-faint">Metadata: never a weight or a confidence.</p>}
+    </div>
+  );
+}
+
+/**
  * The Mars DATA LAYERS instrument: a folding panel under the navigator. Unfolded it is an occluder for the globe's
  * framing (the planet frames in the area beside it).
  */
@@ -212,7 +248,7 @@ export function MarsDataLayersPanel({ phone }: { phone: boolean }) {
     return () => { ro.disconnect(); useDataLayers.getState().setPanelBox("mars", null); };
   }, []);
   return (
-    <div ref={ref} data-occludes={open ? "mars" : undefined} role="group" aria-label="Mars data layers"
+    <div ref={ref} data-occludes={open && !phone ? "mars" : undefined} role="group" aria-label="Mars data layers"
       className={cx("surface frame no-print pointer-events-auto absolute left-3 z-20 rounded-surface", phone ? "right-[72px] top-[64px]" : "top-[68px] w-[300px]")}>
       <button type="button" aria-expanded={open} aria-controls={id} onClick={() => useDataLayers.getState().setOpen("mars", !open)}
         className="hit flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.04]">
@@ -221,7 +257,7 @@ export function MarsDataLayersPanel({ phone }: { phone: boolean }) {
         <span className="min-w-0 flex-1 truncate text-right text-caption text-muted">{label ?? "None"}</span>
         <ChevronDown aria-hidden className={cx("h-4 w-4 shrink-0 text-muted transition-transform duration-200", open && "rotate-180")} />
       </button>
-      {open && <div id={id} className="border-t border-line"><DataLayersControl planet="mars" /></div>}
+      {open ? <div id={id} className="border-t border-line"><DataLayersControl planet="mars" /></div> : <LegendStrip planet="mars" />}
     </div>
   );
 }

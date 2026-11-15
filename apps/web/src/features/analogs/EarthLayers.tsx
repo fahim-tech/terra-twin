@@ -1,6 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useId, useState } from "react";
-import { DataLayersControl } from "../../components/datalayers/DataLayersControl";
+import { DataLayersControl, LegendStrip } from "../../components/datalayers/DataLayersControl";
 import { DataLayerSync } from "../../components/datalayers/DataLayerSync";
 import { useDataLayers } from "../../store/dataLayers";
 import { useGridInfo } from "../../services/gis";
@@ -107,7 +107,7 @@ function EarthDataLayers() {
         <span className="min-w-0 flex-1 truncate text-right text-caption text-muted">{label ?? "None"}</span>
         <ChevronDown aria-hidden className={cx("h-4 w-4 shrink-0 text-muted transition-transform duration-200", open && "rotate-180")} />
       </button>
-      {open && <div id={id} className="border-t border-line"><DataLayersControl planet="earth" /></div>}
+      {open ? <div id={id} className="border-t border-line"><DataLayersControl planet="earth" /></div> : <LegendStrip planet="earth" />}
     </div>
   );
 }
@@ -161,6 +161,8 @@ export function EarthLayers() {
           <ChevronDown aria-hidden className={cx("h-4 w-4 text-muted transition-transform duration-200", !folded && "rotate-180")} />
         </button>
       )}
+      {/* Folded, a drawn data layer keeps its one-line legend. */}
+      {folded && !phone && <LegendStrip planet="earth" />}
       {!(folded && !phone) && <div id={bodyId}>
       <div className={cx("flex", !phone && "border-t border-line")}>
         <div className={cx(phone ? "flex min-w-0 flex-1" : "grid flex-1 grid-cols-2")}>
@@ -179,6 +181,7 @@ export function EarthLayers() {
 
       {!phone && <EarthDataLayers />}
       {phone && legendOpen && <EarthDataLayers />}
+      {phone && !legendOpen && <LegendStrip planet="earth" />}
       {showLegend && anyLegend && (
         <div className="space-y-3 border-t border-line px-3 pb-3 pt-2.5">
           {overlays.similarity && hasT1 && lg && <SimilarityLegend lg={lg} km={screenCellKm(search)} />}
