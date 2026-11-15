@@ -34,8 +34,12 @@ async function step(name, fn) {
   }
   await page.screenshot({ path: `${OUT}/${String(n).padStart(2, "0")}-${name.replace(/\W+/g, "-").toLowerCase()}.png` }).catch(() => {});
 }
-const click = async (re, timeout = 15000) => { const b = page.getByRole("button", { name: re }).first(); await b.waitFor({ timeout }); await b.click(); };
-const text = async (re, timeout = 20000) => page.getByText(re).first().waitFor({ timeout });
+const click = async (re, timeout = 15000) => {
+  // Skip locked trail steps (aria-disabled) that share a name with the real command.
+  const b = page.locator('button:not([aria-disabled="true"])').filter({ hasText: re, visible: true }).first();
+  await b.waitFor({ timeout }); await b.click();
+};
+const text = async (re, timeout = 20000) => page.getByText(re).filter({ visible: true }).first().waitFor({ timeout });
 
 await step("intro loads with API figures", async () => {
   await page.goto(BASE, { waitUntil: "load", timeout: 60000 });
@@ -59,14 +63,14 @@ for (const mode of ["Measurements", "Evidence", "Relevance", "3D"]) {
 }
 await step("why this analog", async () => { await click(/Why this analog/i); await page.waitForTimeout(1200); await page.keyboard.press("Escape"); });
 await step("evidence page", async () => {
-  await page.getByRole("button", { name: /^Evidence$/i }).first().click(); await text(/synthetic/i);
+  await click(/^\s*Evidence\s*$/i); await text(/synthetic/i);
 });
 await step("report page", async () => {
-  await page.getByRole("button", { name: /^Report$/i }).first().click(); await text(/dossier|key figures/i, 30000);
+  await click(/^\s*Report\s*$/i); await text(/dossier|key figures/i, 30000);
 });
 for (const kind of ["JSON", "CSV"]) {
   await step(`report ${kind} download`, async () => {
-    const [d] = await Promise.all([page.waitForEvent("download", { timeout: 15000 }), click(new RegExp(`^\\s*${kind}`, "i"))]);
+    const [d] = await Promise.all([page.waitForEvent("download", { timeout: 15000 }), click(new RegExp(`Download ${kind}`, "i"))]);
     const path = `${OUT}/report.${kind.toLowerCase()}`; await d.saveAs(path); return d.suggestedFilename();
   });
 }
