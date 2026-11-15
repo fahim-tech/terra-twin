@@ -198,8 +198,10 @@ function IndexBar({ active }: { active: SectionId | null }) {
           const on = s.id === active;
           return (
             <li key={s.id} data-section={s.id} className="shrink-0">
+              {/* The scrolling row clips anything drawn outside a button, so the focus ring is drawn inside it. (The
+                  global :focus-visible rule is unlayered, so only an important utility can move its offset.) */}
               <button type="button" onClick={() => jumpTo(s.id)} aria-current={on ? "location" : undefined}
-                className={cx("hit relative flex items-baseline gap-2 whitespace-nowrap px-2.5 py-3.5 transition-colors duration-150 active:text-ink active:duration-0", on ? "text-ink" : "text-muted hover:text-ink")}>
+                className={cx("hit relative flex items-baseline gap-2 whitespace-nowrap px-2.5 py-3.5 transition-colors duration-150 focus-visible:outline-offset-[-4px]! active:text-ink active:duration-0", on ? "text-ink" : "text-muted hover:text-ink")}>
                 <span className={cx("num text-[10.5px] leading-none", on ? "text-ink" : "text-faint")}>{sectionNo(s.id)}</span>
                 <span className="text-[11px] font-semibold uppercase leading-none tracking-[0.12em]">{s.label}</span>
                 {/* Inside the button: the row scrolls, so anything below it would be clipped. */}
@@ -481,7 +483,8 @@ function Provenance({ ds, loading, error }: { ds?: DatasetsResponse; loading: bo
   const th = "py-2 pr-4 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-faint";
   return (
     <div>
-      <div className="scroll-thin -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0" role="region" aria-label="Datasets" tabIndex={0}>
+      {/* The scroller clips at its padding edge, so it keeps a few pixels of room for the links' focus rings. */}
+      <div className="scroll-thin -mx-4 overflow-x-auto px-4 sm:-mx-1 sm:px-1" role="region" aria-label="Datasets" tabIndex={0}>
         <table className="w-full min-w-[340px] border-collapse text-left">
           <thead>
             <tr className="border-b border-line-strong">
