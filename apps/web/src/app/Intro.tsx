@@ -91,7 +91,7 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
         <motion.p {...rise(2)} className="label-caps on-imagery mt-3 whitespace-nowrap tracking-[0.3em] text-muted max-sm:tracking-[0.18em] max-xs:tracking-[0.12em] landscape:md:mt-4 short:!mt-2 short:!tracking-[0.18em]">
           Mars–Earth terrain analog system
         </motion.p>
-        <motion.p {...rise(3)} className="mt-5 max-w-[470px] text-body text-muted sm:text-lead landscape:md:mt-6 short:hidden">
+        <motion.p {...rise(3)} className="mt-5 max-w-[470px] text-body text-muted sm:text-lead landscape:md:mt-6 short:hidden landscape:[@media(max-height:820px)]:hidden">
           Survey candidate landing zones on Mars, measure their terrain, and screen Earth&rsquo;s land for comparable
           ground. Research comparisons re-observe Earth the way NASA&rsquo;s MOLA altimeter saw Mars.
         </motion.p>
@@ -162,7 +162,7 @@ function Commands({ onStart, onJezero, jezero }: { onStart: () => void; onJezero
       <button type="button" onClick={onJezero}
         className="hit inline-flex h-11 items-center justify-center gap-3 rounded-control px-4 text-ink ring-1 ring-inset ring-line-strong transition-colors duration-150 hover:bg-white/[0.06] hover:ring-ink/60 active:bg-white/[0.12] active:duration-0">
         <span className="text-[12px] font-semibold uppercase tracking-[0.16em]">Start with Jezero</span>
-        {jezero && <span className="num text-num-sm text-faint max-[420px]:hidden">{formatLat(jezero.lat, 2)} {formatLon(jezero.lon, 2)}</span>}
+        {jezero && <span className="num text-num-sm text-faint max-[420px]:hidden landscape:max-xl:hidden">{formatLat(jezero.lat, 2)} {formatLon(jezero.lon, 2)}</span>}
       </button>
     </div>
   );
