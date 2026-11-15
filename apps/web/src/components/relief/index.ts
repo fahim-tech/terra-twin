@@ -3,6 +3,6 @@ export { ReliefView, ReliefNotice, ExaggerationSwitch, EXAGGERATIONS, type Exagg
 export { unavailableWords, type UnavailableWords } from "./unavailable";
 export { GridFacts } from "./facts";
 export { scoreBasisLine } from "./basis";
-export { homePose } from "./reliefMath";
+export { fmtElevRange, homePose } from "./reliefMath";
 export { renderReliefSnapshot, type Snapshot, type SnapshotOptions } from "./snapshot";
 export { reliefWindowId, type WindowRef } from "./windows";

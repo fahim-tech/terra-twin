@@ -9,6 +9,49 @@ import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
 import { type CandidateView, measuresOf, screenCellKm, T2_MEASURES } from "../analogs/candidates";
 import { tiedWindows, tiedWindowsListed } from "../analogs/readout";
+import { gridMetres } from "../explorer/readouts";
+
+/**
+ * Decimals to print a coordinate pair with: the precision the record carries (its shortest decimal form),
+ * capped at `max`, so a named control stored as −24.09 never gains a padded zero ("24.090°").
+ * One value for the pair, so latitude and longitude of one point read at the same precision.
+ */
+export function recordDigits(lat: number, lon: number, max = 3): number {
+  const dp = (v: number) => {
+    if (!Number.isFinite(v)) return 0;
+    const s = String(Math.abs(v));
+    if (s.includes("e")) return max;
+    const i = s.indexOf(".");
+    return i < 0 ? 0 : s.length - i - 1;
+  };
+  return Math.min(max, Math.max(dp(lat), dp(lon)));
+}
+
+/**
+ * What the record says about the Earth site's analog documentation (the "Why" drawer's Evidence line).
+ * Named controls are in the pool because they are documented (or chosen as controls); random windows
+ * are not in any reference set. Neither case is a novelty claim.
+ */
+export function documentationLine(c: CandidateView): string {
+  if (c.tier === 1) {
+    const ka = c.t1?.known_analog;
+    return ka?.name ? `Global screen; nearest documented analog in the reference set: ${ka.name}.` : "Global screen; not in the reference set of documented analogs; novelty is not assessed.";
+  }
+  const kind = c.t2?.kind?.trim() ?? "";
+  if (!kind || kind === "random") return "Observation-operator matching, research record. Not in the reference set; novelty is not assessed.";
+  if (kind.startsWith("documented analog") || kind.startsWith("positive"))
+    return "Observation-operator matching, research record. In the pool as a named control (documented analog); its documentation is not reviewed here.";
+  return "Observation-operator matching, research record. In the pool as a named control; its documentation is not reviewed here.";
+}
+
+/**
+ * The MOLA grid spacing in words, read from the Mars record's descriptor provenance
+ * (`native_resolution_m`), e.g. "the 463 m MOLA grid"; "the MOLA grid" when the record does not state it.
+ */
+export function molaGridText(search: AnalogSearch): string {
+  const m = gridMetres(search.mars.tier1_features as { native_resolution_m?: number | null }[]);
+  return m !== null ? `the ${m} m MOLA grid` : "the MOLA grid";
+}
 
 export type VerdictKind = "leader" | "tie_member" | "not_member" | "screening" | "no_convincing" | "insufficient";
 
@@ -96,7 +139,7 @@ export function keepFigures(text: string): string {
 /** Display name for a research-pool window id (random windows have no toponym; named controls do). */
 export function windowName(id: string): string {
   const m = /^rand_d(\d)_(\d+)$/.exec(id);
-  return m ? `Research window ${m[2]}` : id;
+  return m ? `Window ${m[2]}` : id;
 }
 
 /**
@@ -106,7 +149,7 @@ export function windowName(id: string): string {
 export function poolKindLabel(kind: string | null | undefined): string | null {
   if (!kind) return null;
   const k = kind.trim();
-  if (k === "random") return "Stratified random window";
+  if (k === "random") return "Stratified random";
   if (k === "documented analog (non-terrain)") return "Named control · a documented Mars analog site, documented for reasons other than its terrain";
   if (k === "documented analog (title-level)") return "Named control · a documented Mars analog site (cited at publication-title level)";
   if (k === "documented analog") return "Named control · a documented Mars analog site";
@@ -118,6 +161,24 @@ export function poolKindLabel(kind: string | null | undefined): string | null {
 }
 
 /**
+ * One-line form of poolKindLabel for narrow plates. It keeps every qualifier ("non-terrain", "negative",
+ * "title-level") so a clamp never has to cut the part that changes the meaning.
+ */
+export function poolKindShort(kind: string | null | undefined): string | null {
+  if (!kind) return null;
+  const k = kind.trim();
+  if (k === "random") return "Stratified random";
+  if (k === "documented analog (non-terrain)") return "Named control · analog for non-terrain reasons";
+  if (k === "documented analog (title-level)") return "Named control · analog, title-level citation";
+  if (k === "documented analog") return "Named control · documented analog";
+  if (k === "negative control") return "Named control · negative control";
+  if (k === "prior gated candidate") return "Named control · earlier gated candidate";
+  const pos = /^positive:\s*(.+)$/.exec(k);
+  if (pos) return `Named control · positive, ${pos[1]}`;
+  return `Named control · ${k}`;
+}
+
+/**
  * Plain place name + secondary line for an Earth candidate (random windows have no toponym). A screening
  * cell with no documented analog nearby has no name at all: it is called a screening cell, and its
  * position stays in the coordinate line (mono), not set as a display toponym.
@@ -125,7 +186,7 @@ export function poolKindLabel(kind: string | null | undefined): string | null {
 export function earthName(c: CandidateView): { name: string; sub: string | null } {
   if (c.tier === 2) {
     const m = /^rand_d(\d)_(\d+)$/.exec(c.t2?.id ?? "");
-    if (m) return { name: windowName(c.t2!.id), sub: `Stratified random window · roughness decile ${m[1]}` };
+    if (m) return { name: windowName(c.t2!.id), sub: `Stratified random · roughness decile ${m[1]}` };
     return { name: c.label, sub: poolKindLabel(c.t2?.kind) };
   }
   const named = !!c.t1?.known_analog?.name;
@@ -138,7 +199,7 @@ export interface CompareTargets {
    * is the side of that square exactly as the footprint line states it (the dimension line's label).
    */
   mars: { name: string; lat: number; lon: number; km: number; size: string; footprint: string };
-  earth: { name: string; sub: string | null; lat: number; lon: number; km: number; size: string; footprint: string };
+  earth: { name: string; sub: string | null; subShort: string | null; lat: number; lon: number; km: number; size: string; footprint: string };
   /** What is being compared: the 50 km research window or the 25 km screening cell. */
   footprintLabel: string;
 }
@@ -148,7 +209,9 @@ export function compareTargets(search: AnalogSearch, c: CandidateView): CompareT
   const t = searchTarget(search);
   if (!t) return null;
   const name = t.siteId ? zoneName(t.label) : t.label;
-  const e = earthName(c);
+  const e0 = earthName(c);
+  const isRandom = /^rand_d\d_\d+$/.test(c.t2?.id ?? "");
+  const e = { ...e0, subShort: c.tier === 2 && !isRandom ? poolKindShort(c.t2?.kind) : e0.sub };
   if (c.tier === 2) {
     const tg = search.tier2.target;
     // Sizes come from the record only (window_km is required by the contract), never a default.
@@ -157,7 +220,7 @@ export function compareTargets(search: AnalogSearch, c: CandidateView): CompareT
     const win = (k: number) => `${k} km research window`;
     return {
       mars: { name, lat: tg.lat, lon: tg.lon, km: marsKm, size: `${marsKm} km`, footprint: win(marsKm) },
-      earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km, size: `${km} km`, footprint: win(km) },
+      earth: { name: e.name, sub: e.sub, subShort: e.subShort, lat: c.lat, lon: c.lon, km, size: `${km} km`, footprint: win(km) },
       footprintLabel: win(km),
     };
   }
@@ -172,33 +235,73 @@ export function compareTargets(search: AnalogSearch, c: CandidateView): CompareT
     // For a research zone the Mars global-screen descriptors are the median of the zone's screening
     // cells, so the square only marks the target point; it is not the area that was measured.
     mars: { name, lat: t.lat, lon: t.lon, km, size, footprint: t.siteId ? `Target point, ${size} square for scale · descriptors: zone median` : cell },
-    earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km, size, footprint: cell },
+    earth: { name: e.name, sub: e.sub, subShort: e.subShort, lat: c.lat, lon: c.lon, km, size, footprint: cell },
     footprintLabel: cell,
   };
 }
 
-/** Robustness facts from tier2.diagnostics (ungated research diagnostics), when present. */
-export interface Robustness {
-  leaderSame50vs25: boolean | null;
-  spearman50vs25: number | null;
-  leaderChangedVsBaseline: boolean | null;
-  spearmanBaselineVsOom: number | null;
-  top10Overlap: number | null;
-  note: string | null;
-}
+/**
+ * One robustness line, already worded. `caution` marks a finding a reader should weigh (the top window
+ * changes with window size); `figure` is the supporting statistic, named for what it is.
+ */
+export interface RobustnessLine { key: string; text: string; figure: string | null; caution: boolean }
+export interface Robustness { lines: RobustnessLine[]; note: string | null }
+
+/**
+ * Robustness facts for the record shown. tier2.diagnostics are computed on the ungated, terrain-only
+ * research ranking (before any land-cover exclusion), so they are worded for that ranking and never as
+ * a statement about this record's leader. Whether observation matching moves the top window is derived
+ * from this record itself (decision vs as-measured comparator). A tied set never gets a "leader" line.
+ * Rank correlations are written "Spearman": rho is reserved for the along-track roughness ratio.
+ */
 export function robustness(search: AnalogSearch): Robustness | null {
-  const d = (search.tier2 as { diagnostics?: Record<string, unknown> | null }).diagnostics;
-  if (!d) return null;
+  const t2 = search.tier2;
+  const d = (t2 as { diagnostics?: Record<string, unknown> | null }).diagnostics ?? null;
   const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const b = (v: unknown) => (typeof v === "boolean" ? v : null);
-  return {
-    leaderSame50vs25: b(d.footprint_leader_same_50_vs_25km),
-    spearman50vs25: n(d.footprint_spearman_50_vs_25km),
-    leaderChangedVsBaseline: b(d.leader_changed_vs_baseline),
-    spearmanBaselineVsOom: n(d.spearman_baseline_vs_oom),
-    top10Overlap: n(d.top10_overlap_baseline_vs_oom),
-    note: typeof d.note === "string" ? d.note : null,
-  };
+  const lines: RobustnessLine[] = [];
+  const dec = t2.decision;
+  const base = t2.as_measured_baseline?.leader ?? null;
+  if (base && dec.members.length) {
+    if (dec.type === "named_leader") {
+      const same = dec.members[0] === base;
+      lines.push({
+        key: "record", caution: false, figure: null,
+        text: same
+          ? "This record: the same window leads with and without observation matching"
+          : "This record: observation matching names a different window than the as-measured comparator",
+      });
+    } else if (dec.type === "tied_set") {
+      lines.push({
+        key: "record", caution: false, figure: null,
+        text: dec.members.includes(base)
+          ? "This record: the as-measured comparator's top window is one of the tied windows"
+          : "This record: the as-measured comparator's top window is not one of the tied windows",
+      });
+    }
+  }
+  if (d) {
+    const fpSame = b(d.footprint_leader_same_50_vs_25km);
+    const fpRho = n(d.footprint_spearman_50_vs_25km);
+    if (fpSame !== null) {
+      lines.push({
+        key: "footprint", caution: !fpSame,
+        text: `Terrain-only research ranking: the top-ranked window ${fpSame ? "is the same" : "changes"} with 25 km windows`,
+        figure: fpRho !== null ? `Spearman ${fpRho.toFixed(2)}` : null,
+      });
+    }
+    const rho = n(d.spearman_baseline_vs_oom);
+    const top10 = n(d.top10_overlap_baseline_vs_oom);
+    if (rho !== null || top10 !== null) {
+      lines.push({
+        key: "agreement", caution: false,
+        text: "Terrain-only research ranking, as measured vs observation matching",
+        figure: [rho !== null ? `Spearman ${rho.toFixed(2)}` : null, top10 !== null ? `top-10 overlap ${top10}` : null].filter(Boolean).join(" · "),
+      });
+    }
+  }
+  if (!lines.length) return null;
+  return { lines, note: d ? "Terrain-only research ranking: all pool windows, before any land-cover exclusion (ungated research diagnostics)." : null };
 }
 
 /**

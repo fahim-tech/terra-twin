@@ -139,7 +139,7 @@ describe("targets", () => {
   });
 
   it("names random research windows without inventing a place", () => {
-    expect(earthName(t2cand("rand_d8_233", 0.7)).name).toBe("Research window 233");
+    expect(earthName(t2cand("rand_d8_233", 0.7)).name).toBe("Window 233");
   });
 
   it("says why values are not loaded without naming a window size the record did not give", () => {
@@ -158,7 +158,7 @@ describe("names and footprints", () => {
     const s = search({ type: "named_leader", members: ["rand_d8_233"], rotations_checked: 4, label: G5.leader });
     const v = verdictFor(s, t2cand("rand_d3_12", 0.5));
     expect(v.kind).toBe("not_member");
-    expect(v.detail).toContain("Research window 233");
+    expect(v.detail).toContain("Window 233");
     expect(v.detail).not.toContain("rand_");
   });
 

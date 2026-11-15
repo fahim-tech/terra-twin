@@ -1,5 +1,5 @@
 import { ChevronDown } from "lucide-react";
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useLayout } from "../../app/useLayout";
 import { Term } from "../../components/primitives";
 import { GridFacts, ReliefView, scoreBasisLine, type Exaggeration } from "../../components/relief";
@@ -36,6 +36,16 @@ const TITLE = "Terrain relief";
 export function ReliefSlot({ candidate, windowId, index }: ReliefSlotProps) {
   const phone = useLayout() === "phone";
   const [open, setOpen] = useState(false);
+  const regionRef = useRef<HTMLDivElement>(null);
+  // Opening reveals the viewer: on a phone sheet it would otherwise unfold under the sticky footer, out of sight.
+  useEffect(() => {
+    if (!open) return;
+    const id = requestAnimationFrame(() => {
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      regionRef.current?.scrollIntoView({ block: "nearest", behavior: reduce ? "auto" : "smooth" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [open]);
   const region = useId();
   const view = (
     <ReliefView key={windowId} planet="earth" id={windowId} title={prettyWindow(candidate.id)} density="compact" sceneHeight={phone ? 280 : 252}
@@ -66,7 +76,7 @@ export function ReliefSlot({ candidate, windowId, index }: ReliefSlotProps) {
           </span>
         </button>
       </h3>
-      <div id={region} hidden={!open} className="mt-2">{open && view}</div>
+      <div ref={regionRef} id={region} hidden={!open} className="mt-2 scroll-mb-24">{open && view}</div>
     </section>
   );
 }

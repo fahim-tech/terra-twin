@@ -33,17 +33,19 @@ export function ModeSwitch({ modes, value, expanded, onChange, fill = false, cla
       {modes.map((m, i) => {
         const on = m.value === value;
         return (
-          <button key={m.value} type="button" role="tab" id={modeTabId(m.value)} aria-selected={on}
+          <button key={m.value} type="button" role="tab" id={modeTabId(m.value)} aria-selected={on} aria-label={fill && m.short ? m.label : undefined}
             aria-controls={on && expanded ? MODE_PANEL_ID : undefined} tabIndex={on ? 0 : -1}
             onClick={() => onChange(m.value)}
             className={cx(
               "hit relative whitespace-nowrap font-semibold uppercase leading-none transition-colors duration-150 active:duration-0 focus-visible:z-10",
               // Strips narrowed beside the Why brief (container < 600 px) tighten the cells so all four fit.
-              fill ? "flex-auto px-2 py-3 text-[10.5px] tracking-[0.08em]" : "px-3.5 py-[9px] text-[11px] tracking-[0.12em] @max-[600px]:px-2.5 @max-[600px]:tracking-[0.07em]",
+              // Phone cells never shrink below their label (a .hit min-width would otherwise let them): narrow
+              // phones use the short labels and tighter tracking so all five fit at 360 px.
+              fill ? "min-w-max flex-auto px-2 py-3 text-[10.5px] tracking-[0.08em] max-xs:px-1.5 max-xs:tracking-[0.05em]" : "px-3.5 py-[9px] text-[11px] tracking-[0.12em] @max-[600px]:px-2.5 @max-[600px]:tracking-[0.07em]",
               i > 0 && "border-l border-line-strong",
               on ? "bg-ink text-space" : "text-muted hover:bg-white/[0.06] hover:text-ink active:bg-white/[0.14]",
             )}>
-            {m.label}
+            {fill && m.short ? <><span className="max-xs:hidden">{m.label}</span><span aria-hidden className="xs:hidden">{m.short}</span></> : m.label}
           </button>
         );
       })}

@@ -12,7 +12,7 @@ import { ComparePlates } from "./ComparePlates";
 import { EvidenceMode } from "./EvidenceMode";
 import { StageProbe, useCompareStage, whyDrawerWidth } from "./layout";
 import { NO_RING, SectionRule } from "./marks";
-import { basisFor, compareTargets, keepFigures, verdictFor } from "./model";
+import { basisFor, compareTargets, keepFigures, molaGridText, verdictFor } from "./model";
 import { type CompareMode, visibleModes } from "./modes";
 import { MODE_PANEL_ID, ModeSwitch, modeTabId } from "./ModeSwitch";
 import { PairLink } from "./PairLink";
@@ -141,7 +141,7 @@ export function ComparisonPanel() {
               basis={keepFigures(`Global-screen descriptors${cellKm !== null ? `, ${cellKm} km` : ""}, as measured — ${c.tier === 2 ? "context, not the research score" : "the descriptors this screening S was computed from"}`)}>
               {t1 && <>
                 {c.tier === 2 && <>Global-screen <SFigure value={t1.S} className="text-num text-ink/90" /> for this pair {keepFigures(`(the ${cellKm !== null ? `${cellKm} km ` : "screening "}cell under the window centre)`)}. </>}
-                {keepFigures(`Mars: median of the zone’s ${cellKm !== null ? `${cellKm} km ` : "screening "}cells from the 463 m MOLA grid; Earth: GMTED2010.`)}
+                {keepFigures(`Mars: median of the zone’s ${cellKm !== null ? `${cellKm} km ` : "screening "}cells from ${molaGridText(search)}; Earth: GMTED2010.`)}
               </>}
             </ModeHeader>
             {rows.length ? <RatioChart rows={rows} compact={!phone} /> : <p className="text-body text-muted">Global-screen descriptors are not available for this candidate.</p>}
@@ -184,7 +184,7 @@ export function ComparisonPanel() {
       {narrow && stripH > 0 && <div aria-hidden data-occludes="both" className="pointer-events-none absolute inset-x-3 bottom-3" style={{ height: stripH }} />}
       <motion.section ref={stripRef} aria-label="Mars–Earth comparison" data-occludes="both" {...(behindBrief ? { inert: "" } : null)}
         initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={SPRING}
-        style={{ ...(expanded ? { height: phone ? "70%" : "56%" } : null), ...(narrow ? { right: stripRight } : null) }}
+        style={{ ...(expanded ? { height: phone ? "70%" : mode === "relief" ? "68%" : "56%" } : null), ...(narrow ? { right: stripRight } : null) }}
         className={cx("surface frame @container no-print absolute z-20 flex flex-col overflow-hidden",
           phone ? "inset-x-0 bottom-0 [padding-bottom:env(safe-area-inset-bottom)]" : "inset-x-3 bottom-3 rounded-surface")}>
         {/* Behind the modal brief: a dark veil, so a strip the drawer cuts through reads as background. */}

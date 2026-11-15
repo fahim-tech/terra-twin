@@ -8,7 +8,7 @@ import { CompareNav } from "./CompareNav";
 import { CORNERS, FootprintGauge } from "./FootprintGauge";
 import { plateLevel } from "./gauge";
 import { PlanetLabel } from "./marks";
-import type { CompareTargets } from "./model";
+import { type CompareTargets, recordDigits } from "./model";
 
 /**
  * Over each half of the split view: a designation plate (planet, role, toponym, coordinates and what
@@ -62,7 +62,7 @@ function Plate({ planet, targets, compact }: { planet: Planet; targets: CompareT
       <div ref={clear.core} className="w-max max-w-full">
         <PlanetLabel planet={planet} role={planet === "mars" ? "Target" : "Candidate"} />
         <div className="toponym mt-2 text-[20px] leading-[1.02] tracking-[0.04em] text-ink">{t.name}</div>
-        <div className="num mt-1.5 text-num-sm text-ink/90">{formatLat(t.lat, 3)}&ensp;{formatLon(t.lon, 3)}</div>
+        <div className="num mt-1.5 text-num-sm text-ink/90">{formatLat(t.lat, recordDigits(t.lat, t.lon))}&ensp;{formatLon(t.lon, recordDigits(t.lat, t.lon))}</div>
       </div>
       {showFootprint && (
         <div ref={clear.footprint} className="mt-1.5 flex items-baseline gap-2 text-caption text-muted">
@@ -71,10 +71,14 @@ function Plate({ planet, targets, compact }: { planet: Planet; targets: CompareT
           <span>{t.footprint}</span>
         </div>
       )}
-      {/* The pool note makes the plate taller; narrow halves keep its first line. When the plate would reach
-          the compared square, the note gives way first, then the footprint line. */}
+      {/* The pool note makes the plate taller; narrow halves print its one-line form, which keeps every
+          qualifier (a clamp would cut "for reasons other than its terrain"). When the plate would reach the
+          compared square, the note gives way first, then the footprint line. */}
       {showNote && (
-        <div ref={clear.note} className="mt-1.5 line-clamp-1 border-t border-line pt-1.5 text-caption text-faint @min-[680px]:line-clamp-3" title={sub ?? undefined}>{sub}</div>
+        <div ref={clear.note} className="mt-1.5 border-t border-line pt-1.5 text-caption text-faint" title={sub ?? undefined}>
+          <span className="@min-[680px]:hidden">{targets.earth.subShort ?? sub}</span>
+          <span className="@max-[679px]:hidden">{sub}</span>
+        </div>
       )}
     </div>
   );
@@ -135,8 +139,10 @@ function usePlateClearance(planet: Planet, has: { footprint: boolean; note: bool
 function HalfInstruments({ planet }: { planet: Planet }) {
   const ins = useGlobes((s) => s.insets[planet]);
   return (
-    <div className="on-imagery frame absolute flex items-end gap-5 bg-[rgb(2_3_4/0.55)] px-3 py-2 [--frame-l:6px] transition-[bottom] duration-300 motion-reduce:transition-none"
-      style={{ left: ins.left + 12, bottom: ins.bottom + 30 }}>
+    // A half narrower than the instruments plus the navigation row (portrait tablets) lifts the
+    // instruments above the row, so the altitude is never covered by the zoom buttons.
+    <div className="on-imagery frame absolute bottom-[var(--ib)] flex items-end gap-5 bg-[rgb(2_3_4/0.55)] px-3 py-2 [--frame-l:6px] transition-[bottom] duration-300 motion-reduce:transition-none @max-[459px]:bottom-[calc(var(--ib)+46px)]"
+      style={{ left: ins.left + 12, ["--ib" as string]: `${ins.bottom + 30}px` }}>
       <ScaleBar planet={planet} maxPx={100} />
       <AltitudeReadout planet={planet} />
     </div>

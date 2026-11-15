@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type RefObject } from "react";
 import { radioGroupKeys, Term } from "../../components/primitives";
-import { ExaggerationSwitch, GridFacts, ReliefNotice, ReliefView, reliefWindowId, scoreBasisLine, unavailableWords, type Exaggeration } from "../../components/relief";
+import { ExaggerationSwitch, fmtElevRange, GridFacts, ReliefNotice, ReliefView, reliefWindowId, scoreBasisLine, unavailableWords, type Exaggeration } from "../../components/relief";
+import { StatusMark } from "../../components/marks";
 import { cx, Spinner } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
 import { ApiError, useEarthPool, useMarsRelief, useRelief } from "../../services/api";
@@ -28,13 +29,16 @@ export interface ReliefViewerProps {
 }
 
 /** Scene height bounds (px): fill the panel's visible height between these. */
-const SCENE = { min: 180, max: 420 } as const;
+const SCENE = { min: 180, max: 520 } as const;
 /** Phones: one planet at a time in a short scrolling panel; a fixed scene that the panel scrolls past. */
 const PHONE_SCENE = 250;
 /** The status bar under each scene (ReliefView), so a half without a grid ends level with one that has. */
 const STATUS_BAR = 28;
-/** Under each scene: the planet strip above it and the status bar; a deck row when the controls sit below; the shared control. */
-const RESERVE = { strip: 28, status: STATUS_BAR, deck: 40, shared: 38 } as const;
+/**
+ * Under each scene: the planet strip above it and the status bar; a deck row and the one-line key when the controls
+ * sit below (floating controls carry the key inside the scene); the shared control.
+ */
+const RESERVE = { strip: 28, status: STATUS_BAR, deck: 40, legend: 30, shared: 38, notice: 48 } as const;
 /** A half at least this wide has room beside the block for its controls inside the scene. */
 const FLOAT_MIN_HALF = 540;
 
@@ -50,10 +54,14 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
   const [side, setSide] = useState<"mars" | "earth">("earth");
   const root = useRef<HTMLDivElement>(null);
   const room = usePanelRoom(root);
+  const marsWhy = mars.isError ? unavailableWords("mars", mars.error instanceof ApiError ? mars.error : { message: mars.error.message }).plain : null;
+  // Desktop: with no Mars grid (a free point, or the server has none) the Mars half collapses to one line.
+  const marsOut = !phone && (!zone || mars.isError);
+  const marsOutWhy = !zone ? "Mars relief is served per research zone, and this target is a free point." : marsWhy;
   // Wide halves float their controls beside the block; narrower ones (tablets, phones) keep a deck row under the scene.
-  const controls = !phone && room.width >= 2 * FLOAT_MIN_HALF + 16 ? "float" : "deck";
+  const controls = !phone && room.width >= (marsOut ? FLOAT_MIN_HALF : 2 * FLOAT_MIN_HALF + 16) ? "float" : "deck";
   // Desktop: the scenes fill what the panel shows, less what sits around them.
-  const reserve = RESERVE.strip + RESERVE.status + (controls === "deck" ? RESERVE.deck : 0) + (both ? RESERVE.shared : 0);
+  const reserve = RESERVE.strip + RESERVE.status + (controls === "deck" ? RESERVE.deck + RESERVE.legend : 0) + (both ? RESERVE.shared : 0) + (marsOut ? RESERVE.notice : 0);
   const sceneH = phone ? PHONE_SCENE : Math.max(SCENE.min, Math.min(SCENE.max, room.height - reserve));
   // A half with no grid draws its notice over the scene and status bar's height, so both halves end level.
   const noticeH = sceneH + STATUS_BAR;
@@ -66,13 +74,13 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
     : earthMissing ?? (earthId ? "Loading the elevation grid." : "Loading the research pool.");
 
   const half = (planet: "mars" | "earth") => planet === "mars" ? (
-    <Half planet="mars" name={targets.mars.name} kind={zone ? "Exploration Zone" : "Search target"} relief={mars.data ?? null}>
+    <Half planet="mars" name={targets.mars.name} kind={zone ? "Research zone" : "Search target"} relief={mars.data ?? null}>
       {zone ? (
         <ReliefView planet="mars" id={zone} title={targets.mars.name} density="compact" controls={controls} sceneHeight={mars.data ? sceneH : noticeH}
           wheel="modifier" exaggeration={ve} onExaggerationChange={setVe} exaggerationControl={!both} />
       ) : (
         <ReliefNotice planet="mars" title="No Mars elevation grid" height={noticeH}>
-          <p className="text-body text-ink">Mars relief is served per Exploration Zone, and this target is a free point.</p>
+          <p className="text-body text-ink">Mars relief is served per research zone, and this target is a free point.</p>
           <p className="mt-1.5">No other surface is shown in its place.</p>
         </ReliefNotice>
       )}
@@ -110,14 +118,26 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
                 label={<><span aria-hidden>V.E.</span><span className="sr-only">Vertical exaggeration, the same on both halves</span></>} />
             </div>
           )}
-          <div className="grid grid-cols-2 gap-4">
-            {half("mars")}
-            {half("earth")}
-          </div>
+          {marsOut ? (
+            <>
+              {/* No Mars grid: a one-line annunciator, and the Earth window takes the whole width. */}
+              <p role="status" className="mb-3 flex items-baseline gap-2.5 border border-line-strong px-3 py-2 text-caption text-muted">
+                <StatusMark state="struck" className="translate-y-[-1px]" />
+                <span className="kicker shrink-0 !text-mars">Mars</span>
+                <span className="min-w-0"><span className="text-ink">No elevation grid.</span> {marsOutWhy} No other surface is shown in its place.</span>
+              </p>
+              {half("earth")}
+            </>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              {half("mars")}
+              {half("earth")}
+            </div>
+          )}
         </>
       )}
       <Caption earth={earth.data ?? null} earthLine={earthLine} mars={mars.data ?? null} zone={zone} ve={ve} both={both} tier={c.tier}
-        marsWhy={mars.isError ? unavailableWords("mars", mars.error instanceof ApiError ? mars.error : { message: mars.error.message }).plain : null} />
+        marsWhy={marsWhy} />
     </div>
   );
 }
@@ -141,7 +161,7 @@ function Half({ planet, name, kind, relief, children }: { planet: "mars" | "eart
         </span>
         {relief && relief.z_min !== null && relief.z_max !== null && (
           <span className="num shrink-0 text-num-sm text-muted">
-            {m(relief.z_min)}–{m(relief.z_max)}<span className="font-sans text-[11px]"> m</span>
+            {fmtElevRange(relief.z_min, relief.z_max)}<span className="font-sans text-[11px]"> m</span>
             {range !== null && <span className="max-xl:hidden"> · relief {m(range)}<span className="font-sans text-[11px]"> m</span></span>}
           </span>
         )}
@@ -155,7 +175,10 @@ function Half({ planet, name, kind, relief, children }: { planet: "mars" | "eart
 function PlanetSwitch({ value, onChange }: { value: "mars" | "earth"; onChange: (v: "mars" | "earth") => void }) {
   const planets = ["mars", "earth"] as const;
   return (
-    <div role="radiogroup" aria-label="Relief shown" onKeyDown={radioGroupKeys(planets, value, onChange)} className="flex border border-line-strong">
+    // Labelled as the relief's own switch, so it never reads as the shell's Mars / Earth globe switch above it.
+    <div className="flex items-center gap-3">
+    <span aria-hidden className="kicker shrink-0">Relief of</span>
+    <div role="radiogroup" aria-label="Relief shown" onKeyDown={radioGroupKeys(planets, value, onChange)} className="flex flex-1 border border-line-strong">
       {planets.map((p, i) => (
         <button key={p} type="button" role="radio" aria-checked={value === p} tabIndex={value === p ? 0 : -1} onClick={() => onChange(p)}
           className={cx("hit label-caps flex flex-1 items-center justify-center gap-2 px-4 py-2", i > 0 && "border-l border-line-strong",
@@ -164,6 +187,7 @@ function PlanetSwitch({ value, onChange }: { value: "mars" | "earth"; onChange: 
           {p === "mars" ? "Mars" : "Earth"}
         </button>
       ))}
+    </div>
     </div>
   );
 }
@@ -196,7 +220,7 @@ function Caption({ earth, earthLine, mars, zone, ve, both, tier, marsWhy }: {
         <dt className="kicker !text-mars">Mars</dt>
         <dd className="text-muted">
           {mars ? <>Mars as measured · {mars.source.title} · <GridFacts relief={mars} /></>
-            : !zone ? "No Exploration Zone, so no Mars grid." : marsWhy ?? "Checking for a Mars elevation grid."}
+            : !zone ? "No research zone, so no Mars grid." : marsWhy ?? "Checking for a Mars elevation grid."}
         </dd>
       </div>
       {/* The exaggeration is stated only for a grid that is drawn with it. */}

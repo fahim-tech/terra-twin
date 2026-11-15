@@ -11,7 +11,7 @@ import { type CandidateView, researchWindowKm, screenCellKm, T1_MEASURES, T2_MEA
 import { CompareTerm as Term } from "./CompareTerm";
 import { useCompareStage, WHY_DRAWER_WIDTH_CSS, whyDrawerWidth } from "./layout";
 import { NO_RING, PlanetLabel, SectionRule } from "./marks";
-import { basisFor, earthName, keepFigures, notLoadedReasons, verdictFor } from "./model";
+import { basisFor, documentationLine, earthName, keepFigures, molaGridText, notLoadedReasons, recordDigits, verdictFor } from "./model";
 import { VerdictLine } from "./Readout";
 import { applications } from "./RelevanceMode";
 import { groupRows, type RatioRow, relationParts } from "./science";
@@ -78,9 +78,9 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
         </div>
         <PlanetLabel planet="earth" role={c.tier === 2 ? "Research window" : "Screening cell"} className="mt-4" />
         <h2 id={titleId} tabIndex={-1} style={NO_RING} className="toponym mt-2 pr-10 text-[22px] leading-[1.04] tracking-[0.04em] text-ink">{name.name}</h2>
-        {/* Same precision as the strip and the plates (3 decimals), so one point never reads two ways. */}
+        {/* The record's own precision (2 dp for named controls), the same as the strip and the plates. */}
         <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
-          <span className="num whitespace-nowrap text-num-sm text-ink/90">{formatLat(c.lat, 3)}&ensp;{formatLon(c.lon, 3)}</span>
+          <span className="num whitespace-nowrap text-num-sm text-ink/90">{formatLat(c.lat, recordDigits(c.lat, c.lon))}&ensp;{formatLon(c.lon, recordDigits(c.lat, c.lon))}</span>
           <span aria-hidden className="text-faint">·</span>
           <span>{keepFigures(footprint)}</span>
         </p>
@@ -150,9 +150,9 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
 
         <Section index={next()} title="Evidence" basis="data sources">
           <dl className="space-y-2 text-caption">
-            <Pair term="Mars">USGS MOLA 463 m mosaic; MEGDR 128 ppd counts (observed fraction <span className="num text-ink/90">{pct(search.mars.observation_support?.observed_fraction ?? null, 0)}</span>). See <Term k="operator" />.</Pair>
-            <Pair term="Earth">{c.tier === 2 ? "Copernicus GLO-90 window (463 m grid), ESA WorldCover 2021" : "GMTED2010 30″ global-screen cell"}.</Pair>
-            <Pair term="Method">{c.tier === 2 ? "observation-operator matching, research record" : "global screen"}; whether this site is a documented analog is not assessed here.</Pair>
+            <Pair term="Mars">USGS MOLA mosaic on {molaGridText(search)}; MEGDR 128 ppd counts (observed fraction <span className="num text-ink/90">{pct(search.mars.observation_support?.observed_fraction ?? null, 0)}</span>). See <Term k="operator" />.</Pair>
+            <Pair term="Earth">{c.tier === 2 ? `Copernicus GLO-90 window on ${molaGridText(search)}, ESA WorldCover 2021` : "GMTED2010 30″ global-screen cell"}.</Pair>
+            <Pair term="Method">{documentationLine(c)}</Pair>
           </dl>
         </Section>
       </div>

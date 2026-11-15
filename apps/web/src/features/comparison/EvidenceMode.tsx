@@ -7,7 +7,7 @@ import type { AnalogSearch } from "../../types/contracts";
 import type { CandidateView } from "../analogs/candidates";
 import { CompareTerm as Term } from "./CompareTerm";
 import { PlanetMark, SectionRule } from "./marks";
-import { keepFigures, measuresLabel, notLoadedReasons, robustness } from "./model";
+import { keepFigures, measuresLabel, molaGridText, notLoadedReasons, robustness } from "./model";
 import { TIER2_LABELS } from "./science";
 
 type Rep = "mars_observation_space" | "as_measured";
@@ -115,7 +115,7 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
           <dl className="mt-2.5 space-y-1.5 border-t border-line pt-2.5 text-caption">
             <Reason term="Mars">{reasons.mars}</Reason>
             {representation === "mars_observation_space" && <Reason term="Earth · MOLA view">{reasons.earthOom}</Reason>}
-            {representation === "as_measured" && <Reason term="Earth · measured">Copernicus GLO-90 window on the 463 m grid, from the research record.</Reason>}
+            {representation === "as_measured" && <Reason term="Earth · measured">Copernicus GLO-90 window on {molaGridText(search)}, from the research record.</Reason>}
           </dl>
         </section>
 
@@ -123,25 +123,20 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
           <SectionRule title="Robustness" as="h4" className="mb-2" />
           {rob ? (
             <ul className="space-y-1.5 text-caption text-muted">
-              {rob.leaderSame50vs25 !== null && (
-                <li className="flex items-baseline gap-2.5 text-ink">
-                  <StatusMark state={rob.leaderSame50vs25 ? "on" : "caution"} size={7} className="translate-y-[-1px]" />
-                  <span>{rob.leaderSame50vs25 ? "Leader is the same at 25 km windows" : <><span className="kicker mr-2 !text-warn">Caution</span>Leader differs at 25 km windows</>}
-                    {rob.spearman50vs25 !== null && <span className="text-muted"> · rank agreement <span className="num">ρ {rob.spearman50vs25.toFixed(2)}</span></span>}
+              {rob.lines.map((l) => (
+                <li key={l.key} className={cx("flex items-baseline gap-2.5", l.caution && "text-ink")}>
+                  {/* Only a caution carries a mark; a plain fact keeps the indent (an outlined square would read "off"). */}
+                  {l.caution
+                    ? <StatusMark state="caution" size={7} className="translate-y-[-1px]" />
+                    : <span aria-hidden className="w-[7px] shrink-0" />}
+                  <span>
+                    {l.caution && <span className="kicker mr-2 !text-warn">Caution</span>}
+                    {l.text}
+                    {l.figure && <span className="text-muted"> · <span className="num">{l.figure}</span></span>}
                   </span>
                 </li>
-              )}
-              {rob.leaderChangedVsBaseline !== null && (
-                <li className="flex items-baseline gap-2.5">
-                  {/* A fact, not a state: no status mark (an outlined square means "off"), only its indent. */}
-                  <span aria-hidden className="w-[7px] shrink-0" />
-                  <span>{rob.leaderChangedVsBaseline ? "Observation matching changes the leader versus the as-measured comparison" : "Same leader with and without observation matching"}
-                    {rob.spearmanBaselineVsOom !== null && <> · <span className="num">ρ {rob.spearmanBaselineVsOom.toFixed(2)}</span></>}
-                    {rob.top10Overlap !== null && <> · top-10 overlap <span className="num">{rob.top10Overlap}</span></>}
-                  </span>
-                </li>
-              )}
-              <li className="pl-[17px] text-faint">{rob.note ?? "Ungated research diagnostics."} {G5.scale}.</li>
+              ))}
+              <li className="pl-[17px] text-faint">{rob.note ? `${rob.note} ` : ""}{G5.scale}.</li>
             </ul>
           ) : <p className="text-caption text-faint">No robustness diagnostics in the record. {G5.scale}.</p>}
         </section>

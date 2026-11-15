@@ -127,6 +127,15 @@ export function fmtNum(v: number, digits = 0): string {
 }
 
 /**
+ * An elevation range as every view prints it: whole metres (the grids are 463 m cells; a decimetre is not a
+ * meaningful figure at that spacing), joined by an ellipsis so negative Mars heights never read as a double
+ * dash ("−2,918 … −1,155"). The unit is set by the caller.
+ */
+export function fmtElevRange(min: number, max: number): string {
+  return `${fmtNum(min)} … ${fmtNum(max)}`;
+}
+
+/**
  * View heading for the HUD and announcements: the direction looked toward (camera azimuth + 180°),
  * whole degrees clockwise from north, three digits, 000–359.
  */

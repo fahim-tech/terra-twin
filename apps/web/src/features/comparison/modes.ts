@@ -6,18 +6,20 @@ export interface ModeSpec {
   value: CompareMode;
   /** Switch label (short, set in caps). */
   label: string;
+  /** Narrow-phone label (< 380 px), when the full one would not fit five cells across. */
+  short?: string;
   /** Section title of the expanded panel. */
   title: string;
 }
 
 export const COMPARE_MODES: readonly ModeSpec[] = [
   { value: "spatial", label: "Spatial", title: "Spatial" },
-  { value: "measurements", label: "Measurements", title: "Terrain measurements" },
+  { value: "measurements", label: "Measurements", short: "Measure", title: "Terrain measurements" },
   { value: "evidence", label: "Evidence", title: "Scientific evidence" },
   { value: "relevance", label: "Relevance", title: "Exploration relevance" },
   // Slot for the relief viewer (see relief.tsx). It is offered only once a viewer is wired; until then
   // the mode is left out of the switch entirely, never shown as a placeholder.
-  { value: "relief", label: "3D relief", title: "3D relief" },
+  { value: "relief", label: "3D relief", short: "3D", title: "3D relief" },
 ];
 
 /** The modes the switch offers. "3D relief" appears only when a relief viewer is wired. */

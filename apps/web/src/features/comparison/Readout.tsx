@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { OutcomeMark, SFigure } from "../../components/marks";
 import { Button, cx } from "../../components/ui";
 import type { Planet } from "../../globes/protocol";
-import { formatLat, formatLon } from "../../lib/geodesy";
 import { G5 } from "../../lib/glossary";
 import { useApp } from "../../store/app";
 import type { CandidateView } from "../analogs/candidates";
@@ -94,13 +93,6 @@ function PairName({ planet, name, role, size, className, roleClassName }: { plan
   );
 }
 
-/** Latitude and longitude, each kept whole: a narrow cell may break between them, never inside one. */
-const Coords = ({ lat, lon, className }: { lat: number; lon: number; className?: string }) => (
-  <span className={cx("num block text-num-sm text-muted", className)}>
-    <span className="whitespace-nowrap">{formatLat(lat, 3)}</span>&ensp;<span className="whitespace-nowrap">{formatLon(lon, 3)}</span>
-  </span>
-);
-
 function Cell({ label, children, className }: { label: ReactNode; children: ReactNode; className?: string }) {
   return (
     <div className={cx("min-w-0 px-4 py-3", className)}>
@@ -111,44 +103,52 @@ function Cell({ label, children, className }: { label: ReactNode; children: Reac
 }
 
 /**
- * Collapsed readout on desktop and tablet: telemetry cells divided by hairlines. Wide strips (container
- * ≥ 1080 px) put the pair, score, decision and the Why action on one row; narrower ones (tablets) wrap the
- * decision onto a second row. Beside the open Why drawer (`narrow`) the Why cell is left out. The scope
- * line runs along the foot.
+ * Collapsed readout on desktop and tablet: pure comparison readouts divided by hairlines. Identity (planet,
+ * toponym, coordinates) lives on the plates over each half, so the strip never repeats it: similarity with
+ * its basis, the decision with its G5 label, the compared footprints, and the Why action. Wide strips
+ * (container >= 1080 px) set them on one row; narrower ones (tablets) wrap the decision onto a second row.
+ * The pair is still the stage heading, for screen readers and focus on arrival. Beside the open Why drawer
+ * (`narrow`) the Why cell is left out. The scope line runs along the foot.
  */
 export function TelemetryReadout({ c, basis, targets, verdict, onWhy, narrow }: ReadoutProps & { narrow: boolean }) {
+  const same = targets.mars.footprint === targets.earth.footprint;
   return (
     <>
-      <div className={cx("grid min-h-0 grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.15fr)] grid-rows-[auto_1fr_auto] @min-[1080px]:grid-rows-[auto_1fr]", narrow
-        ? "@min-[1080px]:grid-cols-[minmax(0,0.95fr)_minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1.55fr)]"
-        : "@min-[1080px]:grid-cols-[minmax(0,0.95fr)_minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1.55fr)_auto]")}>
-        {/* The pair is the stage heading; the planet kickers and roles are visual only. */}
-        <h2 data-stage-heading="compare" tabIndex={-1} style={NO_RING} className="col-span-2 col-start-1 row-start-1 grid grid-cols-subgrid">
-          <span className="sr-only">Comparing </span>
-          {/* Beside the brief, cells under ~600 px drop the role words (the planet still names each half). */}
-          <PairName planet="mars" name={targets.mars.name} role="Target" size={narrow ? "md" : "lg"} className="px-4 pt-3" roleClassName={narrow ? "@max-[600px]:hidden" : undefined} />
-          <span className="sr-only"> on Mars with </span>
-          <PairName planet="earth" name={targets.earth.name} role="Candidate" size={narrow ? "md" : "lg"} className="border-l border-line px-4 pt-3" roleClassName={narrow ? "@max-[600px]:hidden" : undefined} />
-          <span className="sr-only"> on Earth</span>
-        </h2>
-        <Coords lat={targets.mars.lat} lon={targets.mars.lon} className="col-start-1 row-start-2 px-4 pb-3 pt-1.5" />
-        <Coords lat={targets.earth.lat} lon={targets.earth.lon} className="col-start-2 row-start-2 border-l border-line px-4 pb-3 pt-1.5" />
-
-        <Cell label="Similarity" className="col-start-3 row-span-2 row-start-1 border-l border-line">
+      <h2 data-stage-heading="compare" tabIndex={-1} style={NO_RING} className="sr-only">
+        Comparing {targets.mars.name} on Mars with {targets.earth.name} on Earth
+      </h2>
+      <div className={cx("grid min-h-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]", narrow
+        ? "grid-cols-[minmax(0,1fr)_minmax(0,1fr)] @min-[1080px]:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)_minmax(0,1fr)]"
+        : "@min-[1080px]:grid-cols-[minmax(0,0.9fr)_minmax(0,1.5fr)_minmax(0,1fr)_auto]")}>
+        <Cell label="Similarity" className="col-start-1 row-start-1">
           <div className="mt-1.5"><ScoreFigure c={c} className="text-[30px] leading-none tracking-[-0.01em]" /></div>
           <p className="mt-2 text-caption text-ink/85">{basis}</p>
         </Cell>
 
-        <Cell label="Decision" className={cx("col-start-1 row-start-3 border-t border-line @min-[1080px]:col-span-1 @min-[1080px]:col-start-4 @min-[1080px]:row-span-2 @min-[1080px]:row-start-1 @min-[1080px]:border-l @min-[1080px]:border-t-0",
-          narrow ? "col-span-3" : "col-span-2")}>
+        <Cell label="Decision" className={cx("col-start-1 row-start-2 border-t border-line @min-[1080px]:col-span-1 @min-[1080px]:col-start-2 @min-[1080px]:row-start-1 @min-[1080px]:border-l @min-[1080px]:border-t-0",
+          narrow ? "col-span-2" : "col-span-3")}>
           {/* The outcome carries the cell: a step up from the label size, so it reads before its explanation. */}
           <div className="mt-1.5"><VerdictLine verdict={verdict} markSize={10} className="!gap-2.5 !text-[16px] !leading-snug" /></div>
           <p className="mt-1 text-caption text-muted">{verdict.detail}</p>
         </Cell>
 
+        <Cell label="Footprint" className="col-start-2 row-start-1 border-l border-line @min-[1080px]:col-start-3">
+          {same ? (
+            <>
+              <div className="num mt-1.5 text-[20px] leading-none text-ink">{targets.earth.size}<span className="ml-2 text-num-sm text-muted">on both</span></div>
+              <p className="mt-2 text-caption text-muted">{targets.footprintLabel} on each planet, framed at one ground scale</p>
+            </>
+          ) : (
+            <dl className="mt-1.5 space-y-1 text-caption">
+              <div className="flex items-baseline gap-2"><dt className="shrink-0"><PlanetMark planet="mars" /><span className="sr-only">Mars</span></dt><dd className="text-muted">{targets.mars.footprint}</dd></div>
+              <div className="flex items-baseline gap-2"><dt className="shrink-0"><PlanetMark planet="earth" /><span className="sr-only">Earth</span></dt><dd className="text-muted">{targets.earth.footprint}</dd></div>
+            </dl>
+          )}
+        </Cell>
+
         {/* Beside the open Why drawer the action is already taken, so the cell is left out. */}
         {!narrow && (
-          <div className="col-start-3 row-start-3 flex items-center justify-end border-l border-t border-line px-4 py-3 @min-[1080px]:col-start-5 @min-[1080px]:row-span-2 @min-[1080px]:row-start-1 @min-[1080px]:border-t-0">
+          <div className="col-start-3 row-start-1 flex items-center justify-end border-l border-line px-4 py-3 @min-[1080px]:col-start-4">
             <WhyButton onWhy={onWhy} />
           </div>
         )}
@@ -211,9 +211,9 @@ export function PhoneReadout({ c, basis, targets, verdict, expanded }: ReadoutPr
     <>
       <h2 data-stage-heading="compare" tabIndex={-1} style={NO_RING} className="grid shrink-0 grid-cols-2 border-b border-line">
         <span className="sr-only">Comparing </span>
-        <PairName planet="mars" name={targets.mars.name} role="Target" size="sm" className="px-4 pb-2.5 pt-2.5" />
+        <PairName planet="mars" name={targets.mars.name} role="Target" size="sm" className="px-4 pb-2.5 pt-2.5" roleClassName="max-xs:hidden" />
         <span className="sr-only"> on Mars with </span>
-        <PairName planet="earth" name={targets.earth.name} role="Candidate" size="sm" className="border-l border-line px-4 pb-2.5 pt-2.5" />
+        <PairName planet="earth" name={targets.earth.name} role="Candidate" size="sm" className="border-l border-line px-4 pb-2.5 pt-2.5" roleClassName="max-xs:hidden" />
         <span className="sr-only"> on Earth</span>
       </h2>
       <div className="shrink-0 px-4 pb-2.5 pt-2">

@@ -17,6 +17,7 @@ import { useEffect, useId, useMemo, useRef, useState, type MutableRefObject, typ
 import { ApiError, useMarsRelief, useRelief, useSites } from "../../services/api";
 import type { Relief } from "../../types/contracts";
 import { formatLat, formatLon } from "../../lib/geodesy";
+import { zoneName } from "../../lib/glossary";
 import { Measure, radioGroupKeys } from "../primitives";
 import { cx, Spinner } from "../ui";
 import { drawFlat } from "./flat";
@@ -92,7 +93,8 @@ export function ReliefView({
   // Mars: the Exploration Zone's own name and centre from the site list, even while no grid is connected.
   const sites = useSites();
   const site = planet === "mars" ? sites.data?.find((s) => s.id === id) ?? null : null;
-  const name = title ?? site?.name ?? id ?? null;
+  // The zone name as every view spells it (zoneName fixes the API record's misspellings), never site.name.
+  const name = title ?? (site ? zoneName(site.id) : id) ?? null;
   const siteKind = site ? (site.category === "nasa_exploration_zone" ? "NASA Exploration Zone" : site.category.replace(/_/g, " ")) : null;
   const where = relief ? { lat: relief.lat, lon: relief.lon, kind: relief.kind } : site && siteKind ? { lat: site.lat, lon: site.lon, kind: siteKind } : null;
   let body: ReactNode;
@@ -310,6 +312,13 @@ function ReliefScene({ relief, planet, name, compact, sceneHeight, defaultExagge
             <ViewportFlat model={model} grid={grid} planet={planet} ve={ve} label={label} />
           )}
         </div>
+        {/* Floating controls carry the key inside the scene too (top left, clear of the block's frame), so a
+            panel's scroll edge can never clip it. */}
+        {float && model && (
+          <div className="pointer-events-none absolute left-3 top-3 z-10 hidden max-w-[calc(100%-24px)] bg-[rgb(2_3_4/0.72)] px-2.5 py-1.5 sm:block">
+            <Legend model={model} relief={relief} planet={planet} compact inScene />
+          </div>
+        )}
         {float && (
           <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 hidden items-end justify-between gap-6 sm:flex">
             <div className="pointer-events-auto">{veControl(false)}</div>
@@ -333,7 +342,7 @@ function ReliefScene({ relief, planet, name, compact, sceneHeight, defaultExagge
         </div>
       )}
       <p aria-live="polite" className="sr-only">{status}</p>
-      {model && <Legend model={model} relief={relief} planet={planet} compact={compact} />}
+      {model && <div className={cx(float && "sm:hidden")}><Legend model={model} relief={relief} planet={planet} compact={compact} /></div>}
       {caption && <div className={cx(compact ? "mt-2.5" : "border-t border-line px-4 py-3 sm:px-5")}>{caption(relief, ve)}</div>}
     </>
   );
@@ -445,8 +454,9 @@ function StatusBar({ refs, mode, compact, wheel, keys, nudged }: {
         <span className="label-caps !text-[10px] text-muted">2D hillshade · north up</span>
       )}
       <span className="ml-auto min-w-0 truncate text-right">
-        <span ref={refs.probe} className="num hidden text-ink group-data-[probe]:inline" />
-        <span className={cx("group-data-[probe]:hidden", nudged ? "text-ink" : "text-faint")}>
+        {/* The zoom hint wins over the probe: it answers a plain scroll, which happens with the pointer over the block. */}
+        <span ref={refs.probe} className={cx("num hidden text-ink", !nudged && "group-data-[probe]:inline")} />
+        <span className={cx(nudged ? "text-ink" : "text-faint group-data-[probe]:hidden")}>
           {mode === "2d" ? "Lit from the north-west"
             : nudged ? <><Key>{mod}</Key> + scroll to zoom the view</>
               : keys ? <><Key>←</Key><Key>→</Key> turn <Key>↑</Key><Key>↓</Key> tilt <Key>+</Key><Key>−</Key> zoom <Key>N</Key> north <Key>R</Key> reset</>
@@ -727,7 +737,7 @@ function ViewportFlat({ model, grid, planet, ve, label }: { model: Model; grid: 
 
 // ---------------------------------------------------------------- legend
 
-function Legend({ model, relief, planet, compact }: { model: Model; relief: Relief; planet: "earth" | "mars"; compact: boolean }) {
+function Legend({ model, relief, planet, compact, inScene = false }: { model: Model; relief: Relief; planet: "earth" | "mars"; compact: boolean; inScene?: boolean }) {
   const stops = [0, 0.25, 0.5, 0.75, 1].map((t) => {
     const c = rampColor(t, TINT[planet]).map((v) => Math.round(Math.min(1, v * 0.89) * 255));
     return `rgb(${c.join(" ")}) ${t * 100}%`;
@@ -736,7 +746,7 @@ function Legend({ model, relief, planet, compact }: { model: Model; relief: Reli
   const as = representationNote(planet, relief.source.representation);
   const unit = <span className="ml-[0.18em] font-sans text-[11px]">m</span>;
   return (
-    <footer className={cx(compact ? "mt-2.5" : "border-t border-line px-4 py-3 sm:px-5")}>
+    <footer className={cx(inScene ? "" : compact ? "mt-2.5" : "border-t border-line px-4 py-3 sm:px-5")}>
       <div className={cx("flex flex-wrap items-center", compact ? "gap-x-4 gap-y-1.5" : "gap-x-6 gap-y-2.5")}>
         <div className="flex items-center gap-2">
           <span className="kicker !text-[10px]">Elevation</span>
