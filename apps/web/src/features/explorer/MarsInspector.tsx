@@ -64,11 +64,16 @@ export function MarsInspector() {
   const a = q.data;
   const run = () => {
     find.mutate({ lat: selection.lat, lon: selection.lon, footprint_km: footprintKm, mission }, {
+      onError: (e) => useApp.getState().announce(`Search failed: ${(e as Error).message}`, true),
       onSuccess: (res) => {
         // Only a stable named leader is pre-selected. A tied set is never reduced to one member
         // on the user's behalf; tier-1 cells are a screening list, so nothing is pre-selected there either.
         const leader = res.tier2.decision.type === "named_leader" ? res.tier2.candidates[0]?.id : undefined;
         const first = leader ? `t2:${leader}` : null;
+        const d = res.tier2.decision;
+        useApp.getState().announce(res.status === "available"
+          ? `Earth analog search complete. ${res.tier1?.candidate_pool.n_cells_searched.toLocaleString() ?? 0} land cells screened. Research comparison: ${d.type.replace("_", " ")}${d.members.length ? ` (${d.members.join(", ")})` : ""}.`
+          : "No Earth comparison for this point: research terrain data is not available here.");
         set({ search: res, candidateId: first, tier: res.tier2.candidates.length || !res.tier1 ? 2 : 1 });
         go("earth");
       },

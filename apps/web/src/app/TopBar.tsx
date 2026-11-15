@@ -4,6 +4,7 @@ import { cx, Dot } from "../components/ui";
 import { formatLat, formatLon } from "../lib/geodesy";
 import { useHealth, useMissions } from "../services/api";
 import { type Stage, useApp } from "../store/app";
+import { useGlobes } from "../store/globes";
 
 function Logo() {
   return (
@@ -24,7 +25,7 @@ const STAGES: { id: Stage; label: string }[] = [
 ];
 
 function HoverReadout() {
-  const hover = useApp((s) => s.hover);
+  const hover = useGlobes((s) => s.hover);
   if (!hover) return null;
   return (
     <div className="num hidden items-center gap-2 font-mono text-[11px] text-muted lg:flex">

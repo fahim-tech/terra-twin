@@ -27,7 +27,8 @@ interface AppState {
   marsLayer: string;
   earthLayer: string;
   whyOpen: boolean;
-  hover: { planet: "mars" | "earth"; lat: number; lon: number } | null;
+  /** Latest status message for screen readers (polite) or errors (assertive). */
+  announcement: { text: string; urgent: boolean; n: number } | null;
   knownFilter: "all" | "not_in_reference_set" | "near_documented_analog";
   /** Earth globe layers: tier-1 similarity field, tier-1 screening coverage, tier-2 research pool. */
   earthOverlays: { similarity: boolean; coverage: boolean; pool: boolean };
@@ -38,6 +39,9 @@ interface AppState {
   go: (stage: Stage) => void;
   back: () => void;
   select: (s: Selection | null) => void;
+  announce: (text: string, urgent?: boolean) => void;
+  /** Escape semantics: close the topmost transient layer. Returns false when nothing was closed. */
+  closeTopmost: () => boolean;
 }
 
 export const useApp = create<AppState>((set, get) => ({
@@ -56,7 +60,7 @@ export const useApp = create<AppState>((set, get) => ({
   marsLayer: "viking_color",
   earthLayer: "blue_marble_relief",
   whyOpen: false,
-  hover: null,
+  announcement: null,
   knownFilter: "all",
   earthOverlays: { similarity: true, coverage: false, pool: true },
   graticule: false,
@@ -64,5 +68,15 @@ export const useApp = create<AppState>((set, get) => ({
   set: (p) => set(p),
   go: (stage) => set({ previousStage: get().stage, stage, whyOpen: false }),
   back: () => set({ stage: get().previousStage === get().stage ? "mars" : get().previousStage }),
-  select: (selection) => set({ selection, search: null, candidateId: null, ...(window.innerWidth < 768 ? { leftOpen: false, rightOpen: true } : {}) }),
+  // A new selection keeps the last analog search (it stays labelled with its own target) until a new
+  // search replaces it, so returning to Mars never silently discards results.
+  select: (selection) => set({ selection, ...(window.innerWidth < 768 ? { leftOpen: false, rightOpen: true } : {}) }),
+  announce: (text, urgent = false) => set({ announcement: { text, urgent, n: (get().announcement?.n ?? 0) + 1 } }),
+  closeTopmost: () => {
+    const s = get();
+    if (s.whyOpen) { set({ whyOpen: false }); return true; }
+    if (s.stage === "evidence" || s.stage === "report") { s.back(); return true; }
+    if (s.stage === "compare") { s.go("earth"); return true; }
+    return false;
+  },
 }));

@@ -5,6 +5,8 @@ import type { GlobeToParent } from "../globes/protocol";
 import { cx, Spinner } from "../components/ui";
 import { useApp } from "../store/app";
 import { GlobeBusProvider, useGlobeBus } from "./globeBus";
+import { useGlobes } from "../store/globes";
+import { LiveRegion, useEscapeToClose, useStageFocus } from "./a11y";
 import { TopBar } from "./TopBar";
 import { Intro } from "./Intro";
 import { MarsControls } from "../features/explorer/MarsControls";
@@ -33,6 +35,8 @@ export function App() {
 
 function Workspace() {
   const bus = useGlobeBus();
+  useEscapeToClose();
+  useStageFocus();
   const mars = bus.handles.mars;
   const earth = bus.handles.earth;
   const s = useApp();
@@ -46,12 +50,12 @@ function Workspace() {
   // Globe frames publish every event onto the bus; the shell only keeps the hover readout.
   const onMars = useCallback((m: GlobeToParent) => {
     bus.emit("mars", m);
-    if (m.t === "hover") set({ hover: m.lat === null || m.lon === null ? null : { planet: "mars", lat: m.lat, lon: m.lon } });
+    if (m.t === "hover") useGlobes.getState().setHover(m.lat === null || m.lon === null ? null : { planet: "mars", lat: m.lat, lon: m.lon });
     else if (m.t === "error") console.warn("[mars globe]", m.message);
   }, [bus, set]);
   const onEarth = useCallback((m: GlobeToParent) => {
     bus.emit("earth", m);
-    if (m.t === "hover") set({ hover: m.lat === null || m.lon === null ? null : { planet: "earth", lat: m.lat, lon: m.lon } });
+    if (m.t === "hover") useGlobes.getState().setHover(m.lat === null || m.lon === null ? null : { planet: "earth", lat: m.lat, lon: m.lon });
     else if (m.t === "error") console.warn("[earth globe]", m.message);
   }, [bus, set]);
 
@@ -60,6 +64,7 @@ function Workspace() {
 
   return (
     <div className="flex h-full flex-col">
+      <LiveRegion />
       <MarsGlobeSync />
       <EarthGlobeSync />
       <CompareGlobeSync />
