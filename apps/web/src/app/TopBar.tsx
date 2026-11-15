@@ -18,7 +18,8 @@ export function Wordmark({ compact }: { compact?: boolean }) {
         <circle cx="19" cy="9" r="5.5" fill="none" stroke="var(--color-earth)" strokeWidth="1.2" />
         <path d="M0 9h26" stroke="var(--color-ink)" strokeOpacity=".55" strokeWidth="1" />
       </svg>
-      {!compact && <span className="font-[family-name:var(--font-display)] text-[15px] font-semibold uppercase leading-none tracking-[0.28em]">TerraTwin</span>}
+      {/* The name from 1024 px; tablets keep the mark alone so the investigation trail has the room. */}
+      {!compact && <span className="hidden font-[family-name:var(--font-display)] text-[15px] font-semibold uppercase leading-none tracking-[0.28em] lg:inline">TerraTwin</span>}
     </button>
   );
 }
@@ -35,8 +36,10 @@ const DECISION_TINY: Record<string, string> = {
 
 /**
  * The investigation trail: Mars · target › Earth · outcome › Compare. Locked steps say what unlocks them.
- * Phones show the current step only, its detail set under the step name (a readout line that truncates
- * with an ellipsis, never down to a stray letter); the full detail stays in the accessible name.
+ * A step's number and name never shrink or overlap their neighbours; only its detail gives way, with an
+ * ellipsis. Phones show the current step only, its detail set under the step name; tablets (768–1023 px)
+ * show every step but only the current one's detail (the others keep theirs for assistive tech); from
+ * 1024 px every step shows its detail. The full detail always stays in the accessible name.
  */
 function Trail({ compact }: { compact: boolean }) {
   const { stage, selection, search, candidateId, go } = useApp();
@@ -57,30 +60,36 @@ function Trail({ compact }: { compact: boolean }) {
           const n = steps.findIndex((x) => x.id === s.id) + 1;
           const tone = s.id === "mars" ? "mars" : s.id === "earth" ? "earth" : "ink";
           return (
-            <li key={s.id} className="flex min-w-0 items-center gap-1">
-              {i > 0 && <span aria-hidden className="mx-1 h-px w-5 shrink-0 bg-line-strong" />}
+            <li key={s.id} className={cx("flex items-center gap-1", compact && "min-w-0")}>
+              {i > 0 && <span aria-hidden className="mx-1 h-px w-5 shrink-0 bg-line-strong max-lg:w-3" />}
               <button type="button" onClick={() => !s.locked && go(s.id)} aria-current={current ? "step" : undefined} aria-disabled={!!s.locked}
                 title={s.locked ?? undefined} aria-label={compact && s.detail ? `${s.planet}: ${s.detail}${s.locked ? ` (${s.locked})` : ""}` : undefined}
-                className={cx("hit group relative flex h-full min-w-0 items-center px-2 transition-colors focus-visible:outline-none",
+                className={cx("hit group relative flex h-full items-center px-2 transition-colors focus-visible:outline-none",
+                  compact && "min-w-0 max-xs:px-1.5",
                   s.locked ? "cursor-default text-faint/70" : current ? "text-ink" : "text-muted hover:text-ink")}>
-                {/* The button spans the rail's height (its rule sits on the bottom hairline); the focus ring hugs the label instead. */}
-                <span className={cx("flex min-w-0 items-baseline rounded-control group-focus-visible:outline group-focus-visible:outline-offset-[5px] group-focus-visible:outline-ink", compact ? "gap-1.5" : "gap-2")}>
-                  <span aria-hidden className={cx("num shrink-0 text-[10.5px]", current ? (tone === "mars" ? "text-mars" : tone === "earth" ? "text-earth" : "text-ink") : "text-faint")}>{String(n).padStart(2, "0")}</span>
-                  {compact ? (
-                    // Step name over its detail, like a labelled readout: the detail gets the step's whole width.
+                {/* The button spans the rail's height (its rule sits on the bottom hairline); the focus ring hugs
+                    the label instead, square like every other edge of the rail. */}
+                {compact ? (
+                  <span className="flex min-w-0 items-baseline gap-1.5 group-focus-visible:outline group-focus-visible:outline-offset-[5px] group-focus-visible:outline-ink">
+                    <StepNo n={n} current={current} tone={tone} />
+                    {/* Step name over its detail, like a labelled readout: the detail gets the step's whole width.
+                        The name truncates only below the narrowest supported phone (360 px). */}
                     <span className="flex min-w-0 flex-col text-left">
-                      <span className="label-caps">{s.planet}</span>
+                      <span className="label-caps truncate">{s.planet}</span>
                       {shown && <span className="mt-px truncate text-[11.5px] leading-[1.25] text-muted">{shown}</span>}
                     </span>
-                  ) : (
-                    <>
-                      <span className="label-caps shrink-0">{s.planet}</span>
-                      {shown && <span className="truncate text-caption text-muted">{shown}</span>}
-                    </>
-                  )}
-                </span>
+                  </span>
+                ) : (
+                  // Number and name in auto columns, the detail in a minmax(0, max-content) column: the step's
+                  // minimum width is its number and name, so a crowded rail shortens details, never names.
+                  <span className="grid grid-cols-[auto_auto_minmax(0,max-content)] items-baseline justify-start group-focus-visible:outline group-focus-visible:outline-offset-[5px] group-focus-visible:outline-ink">
+                    <StepNo n={n} current={current} tone={tone} />
+                    <span className="label-caps pl-2">{s.planet}</span>
+                    {shown && <span className={cx("truncate pl-2 text-caption text-muted", !current && "max-lg:sr-only")}>{shown}</span>}
+                  </span>
+                )}
                 {/* Selected step: a 1 px planet-colour rule sitting on the rail's bottom hairline. */}
-                {current && <span aria-hidden className={cx("absolute inset-x-2 -bottom-px h-px", tone === "mars" ? "bg-mars" : tone === "earth" ? "bg-earth" : "bg-ink")} />}
+                {current && <span aria-hidden className={cx("absolute inset-x-2 -bottom-px h-px", compact && "max-xs:inset-x-1.5", tone === "mars" ? "bg-mars" : tone === "earth" ? "bg-earth" : "bg-ink")} />}
                 {s.locked && !compact && <span className="sr-only">({s.locked})</span>}
               </button>
             </li>
@@ -88,6 +97,15 @@ function Trail({ compact }: { compact: boolean }) {
         })}
       </ol>
     </nav>
+  );
+}
+
+/** Step number, in the planet's colour while that step is the current one. */
+function StepNo({ n, current, tone }: { n: number; current: boolean; tone: "mars" | "earth" | "ink" }) {
+  return (
+    <span aria-hidden className={cx("num shrink-0 text-[10.5px]", current ? (tone === "mars" ? "text-mars" : tone === "earth" ? "text-earth" : "text-ink") : "text-faint")}>
+      {String(n).padStart(2, "0")}
+    </span>
   );
 }
 
@@ -117,7 +135,10 @@ function HoverReadout() {
   );
 }
 
-/** Mission clock: real UTC and Mars Coordinated Time (Mars24). Decorative for assistive tech (it ticks every second). */
+/**
+ * Mission clock: real UTC and Mars Coordinated Time (Mars24). Decorative for assistive tech (it ticks every
+ * second). From 1280 px: below that the rail's width belongs to the investigation trail.
+ */
 function MissionClock() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
@@ -125,7 +146,7 @@ function MissionClock() {
   const utc = clock(d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600 + 1e-7);
   const m = marsTime(now);
   return (
-    <div aria-hidden className="hidden items-center gap-4 border-r border-line pr-4 lg:flex" title="Coordinated Universal Time · Mars Coordinated Time (Mars24)">
+    <div aria-hidden className="hidden items-center gap-4 border-r border-line pr-4 xl:flex" title="Coordinated Universal Time · Mars Coordinated Time (Mars24)">
       <span className="flex items-baseline gap-1.5"><span className="kicker">UTC</span><span className="num text-num-sm text-ink">{utc}</span></span>
       <span className="flex items-baseline gap-1.5"><span className="kicker text-mars/90">MTC</span><span className="num text-num-sm text-ink">{clock(m.mtcHours)}</span></span>
       <span className="hidden items-baseline gap-1.5 xl:flex"><span className="kicker">MSD</span><span className="num text-num-sm text-muted">{Math.floor(m.msd).toLocaleString("en-US")}</span></span>
@@ -136,11 +157,12 @@ function MissionClock() {
 export function TopBar({ compact }: { compact: boolean }) {
   const { stage, go, back, search } = useApp();
   const fullPage = stage === "evidence" || stage === "report";
-  // Phones: tighter cells so the current step keeps room for its detail.
-  const cell = compact ? "px-2 tracking-[0.1em]" : "px-2.5";
+  // Phones: tighter cells so the current step keeps room for its name and detail (and tighter still below
+  // 380 px, where "03 COMPARE" would otherwise run into "Evidence").
+  const cell = compact ? "px-2 tracking-[0.1em] max-xs:px-1.5 max-xs:text-[11px] max-xs:tracking-[0.06em]" : "px-2.5";
   return (
     <header className={cx("no-print relative z-30 flex h-[52px] shrink-0 items-center border-b border-white/[0.07] px-3 sm:gap-5 sm:px-5",
-      compact ? "gap-2" : "gap-3",
+      compact ? "gap-2 max-xs:gap-1.5" : "gap-3",
       // Full pages scroll text right under the rail: give it a solid backing there (the globe stages keep the scrim).
       fullPage ? "bg-space" : "bg-space/85 backdrop-blur-md")}>
       <Wordmark compact={compact} />
