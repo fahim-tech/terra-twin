@@ -44,7 +44,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
   const off = phone ? { y: 24, x: 0 } : { x: 24, y: 0 };
 
   return (
-    <motion.div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} data-occludes="earth"
+    <motion.div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId}
       initial={{ ...off, opacity: 0 }} animate={{ x: 0, y: 0, opacity: 1 }} exit={{ ...off, opacity: 0 }} transition={SPRING}
       className={cx("surface-solid no-print absolute z-40 flex flex-col overflow-hidden",
         phone ? "inset-0 rounded-t-surface" : "bottom-3 right-3 top-3 w-[min(440px,calc(100%-24px))] rounded-surface")}>

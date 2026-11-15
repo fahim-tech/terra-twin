@@ -4,7 +4,13 @@ import { api } from "../../services/api";
 import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
 import { selectedCandidate } from "../analogs/candidates";
+import { normLon, R_EARTH_MEAN_M } from "../../lib/geodesy";
 import { compareTargets } from "./model";
+
+/** Width of the Why drawer on desktop/tablet (kept in step with WhyDrawer). */
+export function whyDrawerWidth(stageW: number) {
+  return Math.min(440, stageW - 24);
+}
 
 /** Fallback altitude when the stage has not been measured yet. */
 export const COMPARE_HEIGHT_KM = 420;
@@ -86,16 +92,25 @@ export function CompareGlobeSync() {
   }, [active, targets, insets]);
 
   const flown = useRef<string>("");
+  const whyOpen = useApp((s) => s.whyOpen);
   useEffect(() => {
     if (!active || !targets || height === null) return;
-    const key = `${targets.mars.lat},${targets.mars.lon},${targets.earth.lat},${targets.earth.lon}`;
+    const main = document.querySelector("main");
+    const W = main?.clientWidth ?? 0, H = main?.clientHeight ?? 0;
+    // The Why drawer covers the right of the Earth half on desktop. The shell's inset model would read
+    // a drawer that wide as a top/bottom cover, so the drawer does not mark itself as an occluder;
+    // instead the Earth window is shifted left into the uncovered part by aiming east of it.
+    const shiftPx = whyOpen && W >= 768 ? (whyDrawerWidth(W) + 12) / 2 : 0;
+    const key = `${targets.mars.lat},${targets.mars.lon},${targets.earth.lat},${targets.earth.lon},${shiftPx}`;
     const prev = flown.current.split("|");
-    // Re-fly on a new pair, or when the needed altitude changes by more than 12 %.
+    // Re-fly on a new pair or drawer state, or when the needed altitude changes by more than 12 %.
     if (prev[0] === key && Math.abs(Number(prev[1]) - height) / height < 0.12) return;
     flown.current = `${key}|${height}`;
+    const mpp = H > 0 ? (2 * height * 1000 * Math.tan(FOVY / 2)) / H : 0;
+    const dLon = ((shiftPx * mpp) / (R_EARTH_MEAN_M * Math.max(Math.cos((targets.earth.lat * Math.PI) / 180), 0.05))) * (180 / Math.PI);
     bus.send("mars", { t: "flyTo", lat: targets.mars.lat, lon: targets.mars.lon, heightKm: height });
-    bus.send("earth", { t: "flyTo", lat: targets.earth.lat, lon: targets.earth.lon, heightKm: height });
-  }, [bus, active, targets, height]);
+    bus.send("earth", { t: "flyTo", lat: targets.earth.lat, lon: normLon(targets.earth.lon + dLon), heightKm: height });
+  }, [bus, active, targets, height, whyOpen]);
 
   useEffect(() => { if (stage !== "compare") flown.current = ""; }, [stage]);
   return null;
