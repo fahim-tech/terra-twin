@@ -2,7 +2,8 @@ import { Disclosure, Term } from "../../components/primitives";
 import type { MarsAnalysis } from "../../types/contracts";
 import { InfoPopover } from "./InfoPopover";
 import { Mark } from "./parts";
-import { availabilityItems, type AvailItem } from "./readouts";
+import { useMarsFactors } from "../factors/factors";
+import { availabilityItems, missingFactors, type AvailItem, type LiveFactors } from "./readouts";
 import { useScales } from "./useScales";
 
 const pctText = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
@@ -15,10 +16,16 @@ const pctText = (v: number | null) => (v === null ? "—" : `${Math.round(v * 10
 export function Availability({ a }: { a: MarsAnalysis }) {
   // The research window's size comes from the API's coverage record, never from the field name.
   const { windowKm } = useScales();
-  const items = availabilityItems(a);
+  // The live GIS factor service decides what is connected; without an answer the API's static list stands.
+  const fq = useMarsFactors(a.coordinate);
+  const live: LiveFactors | null = fq.data ? {
+    status: Object.fromEntries(fq.data.factors.map((f) => [f.factor_id, f.status])),
+    reason: Object.fromEntries(fq.data.factors.map((f) => [f.factor_id, f.reason])),
+  } : null;
+  const items = availabilityItems(a, live);
   const on = items.filter((i) => i.on);
   const off = items.filter((i) => !i.on);
-  const missing = a.unavailable_factors.filter((f) => f.value === null);
+  const missing = missingFactors(a.unavailable_factors, live);
   const os = a.observation_support;
   const row = (list: AvailItem[]) => (
     list.length === 0 ? <span className="text-caption text-faint">None</span> : (

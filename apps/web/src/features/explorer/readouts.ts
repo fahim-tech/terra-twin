@@ -50,24 +50,28 @@ const FACTOR_ORDER = ["thermal_inertia", "geologic_unit", "water_ice", "surface_
 
 export interface AvailItem { key: string; label: string; on: boolean }
 
+/** Live status of the GIS Mars factors (mars-factors-1.0) by factor id, and their reasons when not available. */
+export interface LiveFactors { status: Record<string, string>; reason: Record<string, string | null | undefined> }
+
 /**
  * Evidence availability for a zone, in a fixed reading order: terrain, observation support, then the
  * other factors (known ones in FACTOR_ORDER, unknown ones after them in API order). `on` is true only
- * when the API returned a value; nothing is inferred.
+ * when the API returned a value, or when the live GIS factor service reports the factor available
+ * (`live`); nothing is inferred.
  */
 export function availabilityItems(a: {
   tier1_features: { value: number | null }[];
   ez_features: { value: number | null }[];
   observation_support: unknown;
   unavailable_factors: { key: string; label: string; value: number | null }[];
-}): AvailItem[] {
+}, live?: LiveFactors | null): AvailItem[] {
   const terrain = a.tier1_features.some((f) => f.value !== null) || a.ez_features.some((f) => f.value !== null);
   const rank = (k: string) => { const i = FACTOR_ORDER.indexOf(k); return i < 0 ? FACTOR_ORDER.length : i; };
   const factors = a.unavailable_factors.slice().sort((x, y) => rank(x.key) - rank(y.key));
   return [
     { key: "terrain", label: "Terrain", on: terrain },
     { key: "observation_support", label: "Observation support", on: !!a.observation_support },
-    ...factors.map((f) => ({ key: f.key, label: FACTOR_SHORT[f.key] ?? f.label, on: f.value !== null })),
+    ...factors.map((f) => ({ key: f.key, label: FACTOR_SHORT[f.key] ?? f.label, on: f.value !== null || live?.status[f.key] === "available" })),
   ];
 }
 
@@ -407,4 +411,17 @@ export function graticulePaths(lat0: number, lon0: number, r: number, step = 30,
     trace(pts);
   }
   return out;
+}
+
+/**
+ * The static "not connected" list from the Mars analysis, reconciled with the live factor service: a factor the
+ * service reports available is not missing; for the rest the live reason wins over the static one. With no live
+ * answer (service offline or still loading) the static list stands unchanged.
+ */
+export function missingFactors<T extends { key: string; value: number | null; reason?: string | null }>(
+  factors: T[], live?: LiveFactors | null,
+): (T & { reason: string | null })[] {
+  return factors
+    .filter((f) => f.value === null && live?.status[f.key] !== "available")
+    .map((f) => ({ ...f, reason: (live?.reason[f.key] || f.reason) ?? null }));
 }

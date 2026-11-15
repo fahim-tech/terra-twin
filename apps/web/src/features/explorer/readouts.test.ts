@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MarsSite } from "../../types/contracts";
 import {
-  availabilityItems, baselineFromExplanation, boxesMeet, CALLOUT_MIN_W, calloutGeometry, clearCallout, graticulePaths, gridMetres, insideRing, introOverlapsPlanet,
+  availabilityItems, baselineFromExplanation, missingFactors, boxesMeet, CALLOUT_MIN_W, calloutGeometry, clearCallout, graticulePaths, gridMetres, insideRing, introOverlapsPlanet,
   LEADER_DX, nextActive, orthographic, placeCallout, plateSize, reachFromGlyph, revealDelta, scalesFromEvidence, segmentMeetsBox, underCover,
 } from "./readouts";
 import { zoneRing, zonesNear } from "./zones";
@@ -65,6 +65,24 @@ describe("baselineFromExplanation", () => {
   it("is null when the text quotes none", () => {
     expect(baselineFromExplanation("Average terrain inclination at the stated baseline.")).toBeNull();
     expect(baselineFromExplanation(null)).toBeNull();
+  });
+});
+
+describe("live factors reconcile the missing list", () => {
+  const fs = [
+    { key: "thermal_inertia", label: "Thermal inertia", value: null, reason: "static reason" },
+    { key: "water_ice", label: "Water-ice potential", value: null, reason: "static reason" },
+  ];
+  const base = { tier1_features: [{ value: 2.7 }], ez_features: [], observation_support: { observed_fraction: 0.31 }, unavailable_factors: fs };
+  it("never lists a factor as missing while the live service reports it available", () => {
+    const live = { status: { thermal_inertia: "available", water_ice: "outside_coverage" }, reason: { water_ice: "outside SWIM coverage (60S-60N)" } };
+    expect(missingFactors(fs, live).map((f) => [f.key, f.reason])).toEqual([["water_ice", "outside SWIM coverage (60S-60N)"]]);
+    expect(availabilityItems(base, live).filter((i) => i.key === "thermal_inertia")[0].on).toBe(true);
+    expect(availabilityItems(base, live).filter((i) => i.key === "water_ice")[0].on).toBe(false);
+  });
+  it("keeps the static list when the live service has not answered (offline)", () => {
+    expect(missingFactors(fs, null).map((f) => f.reason)).toEqual(["static reason", "static reason"]);
+    expect(availabilityItems(base, null).slice(2).every((i) => !i.on)).toBe(true);
   });
 });
 
