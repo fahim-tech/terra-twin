@@ -3,7 +3,7 @@ import { useGlobeBus, useGlobeEvents } from "../../app/globeBus";
 import type { GlobeFootprint, GlobeMarker } from "../../globes/protocol";
 import { api, useEarthPool, useEarthSites } from "../../services/api";
 import { useApp } from "../../store/app";
-import { boundsOf, type CandidateView, candidateList, selectedCandidate } from "./candidates";
+import { boundsOf, type CandidateView, candidateList, centroidOf, selectedCandidate } from "./candidates";
 import { useEarthLocal } from "./earthLocal";
 import { chooseCandidate, useTierMemorySync } from "./tierMemory";
 
@@ -102,11 +102,19 @@ export function EarthGlobeSync() {
         return;
       }
       const set = activeSet(cands, tier, members, search.tier1?.limit || 50);
-      const b = boundsOf(set.map((c) => ({ lat: c.lat, lon: c.lon, bbox: c.tier === 1 ? c.bbox : undefined })));
+      let b = boundsOf(set.map((c) => ({ lat: c.lat, lon: c.lon, bbox: c.tier === 1 ? c.bbox : undefined })));
       if (!b) { bus.send("earth", { t: "reset" }); return; }
+      let span = ((b.east - b.west) % 360 + 360) % 360;
+      // A set spread over continents has no meaningful box; show the hemisphere around its centroid instead.
+      if (span > 140 || b.north - b.south > 100) {
+        const c = centroidOf(set);
+        if (!c) { bus.send("earth", { t: "reset" }); return; }
+        const lat = Math.max(-35, Math.min(35, c.lat));
+        b = { west: c.lon - 55, east: c.lon + 55, south: lat - 55, north: lat + 55 };
+        span = 110;
+      }
       // A single 50 km window still gets regional context around it.
       const padLat = Math.max(0, (3 - (b.north - b.south)) / 2);
-      const span = ((b.east - b.west) % 360 + 360) % 360;
       const padLon = Math.max(0, (3 - span) / 2);
       bus.send("earth", {
         t: "fitBounds", west: b.west - padLon, east: b.east + padLon,

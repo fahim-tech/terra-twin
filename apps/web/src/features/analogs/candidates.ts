@@ -95,6 +95,21 @@ export function groupNearTop<T extends { score: number | null }>(rows: T[], top:
   return { near, rest };
 }
 
+/** Spherical centroid (mean of unit vectors) of a set of points; null when they cancel out. */
+export function centroidOf(points: { lat: number; lon: number }[]): { lat: number; lon: number } | null {
+  if (!points.length) return null;
+  const r = Math.PI / 180;
+  let x = 0, y = 0, z = 0;
+  for (const p of points) {
+    x += Math.cos(p.lat * r) * Math.cos(p.lon * r);
+    y += Math.cos(p.lat * r) * Math.sin(p.lon * r);
+    z += Math.sin(p.lat * r);
+  }
+  const h = Math.hypot(x, y);
+  if (Math.hypot(h, z) < 1e-9 * points.length) return null;
+  return { lat: Math.atan2(z, h) / r, lon: Math.atan2(y, x) / r };
+}
+
 /**
  * Smallest lon/lat box around a set of points, handling the antimeridian: the box spans the
  * shortest longitude arc (west may be greater than east when it crosses 180°).

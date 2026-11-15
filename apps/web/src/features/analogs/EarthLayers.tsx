@@ -38,7 +38,8 @@ export function EarthLayers() {
 
   return (
     <div className={cx("surface rounded-surface", phone ? "p-1" : "p-2")} data-occludes="earth" role="group" aria-label="Earth layers">
-      <div className={cx(phone ? "flex items-center gap-0.5 overflow-x-auto [scrollbar-width:none]" : "grid grid-cols-2 gap-0.5")}>
+      <div className="flex items-center">
+      <div className={cx(phone ? "flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none]" : "grid flex-1 grid-cols-2 gap-0.5")}>
         <Toggle on={overlays.similarity} onClick={() => toggle("similarity")}
           swatch={<span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: lg ? `linear-gradient(135deg, ${lg.stops[0][1]}, ${lg.stops[lg.stops.length - 1][1]})` : undefined }} />}>
           {phone ? "Similarity" : "Similarity field"}
@@ -46,9 +47,10 @@ export function EarthLayers() {
         <Toggle on={overlays.pool} onClick={() => toggle("pool")} swatch={<span className="h-1.5 w-1.5 rounded-full bg-muted" />}>{phone ? "Pool" : "Research pool"}</Toggle>
         <Toggle on={overlays.coverage} onClick={() => toggle("coverage")} swatch={<span className="h-2.5 w-2.5 rounded-[3px] ring-1 ring-inset ring-muted" />}>{phone ? "Screened" : "Screened land"}</Toggle>
         <Toggle on={reference} onClick={() => useEarthLocal.setState({ referenceSites: !reference })} swatch={<span className="h-2 w-2 rotate-45 ring-1 ring-inset ring-muted" />}>{phone ? "Reference" : "Reference sites"}</Toggle>
+      </div>
         {phone && anyLegend && (
           <button type="button" aria-expanded={legendOpen} aria-label={legendOpen ? "Hide legend" : "Show legend"} onClick={() => useEarthLocal.setState({ legendOpen: !legendOpen })}
-            className="hit ml-auto grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted hover:text-ink">
+            className="hit ml-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted hover:text-ink">
             <ChevronDown className={cx("h-4 w-4 transition-transform", legendOpen && "rotate-180")} aria-hidden />
           </button>
         )}
