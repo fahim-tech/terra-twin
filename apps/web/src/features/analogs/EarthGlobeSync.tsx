@@ -147,11 +147,13 @@ export function EarthGlobeSync() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frameKey, candidateId]);
 
-  // Tier-1 similarity field for the searched Mars target (display product from the API).
+  // Tier-1 similarity field for the searched Mars target (display product from the API). Never during
+  // the spatial comparison: it is a different basis (tier 1, as measured) from the compared windows.
+  const comparing = stage === "compare";
   useEffect(() => {
-    const url = overlays.similarity && site && mission && search?.tier1 ? api.similarityRasterUrl(site, mission) : null;
+    const url = !comparing && overlays.similarity && site && mission && search?.tier1 ? api.similarityRasterUrl(site, mission) : null;
     bus.send("earth", { t: "setOverlay", id: "similarity", url, alpha: 0.92 });
-  }, [bus, overlays.similarity, site, mission, search?.tier1]);
+  }, [bus, comparing, overlays.similarity, site, mission, search?.tier1]);
 
   useEffect(() => {
     bus.send("earth", { t: "setOverlay", id: "coverage", url: overlays.coverage ? api.coverageRasterUrl() : null, alpha: 1 });

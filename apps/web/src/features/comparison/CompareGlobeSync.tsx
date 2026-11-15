@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGlobeBus } from "../../app/globeBus";
-import { api, useSites } from "../../services/api";
+import { useSites } from "../../services/api";
 import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
 import { selectedCandidate } from "../analogs/candidates";
@@ -84,22 +84,15 @@ export function CompareGlobeSync() {
     };
   }, [bus, active]);
 
-  // The global-screen similarity field is a different basis (tier 1, as measured); keep it off the
-  // spatial comparison and restore the user's layer on the way out.
+  // The global-screen similarity field is a different basis (tier 1, as measured); EarthGlobeSync keeps
+  // it off while comparing. Clear it here too in case a raster requested just before entering is still
+  // loading in the globe.
   useEffect(() => {
     if (stage !== "compare") return;
-    // Re-sent briefly: a raster requested just before entering may still be loading in the globe.
     const off = () => bus.send("earth", { t: "setOverlay", id: "similarity", url: null });
     off();
     const timers = [600, 1800, 4000].map((ms) => setTimeout(off, ms));
-    return () => {
-      timers.forEach(clearTimeout);
-      const s = useApp.getState();
-      const site = s.search?.mars.site ?? null;
-      const mission = (s.search?.request as { mission?: string } | undefined)?.mission ?? null;
-      const url = s.earthOverlays.similarity && site && mission && s.search?.tier1 ? api.similarityRasterUrl(site, mission) : null;
-      bus.send("earth", { t: "setOverlay", id: "similarity", url, alpha: 0.92 });
-    };
+    return () => timers.forEach(clearTimeout);
   }, [bus, stage]);
 
   // Matched altitude from the free area of both frames (smallest of the two), debounced so the
