@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown, X } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { GLOSSARY, keepsTermCase, type GlossaryEntry, type GlossaryKey } from "../lib/glossary";
+import { termPopoverShift } from "../lib/popover";
 import { cx } from "./ui";
 
 export const SPRING = { type: "spring" as const, bounce: 0, duration: 0.35 };
@@ -92,19 +93,6 @@ export function radioGroupKeys<T>(values: readonly T[], current: T, select: (v: 
     const radios = e.currentTarget.querySelectorAll<HTMLElement>("[role=radio]");
     radios[to]?.focus();
   };
-}
-
-/** Popover width (px) at a given viewport width: 320 px, at most 80 % of the viewport. */
-export function termPopoverWidth(viewport: number): number {
-  return Math.min(320, viewport * 0.8);
-}
-
-/**
- * Horizontal offset (≤ 0, px) that keeps a term popover anchored at `left` inside the viewport with a
- * `gutter` on the right; 0 when it already fits.
- */
-export function termPopoverShift(left: number, viewport: number, gutter = 16): number {
-  return Math.min(0, viewport - gutter - (left + termPopoverWidth(viewport)));
 }
 
 export function Term({ k, children, className }: { k: GlossaryKey; children?: ReactNode; className?: string }) {

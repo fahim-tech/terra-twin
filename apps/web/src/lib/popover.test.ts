@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { termPopoverShift, termPopoverWidth } from "./primitives";
+import { termPopoverShift, termPopoverWidth } from "./popover";
 
 describe("term popover placement", () => {
   it("is 320 px wide, at most 80 % of a narrow viewport", () => {
