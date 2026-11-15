@@ -60,19 +60,24 @@ function WindowRow({ c, on, onPick }: { c: Tier2Candidate; on: boolean; onPick: 
   );
 }
 
-/** The named leader: its name and position (selectable) beside the figure "S 0.614" and its measures. */
+/**
+ * The named leader: its name and position (selectable) beside the figure "S 0.614" and its measures. The
+ * figure holds glossary terms (buttons of their own), so it sits beside the row button, not inside it; the
+ * row itself carries the selected and hover fill, so both halves light together.
+ */
 function LeaderRow({ c, on, onPick }: { c: Tier2Candidate; on: boolean; onPick: () => void }) {
   const w = windowName(c);
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] border-t border-line">
-      <button type="button" onClick={onPick} aria-pressed={on} className={rowClass(on, "py-3 pl-3 pr-2")}
+    <div className={cx("relative grid grid-cols-[minmax(0,1fr)_auto] border-t border-line transition-colors duration-150",
+      on ? "bg-white/[0.06]" : "[&:has(>button:hover)]:bg-white/[0.035] [&:has(>button:active)]:bg-white/[0.08] [&:has(>button:active)]:duration-0")}>
+      {on && <SelectionBar layoutId="t2-selection" />}
+      <button type="button" onClick={onPick} aria-pressed={on} className="hit w-full py-3 pl-3 pr-2 text-left"
         aria-label={`${w.name}, ${coord(c.lat, c.lon)}${w.sub ? `, ${w.sub}` : ""}, similarity ${sSpoken(c.S)}, ${measuresOf(c.coverage, T2_MEASURES) ?? "unknown"} of ${T2_MEASURES} measures`}>
-        {on && <SelectionBar layoutId="t2-selection" />}
         <Toponym as="span" size="sm" className={cx("block", on && "!text-earth")}>{w.name}</Toponym>
         <span className="num mt-1.5 block text-num-sm text-muted">{coord(c.lat, c.lon)}</span>
         {w.sub && <span className="mt-0.5 block text-caption text-faint">{w.sub}</span>}
       </button>
-      <div className={cx("flex flex-col items-end justify-center py-3 pl-2 pr-3", on && "bg-white/[0.06]")}>
+      <div className="flex flex-col items-end justify-center py-3 pl-2 pr-3">
         <span className="num flex items-baseline gap-1.5 whitespace-nowrap leading-none">
           <span className="text-num text-muted"><Term k="similarity">S</Term></span>
           <span className="text-[26px] tracking-[-0.01em] text-ink">{sText(c.S)}</span>
