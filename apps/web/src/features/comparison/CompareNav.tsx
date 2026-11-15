@@ -2,7 +2,7 @@ import { Minus, Plus, Scan } from "lucide-react";
 import { useGlobeBus, useGlobeEvents } from "../../app/globeBus";
 import { NorthNeedle } from "../../components/map/Instruments";
 import { cx } from "../../components/ui";
-import { type Planet, tiltAnnouncement, viewName } from "../../globes/protocol";
+import { type Planet, viewName } from "../../globes/protocol";
 import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
 import { requestReframe } from "./layout";
@@ -25,9 +25,11 @@ export function CompareNav({ planet, className }: { planet: Planet; className?: 
   const heading = useGlobes((s) => s.camera[planet]?.headingDeg ?? 0);
   const tilt = useGlobes((s) => s.tilt);
   const name = PLANET_NAME[planet];
-  // T inside this half's globe switches the shared preference too; say which view both halves now use.
+  // T inside this half's globe switches the shared preference too; say which view both halves now use. Even
+  // when this half's camera had no ground under its centre to turn about, CompareGlobeSync flies both halves
+  // back to their windows in the new view at once, so it never waits for a later flight here.
   useGlobeEvents(planet, (m) => {
-    if (m.t === "tilt") useApp.getState().announce(m.turned === false ? tiltAnnouncement(m.on, false) : `${viewName(m.on)} on both halves`);
+    if (m.t === "tilt") useApp.getState().announce(`${viewName(m.on)} on both halves`);
   });
   const toggle = () => {
     const on = !tilt;
