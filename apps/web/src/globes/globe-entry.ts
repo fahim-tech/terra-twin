@@ -71,8 +71,10 @@ import {
   OBLIQUE_PITCH_DEG, attitudeAt, exactNadir, fitDepth, flightPitchDeg, focusOf, isTilted, nadirFor, poseAt, stemHeightM, tiltWeight,
   verticalPxPerMetre, type Enu, type Vec3, type View,
 } from "./camera";
+import { SETTLE_START, SNAPSHOT_SETTLE, type SettleVerdict, captureSse, serialRunner, settleStep } from "./capture";
 import { footprintCorners, footprintSideKm, hasScanVolume, outlineRing, scanHeightM, volumeSizeWeight } from "./footprints";
 import { GLYPH_EARTH, GLYPH_INK, GLYPH_KINDS, GLYPH_MARS, GLYPH_SPACE, glyph, wallGradient } from "./glyphs";
+import { borderSamples, groundBox, horizonAlong } from "./ground";
 import { MARS_MOONS, orbitFade, orbitLabel, orbitRing } from "./moons";
 import {
   type AnchorPosition,
@@ -81,7 +83,9 @@ import {
   type GlobeFootprint,
   type GlobeMarker,
   type GlobeToParent,
+  type GroundBox,
   type LayerInfo,
+  type LightMode,
   type MarkerGroupOptions,
   type MarkerKind,
   type ParentToGlobe,
@@ -159,10 +163,22 @@ let ellipsoid: Ellipsoid;
 let mode: "ion" | "fallback" = "fallback";
 let baseLayer: ImageryLayer | null = null;
 let spinning = false;
-/** Intro attract mode (setSpin on): a stronger three-quarter light. Outlives the spin, which stops on any touch. */
-let attract = false;
+/**
+ * The presentation light the shell asked for (setLight), independent of the idle spin: the intro's three-quarter
+ * light stays put when the spin stops on a touch, and stays the working light when no spin ever runs (reduced motion).
+ */
+let lightMode: LightMode = "work";
 /** 0 = working light (hemisphere in view lit), 1 = intro three-quarter light; eased between. */
 let lightMix = 0;
+/**
+ * A snapshot is rendering: the camera shows the capture view, so camera commands wait for it (`cameraCommand`),
+ * telemetry and anchors pause (they would describe the capture, not the reader's view) and inputs are off.
+ */
+let capturing = false;
+/** Camera commands received during a capture, applied in order once the reader's view is back. */
+const deferred: (() => void)[] = [];
+/** Everything the app draws is hidden for a clean capture (markers, footprints, overlays, graticule, orbits). */
+let drawingsHidden = false;
 let moving = false;
 let selectedId: string | null = null;
 /** The user's choice for site flights: end in the 3D view (default) or look straight down. */
@@ -258,6 +274,8 @@ function dataSource(group: string, opts: MarkerGroupOptions = {}): CustomDataSou
   let ds = groups.get(group);
   if (!ds) {
     ds = new CustomDataSource(group);
+    ds.show = !drawingsHidden;
+    ds.clustering.show = !drawingsHidden;
     groups.set(group, ds);
     void viewer!.dataSources.add(ds);
   }
@@ -415,6 +433,7 @@ function rebuildStems() {
   if (!viewer) return;
   if (!stems) {
     stems = new CustomDataSource("stems");
+    stems.show = !drawingsHidden;
     void viewer.dataSources.add(stems);
   }
   const ds = stems;
@@ -561,6 +580,7 @@ function setGraticule(on: boolean, stepDeg = 30) {
   if (!viewer) return;
   if (!graticule) {
     graticule = new CustomDataSource("graticule");
+    graticule.show = !drawingsHidden;
     void viewer.dataSources.add(graticule);
   }
   graticule.entities.removeAll();
@@ -582,6 +602,7 @@ function setGraticule(on: boolean, stepDeg = 30) {
     }
     if (!graticuleLabels) {
       graticuleLabels = new LabelCollection();
+      graticuleLabels.show = !drawingsHidden;
       viewer.scene.primitives.add(graticuleLabels);
     }
     // Latitudes sit above-right of their intersection, longitudes below-right, so the pair that shares the
@@ -699,10 +720,11 @@ function updateOrbits() {
   if (!viewer) return;
   const k = orbitFade(viewer.camera.positionCartographic.height / 1000);
   // On a narrow screen the intro's copy sits over the planet, so the labels cannot be placed; an orbit is
-  // not drawn without its label there (an unnamed ring through the title reads as decoration).
-  const narrowIntro = attract && viewer.scene.canvas.clientWidth < 640;
+  // not drawn without its label there (an unnamed ring through the title reads as decoration). The intro
+  // light is the shell's mark that the title screen is up.
+  const narrowIntro = lightMode === "intro" && viewer.scene.canvas.clientWidth < 640;
   for (const o of orbitDraws) {
-    o.line.show = !narrowIntro && k > 0.005;
+    o.line.show = !drawingsHidden && !narrowIntro && k > 0.005;
     o.label.show = false;
     if (!o.line.show) continue;
     o.line.material.uniforms.color = INK.withAlpha(0.34 * k);
@@ -765,6 +787,26 @@ async function initSky() {
   requestRender();
 }
 
+/**
+ * Hide (or show again) everything the app draws on this globe — marker and footprint groups with their labels
+ * and clusters, stems, data overlays, the graticule and the moon orbits — leaving only the planet's imagery and
+ * its atmosphere. Contents are untouched: messages that arrive meanwhile update the hidden groups, which then
+ * show as they now are.
+ */
+function setDrawingsHidden(on: boolean) {
+  drawingsHidden = on;
+  for (const ds of groups.values()) {
+    ds.show = !on;
+    ds.clustering.show = !on;
+  }
+  if (stems) stems.show = !on;
+  if (graticule) graticule.show = !on;
+  if (graticuleLabels) graticuleLabels.show = !on;
+  for (const layer of overlays.values()) layer.show = !on;
+  updateOrbits();
+  requestRender();
+}
+
 // ---------------------------------------------------------------- overlays
 async function setOverlay(id: string, url: string | null, alpha = 1) {
   if (!viewer) return;
@@ -780,7 +822,7 @@ async function setOverlay(id: string, url: string | null, alpha = 1) {
       ellipsoid,
     });
     if (!viewer) return;
-    const layer = new ImageryLayer(provider, { alpha });
+    const layer = new ImageryLayer(provider, { alpha, show: !drawingsHidden });
     viewer.imageryLayers.add(layer);
     overlays.set(id, layer);
     requestRender();
@@ -924,21 +966,34 @@ function autoDuration(lat: number, lon: number, heightKm: number) {
   return Math.min(2.1, Math.max(0.7, 0.7 + 1.1 * ang + 0.35 * zoom));
 }
 
-function flyTo(lat: number, lon: number, heightKm = planet === "mars" ? 1_400 : 2_200, durationS?: number) {
+function flyTo(lat: number, lon: number, heightKm = planet === "mars" ? 1_400 : 2_200, durationS?: number, tilt = tiltPref) {
   if (!viewer) return;
   // Site-scale flights end in the oblique approach; wider framings look straight down (camera.ts).
-  const pitchDeg = flightPitchDeg(planet, heightKm, tiltPref);
+  const pitchDeg = flightPitchDeg(planet, heightKm, tilt);
   place({ lat, lon, depthKm: heightKm, pitchDeg, headingDeg: 0 }, durationS ?? autoDuration(lat, lon, heightKm));
 }
 
-/** Switch top-down ⇄ 3D around the point under the reticle, at the same ground scale. */
-function setTilt(on: boolean) {
+/**
+ * Switch top-down ⇄ 3D around the point under the reticle, at the same ground scale. Looking past the planet
+ * there is nothing to turn about: the choice still holds for later flights, and the shell is told so.
+ */
+function setTilt(on: boolean, turn = true) {
   if (!viewer) return;
   tiltPref = on;
+  if (!turn) return;
   const t = viewTarget();
-  if (!t) return; // looking past the planet: nothing to turn about (the choice still applies to later flights)
+  if (!t) {
+    post({ t: "tilt", on, turned: false });
+    return;
+  }
   place({ ...t, pitchDeg: on ? OBLIQUE_PITCH_DEG : -90 }, reducedMotion ? 0 : 0.9, { easing: EasingFunction.CUBIC_IN_OUT });
-  post({ t: "tilt", on });
+  post({ t: "tilt", on, turned: true });
+}
+
+/** Run a camera command now, or once the snapshot in progress has put the reader's view back. */
+function cameraCommand(run: () => void) {
+  if (capturing) deferred.push(run);
+  else run();
 }
 
 let currentLayerId: string | null = null;
@@ -1039,8 +1094,44 @@ function metersPerPixel(): number | null {
   return Number.isFinite(d) && d > 0 ? d / 100 : null;
 }
 
+/**
+ * The ground visible in the free area: its border sampled and projected onto the planet, each sample that looks
+ * past the limb replaced by the horizon along its line from the reticle (ground.ts). Null when the reticle itself
+ * is off the planet.
+ */
+function visibleGround(center: { lat: number; lon: number } | null): GroundBox | null {
+  if (!viewer || !center) return null;
+  const cam = viewer.camera;
+  const f = focusPoint();
+  const scratch = new Cartesian2();
+  const hit = (x: number, y: number) => {
+    scratch.x = x;
+    scratch.y = y;
+    const w = cam.pickEllipsoid(scratch, ellipsoid);
+    if (!w) return null;
+    const c = Cartographic.fromCartesian(w, ellipsoid);
+    return c ? { lat: fromRender(CMath.toDegrees(c.latitude)), lon: normLon(CMath.toDegrees(c.longitude)) } : null;
+  };
+  const x0 = insets.left, y0 = insets.top, x1 = Math.max(x0 + 1, f.w - insets.right), y1 = Math.max(y0 + 1, f.h - insets.bottom);
+  const pts: { lat: number; lon: number }[] = [];
+  for (const s of borderSamples(x0, y0, x1, y1, 6)) {
+    const p = hit(s.x, s.y) ?? horizonAlong({ x: f.x, y: f.y }, s, hit, 8);
+    if (p) pts.push(p);
+  }
+  // A pole on the near side and inside the free area opens the box to every longitude.
+  const poleIn = (lat: number) => {
+    const world = pos(lat, 0);
+    const s = SceneTransforms.worldToWindowCoordinates(viewer!.scene, world);
+    return !!s && onNearSide(world) && s.x >= x0 && s.x <= x1 && s.y >= y0 && s.y <= y1;
+  };
+  const box = groundBox(pts, center, { north: poleIn(90), south: poleIn(-90) });
+  if (!box) return null;
+  const r = (v: number) => Math.round(v * 1000) / 1000;
+  return { west: r(box.west), south: r(box.south), east: r(box.east), north: r(box.north) };
+}
+
 function emitTelemetry(force = false) {
-  if (!viewer) return;
+  if (!viewer || capturing) return;
   const now = performance.now();
   if (!force && now - lastTelemetryAt < 90) return;
   const cam = viewer.camera;
@@ -1056,6 +1147,7 @@ function emitTelemetry(force = false) {
   const t: CameraTelemetry = {
     heightKm: Math.round(cam.positionCartographic.height / 10) / 100,
     center: center ? { lat: Math.round(center.lat * 1e4) / 1e4, lon: Math.round(center.lon * 1e4) / 1e4 } : null,
+    view: visibleGround(center),
     metersPerPixel: (() => { const m = metersPerPixel(); return m === null ? null : Math.round(m * 10) / 10; })(),
     headingDeg: Math.round(heading * 10) / 10 % 360,
     pitchDeg: Math.round(CMath.toDegrees(cam.pitch) * 10) / 10,
@@ -1069,7 +1161,7 @@ function emitTelemetry(force = false) {
 }
 
 function emitAnchors() {
-  if (!viewer || anchors.length === 0) return;
+  if (!viewer || capturing || anchors.length === 0) return;
   const scene = viewer.scene;
   const occluder = new EllipsoidalOccluder(ellipsoid, viewer.camera.positionWC);
   const w = scene.canvas.clientWidth, h = scene.canvas.clientHeight;
@@ -1095,67 +1187,143 @@ function emitAnchors() {
   post({ t: "anchors", anchors: out });
 }
 
-async function snapshot(requestId: string, lat: number, lon: number, heightKm: number, maxWidth = 960) {
-  if (!viewer) return post({ t: "snapshot", requestId, dataUrl: null, width: 0, height: 0, error: "viewer not ready" });
+// ---------------------------------------------------------------- snapshots
+interface SnapshotJob { id: string; lat: number; lon: number; heightKm: number; maxWidth: number; clean: boolean }
+
+const noShot = (requestId: string, extra: Partial<Extract<GlobeToParent, { t: "snapshot" }>> = {}): GlobeToParent =>
+  ({ t: "snapshot", requestId, dataUrl: null, width: 0, height: 0, ...extra });
+
+/** One capture at a time; a queued capture withdrawn before its turn is answered at once. */
+const snapshots = serialRunner<SnapshotJob>(runSnapshot, (job) => post(noShot(job.id, { cancelled: true })));
+
+/**
+ * Renders until the capture view's tiles have loaded (capture.ts: the tile load queue empty on two renders in a
+ * row), the bounded wait runs out, or the capture is withdrawn. A timer backs up the frame count in case
+ * frames stop (a hidden tab), so a withdrawal or the bound always ends the wait.
+ */
+function capturedTiles(signal: AbortSignal): Promise<SettleVerdict | "cancelled"> {
+  const scene = viewer!.scene;
+  const t0 = performance.now();
+  return new Promise((resolve) => {
+    let state = SETTLE_START;
+    let done = false;
+    let remove: (() => void) | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const finish = (v: SettleVerdict | "cancelled") => {
+      if (done) return;
+      done = true;
+      remove?.();
+      if (timer) clearTimeout(timer);
+      resolve(v);
+    };
+    if (signal.aborted) { finish("cancelled"); return; }
+    signal.addEventListener("abort", () => finish("cancelled"), { once: true });
+    remove = scene.postRender.addEventListener(() => {
+      const step = settleStep(state, scene.globe ? scene.globe.tilesLoaded : true, performance.now() - t0);
+      state = step.state;
+      if (step.verdict !== "wait") finish(step.verdict);
+      else scene.requestRender();
+    });
+    timer = setTimeout(() => finish("timeout"), SNAPSHOT_SETTLE.timeoutMs + 500);
+    scene.requestRender();
+  });
+}
+
+/** The next rendered frame, scaled to `maxWidth` px wide, as a JPEG (taken in postRender, before the buffer clears). */
+function grabFrame(maxWidth: number, signal: AbortSignal): Promise<{ url: string; w: number; h: number } | null> {
+  const scene = viewer!.scene;
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) { resolve(null); return; }
+    let remove = () => {};
+    const onAbort = () => { remove(); resolve(null); };
+    signal.addEventListener("abort", onAbort, { once: true });
+    remove = scene.postRender.addEventListener(() => {
+      remove();
+      signal.removeEventListener("abort", onAbort);
+      try {
+        const src = scene.canvas;
+        const scale = Math.min(1, maxWidth / src.width);
+        const out = document.createElement("canvas");
+        out.width = Math.round(src.width * scale);
+        out.height = Math.round(src.height * scale);
+        out.getContext("2d")!.drawImage(src, 0, 0, out.width, out.height);
+        resolve({ url: out.toDataURL("image/jpeg", 0.86), w: out.width, h: out.height });
+      } catch (e) {
+        reject(e);
+      }
+    });
+    scene.requestRender();
+  });
+}
+
+/**
+ * One snapshot: a nadir, north-up view of (lat, lon) from `heightKm`, in the working light, taken as soon as its
+ * imagery has really loaded. The reader's view is put back exactly — a flight that was under way is completed
+ * first, so it is the view they were heading for — and camera commands that arrived meanwhile then run in order.
+ * Plates are always top-down: scan-volume walls and stems have no height when not tilted.
+ */
+async function runSnapshot(job: SnapshotJob, signal: AbortSignal) {
+  if (!viewer) { post(noShot(job.id, { error: "viewer not ready" })); return; }
+  if (signal.aborted) { post(noShot(job.id, { cancelled: true })); return; }
   const scene = viewer.scene;
   const cam = viewer.camera;
+  const globe = scene.globe as Globe | undefined;
+  const controller = scene.screenSpaceCameraController;
+  cam.completeFlight();
   const saved = { position: cam.positionWC.clone(), direction: cam.directionWC.clone(), up: cam.upWC.clone() };
   const wasSpinning = spinning;
+  const inputs = controller.enableInputs;
+  const sse = globe?.maximumScreenSpaceError;
+  capturing = true;
   spinning = false;
+  controller.enableInputs = false;
+  if (job.clean) setDrawingsHidden(true);
+  let reply: GlobeToParent = noShot(job.id, { error: "not taken" });
   try {
-    // Plates are always top-down (no scan-volume walls or stems: both have zero height when not tilted).
-    cam.setView({ destination: pos(lat, lon, heightKm * 1000), orientation: { heading: 0, pitch: -CMath.PI_OVER_TWO, roll: 0 } });
-    const t0 = performance.now();
-    // Wait (bounded) for imagery tiles of the new view to load.
-    await new Promise<void>((resolve) => {
-      let stable = 0;
-      const tick = () => {
-        scene.requestRender();
-        const loaded = scene.globe ? scene.globe.tilesLoaded : true;
-        stable = loaded ? stable + 1 : 0;
-        if (stable >= 6 || performance.now() - t0 > 9000) resolve();
-        else requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    });
-    const shot = await new Promise<{ url: string; w: number; h: number }>((resolve, reject) => {
-      const remove = scene.postRender.addEventListener(() => {
-        remove();
-        try {
-          const src = scene.canvas;
-          const scale = Math.min(1, maxWidth / src.width);
-          const out = document.createElement("canvas");
-          out.width = Math.round(src.width * scale);
-          out.height = Math.round(src.height * scale);
-          out.getContext("2d")!.drawImage(src, 0, 0, out.width, out.height);
-          resolve({ url: out.toDataURL("image/jpeg", 0.86), w: out.width, h: out.height });
-        } catch (e) {
-          reject(e);
-        }
-      });
-      scene.requestRender();
-    });
-    post({ t: "snapshot", requestId, dataUrl: shot.url, width: shot.w, height: shot.h });
+    // The picture is the canvas scaled to maxWidth: load tiles only as fine as it can show (capture.ts).
+    if (globe && sse !== undefined) globe.maximumScreenSpaceError = captureSse(sse, scene.canvas.width, job.maxWidth);
+    cam.setView({ destination: pos(job.lat, job.lon, job.heightKm * 1000), orientation: { heading: 0, pitch: -CMath.PI_OVER_TWO, roll: 0 } });
+    const tiles = await capturedTiles(signal);
+    const shot = tiles === "cancelled" ? null : await grabFrame(job.maxWidth, signal);
+    reply = shot && tiles !== "cancelled"
+      ? { t: "snapshot", requestId: job.id, dataUrl: shot.url, width: shot.w, height: shot.h, imagery: tiles === "loaded" ? "complete" : "partial" }
+      : noShot(job.id, { cancelled: true });
   } catch (err) {
-    post({ t: "snapshot", requestId, dataUrl: null, width: 0, height: 0, error: String(err) });
+    reply = noShot(job.id, { error: String(err) });
   } finally {
+    if (globe && sse !== undefined) globe.maximumScreenSpaceError = sse;
     cam.setView({ destination: saved.position, orientation: { direction: saved.direction, up: saved.up } });
+    if (job.clean) setDrawingsHidden(false);
+    controller.enableInputs = inputs;
     spinning = wasSpinning;
+    capturing = false;
+    lastTelemetry = "";
+    lastAnchors = "";
+    for (const run of deferred.splice(0)) {
+      try { run(); } catch (err) { post({ t: "error", message: String(err) }); }
+    }
+    emitTelemetry(true);
+    emitAnchors();
     requestRender();
+    post(reply);
   }
 }
 
 // ---------------------------------------------------------------- light
 /**
- * A presentation light tied to the camera (not the Sun's true direction — the app has no solar ephemeris
- * for either body). Working views: light from just above-left of the camera, so the hemisphere in view is
- * lit. Intro: a three-quarter light from the upper left with a soft terminator and a lit limb.
+ * A presentation light, set for legibility — not the Sun's position (the app has no solar ephemeris for either
+ * body). It is fixed to the viewer, so the lit hemisphere and the terminator hold still on screen while the
+ * planet turns beneath them (the intro's spin, a drag). Its mode comes from the shell (setLight), never from the
+ * spin. Working views: light from just above-left of the camera, so the hemisphere in view is lit. Intro: a
+ * three-quarter light from the upper left with a soft terminator and a lit limb. Snapshots always use the
+ * working light, so a plate's locator does not depend on which screen asked for it.
  */
 const LIGHT = { work: { right: 0.32, up: -0.24 }, intro: { right: 1.25, up: -0.62 } };
 function updateLight() {
   if (!viewer) return;
   const cam = viewer.camera;
-  const k = lightMix * lightMix * (3 - 2 * lightMix);
+  const mix = capturing ? 0 : lightMix;
+  const k = mix * mix * (3 - 2 * mix);
   const r = LIGHT.work.right + (LIGHT.intro.right - LIGHT.work.right) * k;
   const u = LIGHT.work.up + (LIGHT.intro.up - LIGHT.work.up) * k;
   const dir = Cartesian3.clone(cam.directionWC);
@@ -1283,6 +1451,8 @@ async function init(ionToken: string | null) {
   // Interaction
   const handler = new ScreenSpaceEventHandler(scene.canvas);
   handler.setInputAction((ev: { position: Cartesian2 }) => {
+    // A click during a capture would pick on the capture view, not on what the reader saw.
+    if (capturing) return;
     post({ t: "interaction" });
     spinning = false;
     const picked = scene.pick(ev.position);
@@ -1307,7 +1477,7 @@ async function init(ionToken: string | null) {
   let last = 0;
   handler.setInputAction((ev: { endPosition: Cartesian2 }) => {
     const now = performance.now();
-    if (now - last < 60) return;
+    if (capturing || now - last < 60) return;
     last = now;
     const c = pickCarto(ev.endPosition);
     post({ t: "hover", lat: c?.lat ?? null, lon: c?.lon ?? null });
@@ -1328,7 +1498,7 @@ async function init(ionToken: string | null) {
         viewer.camera.rotate(Cartesian3.UNIT_Z, -0.035 * dt);
         scene.requestRender();
       }
-      const goal = attract ? 1 : 0;
+      const goal = lightMode === "intro" ? 1 : 0;
       if (lightMix !== goal) {
         lightMix = reducedMotion ? goal : goal > lightMix ? Math.min(goal, lightMix + dt / 1.4) : Math.max(goal, lightMix - dt / 1.4);
         scene.requestRender();
@@ -1373,21 +1543,26 @@ window.addEventListener("message", (ev: MessageEvent) => {
   try {
     switch (m.t) {
       case "init": void init(m.ionToken); break;
-      case "flyTo": flyTo(m.lat, m.lon, m.heightKm, m.durationS); break;
-      case "fitBounds": fitBounds(m.west, m.south, m.east, m.north, m.padding, m.minHeightKm, m.maxHeightKm, m.durationS); break;
+      // Camera commands wait for a capture in progress (cameraCommand): they act on the reader's view.
+      case "flyTo": { const { lat, lon, heightKm, durationS, tilt } = m; cameraCommand(() => flyTo(lat, lon, heightKm, durationS, tilt)); break; }
+      case "fitBounds": { const b = m; cameraCommand(() => fitBounds(b.west, b.south, b.east, b.north, b.padding, b.minHeightKm, b.maxHeightKm, b.durationS)); break; }
       case "setInsets":
         insets = { top: m.top, right: m.right, bottom: m.bottom, left: m.left };
         placeCredits();
         lastTelemetry = "";
-        if (lastTarget) place(lastTarget, reducedMotion ? 0 : 0.6);
+        cameraCommand(() => { if (lastTarget) place(lastTarget, reducedMotion ? 0 : 0.6); });
         break;
-      case "setView":
-        viewer?.camera.setView({ destination: pos(m.lat, m.lon, m.heightKm * 1000), orientation: { heading: 0, pitch: -CMath.PI_OVER_TWO, roll: 0 } });
+      case "setView": {
+        const { lat, lon, heightKm } = m;
+        cameraCommand(() => viewer?.camera.setView({ destination: pos(lat, lon, heightKm * 1000), orientation: { heading: 0, pitch: -CMath.PI_OVER_TWO, roll: 0 } }));
         break;
-      case "reset":
+      }
+      case "reset": {
+        const { durationS } = m;
         spinning = false;
-        flyTo(HOME.lat, HOME.lon, HOME.heightKm, reducedMotion ? 0 : m.durationS);
+        cameraCommand(() => flyTo(HOME.lat, HOME.lon, HOME.heightKm, reducedMotion ? 0 : durationS));
         break;
+      }
       case "setMarkers": setMarkers(m.group, m.markers, m.options); break;
       case "setFootprints": setFootprints(m.group, m.footprints); break;
       case "select": selectedId = m.id; rebuildStems(); break;
@@ -1395,13 +1570,25 @@ window.addEventListener("message", (ev: MessageEvent) => {
       case "setOverlay": void setOverlay(m.id, m.url, m.alpha); break;
       case "setGraticule": setGraticule(m.on, m.stepDeg); break;
       case "trackAnchors": anchors = m.anchors; lastAnchors = ""; break;
-      case "zoom": zoom(m.direction); break;
-      case "panBy": panBy(m.dx, m.dy); break;
-      case "resetHeading": resetHeading(); break;
-      case "snapshot": void snapshot(m.requestId, m.lat, m.lon, m.heightKm, m.maxWidth); break;
-      case "setSpin": spinning = m.on; attract = m.on; break;
+      case "zoom": { const d = m.direction; cameraCommand(() => zoom(d)); break; }
+      case "panBy": { const { dx, dy } = m; cameraCommand(() => panBy(dx, dy)); break; }
+      case "resetHeading": cameraCommand(resetHeading); break;
+      case "snapshot":
+        snapshots.add({ id: m.requestId, lat: m.lat, lon: m.lon, heightKm: m.heightKm, maxWidth: m.maxWidth ?? 960, clean: !!m.clean });
+        break;
+      case "cancelSnapshot":
+        // Unknown ids (already answered) need no reply; a queued one is answered by the runner, a running one by itself.
+        snapshots.cancel(m.requestId);
+        break;
+      case "setSpin": spinning = m.on; break;
+      case "setLight": lightMode = m.mode === "intro" ? "intro" : "work"; break;
       case "resize": viewer?.resize(); placeCredits(); break;
-      case "setTilt": setTilt(m.on); break;
+      case "setTilt": {
+        const { on, turn } = m;
+        if (turn === false) tiltPref = on;
+        else cameraCommand(() => setTilt(on));
+        break;
+      }
     }
     requestRender();
   } catch (err) {
@@ -1415,16 +1602,18 @@ window.addEventListener("keydown", (e: KeyboardEvent) => {
   const step = e.shiftKey ? 0.5 : 0.2;
   let handled = true;
   switch (e.key) {
-    case "ArrowUp": panBy(0, -step); break;
-    case "ArrowDown": panBy(0, step); break;
-    case "ArrowLeft": panBy(-step, 0); break;
-    case "ArrowRight": panBy(step, 0); break;
-    case "+": case "=": zoom("in"); break;
-    case "-": case "_": zoom("out"); break;
-    case "n": case "N": resetHeading(); break;
-    case "t": case "T": setTilt(!isTilted(CMath.toDegrees(viewer.camera.pitch))); break;
+    case "ArrowUp": cameraCommand(() => panBy(0, -step)); break;
+    case "ArrowDown": cameraCommand(() => panBy(0, step)); break;
+    case "ArrowLeft": cameraCommand(() => panBy(-step, 0)); break;
+    case "ArrowRight": cameraCommand(() => panBy(step, 0)); break;
+    case "+": case "=": cameraCommand(() => zoom("in")); break;
+    case "-": case "_": cameraCommand(() => zoom("out")); break;
+    case "n": case "N": cameraCommand(resetHeading); break;
+    // Off the planet the camera has no pitch to judge by: the key then flips the stored preference.
+    case "t": case "T": cameraCommand(() => setTilt(currentCenter() ? !isTilted(CMath.toDegrees(viewer!.camera.pitch)) : !tiltPref)); break;
     case "Enter": case " ": {
-      const c = currentCenter();
+      // During a capture the centre is the capture's, not the reader's: nothing to pick.
+      const c = capturing ? null : currentCenter();
       if (c) post({ t: "pick", lat: c.lat, lon: c.lon });
       break;
     }

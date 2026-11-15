@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHANNEL, VIEW_NAMES, anchorPoint, isEnvelope, viewName, wrap, type AnchorPosition, type GlobeToParent, type ParentToGlobe } from "./protocol";
+import { CHANNEL, VIEW_NAMES, anchorPoint, isEnvelope, tiltAnnouncement, viewName, wrap, type AnchorPosition, type GlobeToParent, type ParentToGlobe } from "./protocol";
 
 describe("globe protocol", () => {
   it("carries the tilt command and event in the shared envelope", () => {
@@ -29,5 +29,48 @@ describe("globe protocol", () => {
     expect(viewName(true)).toBe("3D view");
     expect(viewName(false)).toBe("Top-down view");
     expect(VIEW_NAMES).toEqual({ tilted: "3D view", topDown: "Top-down view" });
+  });
+
+  it("carries snapshot cancellation and the clean, settled capture in the shared envelope", () => {
+    const msgs = [
+      { t: "snapshot", requestId: "mars-1", lat: 17.7, lon: 77, heightKm: 420, maxWidth: 800, clean: true },
+      { t: "cancelSnapshot", requestId: "mars-1" },
+      { t: "setLight", mode: "intro" },
+      { t: "setTilt", on: false, turn: false },
+      { t: "flyTo", lat: 1, lon: 2, heightKm: 300, tilt: true },
+    ] satisfies ParentToGlobe[];
+    const replies = [
+      { t: "snapshot", requestId: "mars-1", dataUrl: "data:image/jpeg;base64,x", width: 800, height: 473, imagery: "complete" },
+      { t: "snapshot", requestId: "mars-2", dataUrl: null, width: 0, height: 0, cancelled: true },
+      { t: "tilt", on: true, turned: false },
+    ] satisfies GlobeToParent[];
+    for (const msg of [...msgs, ...replies]) {
+      const env = JSON.parse(JSON.stringify(wrap(msg)));
+      expect(isEnvelope(env)).toBe(true);
+      expect(env.msg).toEqual(msg);
+    }
+  });
+
+  it("keeps the older forms valid: a snapshot without `clean`, a reply without `imagery`, a tilt event without `turned`", () => {
+    const old = [
+      { t: "snapshot", requestId: "earth-3", lat: 0, lon: 0, heightKm: 420 },
+      { t: "setTilt", on: true },
+      { t: "flyTo", lat: 0, lon: 0 },
+    ] satisfies ParentToGlobe[];
+    const oldReplies = [
+      { t: "snapshot", requestId: "earth-3", dataUrl: null, width: 0, height: 0, error: "viewer not ready" },
+      { t: "tilt", on: false },
+    ] satisfies GlobeToParent[];
+    expect(old).toHaveLength(3);
+    expect(oldReplies).toHaveLength(2);
+    // A tilt event without `turned` reads as a view that did turn.
+    expect(tiltAnnouncement(false)).toBe("Top-down view");
+  });
+
+  it("says when the 3D choice could not turn the view and holds for the next site flight", () => {
+    expect(tiltAnnouncement(true, true)).toBe("3D view");
+    const held = tiltAnnouncement(true, false);
+    expect(held.startsWith("3D view applies from the next site flight")).toBe(true);
+    expect(held).toContain("no ground under the centre of the view");
   });
 });

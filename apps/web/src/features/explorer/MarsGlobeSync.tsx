@@ -15,6 +15,13 @@ export function MarsGlobeSync() {
   const sites = useSites();
   const selection = useApp((s) => s.selection);
   const footprintKm = useApp((s) => s.footprintKm);
+  const introOpen = useApp((s) => s.introOpen);
+
+  // The title screen's three-quarter light, set for legibility (not the Sun's position), follows the intro
+  // itself — not the idle spin, which stops at the first touch or never runs under reduced motion.
+  useEffect(() => {
+    bus.send("mars", { t: "setLight", mode: introOpen ? "intro" : "work" });
+  }, [bus, introOpen]);
 
   // Research zones layer: every zone's footprint drawn faintly, with its centre marker. Names come from
   // the hover readout and HTML annotations, so Cesium labels stay off.

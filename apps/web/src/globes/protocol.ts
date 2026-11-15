@@ -83,11 +83,29 @@ export function viewName(tilted: boolean): string {
   return tilted ? VIEW_NAMES.tilted : VIEW_NAMES.topDown;
 }
 
+/**
+ * What the shell announces when the 3D preference changes (a `tilt` event): the view now shown, or — when the
+ * camera could not be turned because nothing but sky is under the centre of the view — that the choice holds
+ * for the next site flight.
+ */
+export function tiltAnnouncement(on: boolean, turned = true): string {
+  return turned ? viewName(on) : `${viewName(on)} applies from the next site flight: there is no ground under the centre of the view to turn about.`;
+}
+
+/** A geographic box, degrees (planetocentric latitude, east-positive longitude). West > east when it crosses ±180°. */
+export interface GroundBox { west: number; south: number; east: number; north: number }
+
 export interface CameraTelemetry {
   /** Camera height above the reference surface, km. */
   heightKm: number;
   /** Surface point under the frame centre (planetocentric, east-positive), or null when looking past the limb. */
   center: { lat: number; lon: number } | null;
+  /**
+   * The ground actually visible in the free area: the box around the free area's border projected on the planet
+   * (up to the horizon where the border looks past it), so a tilted view's far ground is included. Null when the
+   * centre is off the planet; absent from globes that predate it.
+   */
+  view?: GroundBox | null;
   /**
    * Ground distance per CSS pixel at the frame centre, metres, along the screen horizontal (in a tilted view
    * that row is not foreshortened); null when the centre is off the planet.
@@ -108,9 +126,10 @@ export type ParentToGlobe =
   /**
    * Fly so the target sits at the centre of the free area, `heightKm` from the camera (its altitude when
    * looking straight down). Site-scale flights end in the oblique 3D view (pitched ≈ −50°) unless the
-   * user chose the top-down view; whole-planet framings always look straight down.
+   * user chose the top-down view; whole-planet framings always look straight down. `tilt` overrides the
+   * globe's own view preference for this flight (two globes flown together then end at the same pitch).
    */
-  | { t: "flyTo"; lat: number; lon: number; heightKm?: number; durationS?: number }
+  | { t: "flyTo"; lat: number; lon: number; heightKm?: number; durationS?: number; tilt?: boolean }
   /** Fit a geographic box into the unobstructed part of the frame (see setInsets). */
   | { t: "fitBounds"; west: number; south: number; east: number; north: number; padding?: number; minHeightKm?: number; maxHeightKm?: number; durationS?: number }
   /** CSS-pixel insets covered by shell UI; framing, the reticle point and telemetry use the free area. */
@@ -127,15 +146,39 @@ export type ParentToGlobe =
   | { t: "zoom"; direction: "in" | "out" }
   | { t: "panBy"; dx: number; dy: number }
   | { t: "resetHeading" }
-  | { t: "snapshot"; requestId: string; lat: number; lon: number; heightKm: number; maxWidth?: number }
-  /** Idle rotation; while on (the intro) the planet is also lit by a stronger three-quarter light. */
+  /**
+   * Render the view straight down on (lat, lon) from `heightKm`, north up, and reply with a JPEG. Snapshots run
+   * one at a time; each settles when the globe's tile load queue is empty (every imagery tile of that view has
+   * loaded), not after a fixed wait. Any camera flight in progress is completed first, and camera commands that
+   * arrive meanwhile are applied after it, so the view the reader returns to is the one they were heading for.
+   * `clean` hides everything the app draws (markers, labels, footprints, overlays, graticule, moon orbits) for
+   * this capture only; it is shown again afterwards exactly as it was.
+   */
+  | { t: "snapshot"; requestId: string; lat: number; lon: number; heightKm: number; maxWidth?: number; clean?: boolean }
+  /**
+   * Withdraw a snapshot: dropped if it is still queued, or stopped at once if it is rendering (camera,
+   * drawings and inputs restored). Either way the reply is a snapshot with `cancelled: true`.
+   */
+  | { t: "cancelSnapshot"; requestId: string }
+  /** Idle rotation (the intro). Rotation only: the light is set separately (setLight). */
   | { t: "setSpin"; on: boolean }
+  /**
+   * The presentation light, which is set for legibility, not the Sun's position (the app has no solar
+   * ephemeris for either body). It is fixed to the viewer, so the lit hemisphere and the terminator hold
+   * still on screen however the planet turns beneath them. `work` lights the hemisphere in view; `intro`
+   * is a three-quarter light from the upper left with a soft terminator, for the title screen.
+   */
+  | { t: "setLight"; mode: LightMode }
   | { t: "resize" }
   /**
    * Switch between the top-down and the oblique 3D view, keeping the point under the centre of the free
-   * area where it is and at the same ground scale. Later site flights follow the choice.
+   * area where it is and at the same ground scale. Later site flights follow the choice. `turn: false` only
+   * records the choice for later flights (the camera stays as it is and no `tilt` event is sent).
    */
-  | { t: "setTilt"; on: boolean };
+  | { t: "setTilt"; on: boolean; turn?: boolean };
+
+/** Presentation light modes (see setLight). */
+export type LightMode = "work" | "intro";
 
 export type GlobeToParent =
   | { t: "boot"; planet: Planet }
@@ -145,11 +188,20 @@ export type GlobeToParent =
   | { t: "markerClick"; id: string }
   | { t: "camera"; camera: CameraTelemetry }
   | { t: "anchors"; anchors: AnchorPosition[] }
-  | { t: "snapshot"; requestId: string; dataUrl: string | null; width: number; height: number; error?: string }
+  /**
+   * A snapshot's result. `imagery` says whether every tile of the view had loaded when it was taken
+   * ("complete") or the bounded wait ran out first ("partial": some ground may show coarser imagery).
+   * `cancelled` marks a snapshot withdrawn with cancelSnapshot (no image).
+   */
+  | { t: "snapshot"; requestId: string; dataUrl: string | null; width: number; height: number; error?: string; imagery?: "complete" | "partial"; cancelled?: boolean }
   | { t: "interaction" }
   | { t: "key"; key: "Escape" }
-  /** The view was switched (T key in the globe, or setTilt): on = 3D view, off = top-down. */
-  | { t: "tilt"; on: boolean }
+  /**
+   * The 3D preference was switched (T key in the globe, or setTilt): on = 3D view, off = top-down. `turned`
+   * is false when the camera could not be turned because there is no ground under the centre of the view
+   * (it is looking past the planet): the preference still applies to the next site flight.
+   */
+  | { t: "tilt"; on: boolean; turned?: boolean }
   /** Imagery tiles failing to load (throttled); `failures` counts since the previous report. */
   | { t: "imageryStatus"; layer: string; failures: number; ok: boolean }
   | { t: "error"; message: string };
