@@ -107,7 +107,7 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
 
       {/* Location plates */}
       <section aria-label="Location plates" className="mt-10 break-inside-avoid">
-        <div className="grid gap-6 md:grid-cols-2 md:gap-8">
+        <div className="grid gap-6 md:grid-cols-2 md:gap-8 print:grid-cols-2 print:gap-6">
           <LocationPlate planet="mars" lat={target.lat} lon={target.lon} frame={marsFrame} kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"} name={target.siteId ? target.label : "Search target"} imagery="NASA Mars Trek imagery" />
           {c && earthFrame ? (
             <LocationPlate planet="earth" lat={c.lat} lon={c.lon} frame={earthFrame} kicker={c.tier === 1 ? "Earth · Screening cell" : role === "tie_member" ? "Earth · Tie member" : "Earth · Research window"} name={c.tier === 1 && !c.t1?.known_analog.name ? "Screening cell" : c.label} imagery="NASA GIBS imagery" />
@@ -139,9 +139,9 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
           <Section title="Dimensions of analogy" aside="What this analysis can and cannot speak to">
             <ul className="divide-y divide-line">
               {dimensions(c).map((d) => (
-                <li key={d.name} className="grid gap-1 py-2.5 sm:grid-cols-[220px_1fr] sm:gap-6">
+                <li key={d.name} className="grid gap-1 py-2.5 break-inside-avoid sm:grid-cols-[220px_1fr] sm:gap-6 print:grid-cols-[200px_1fr] print:gap-6">
                   <div className="flex items-baseline gap-2">
-                    <span aria-hidden className={cx("inline-block h-2 w-2 shrink-0 translate-y-[-1px] rounded-full", d.status === "evaluated" ? "bg-ink" : d.status === "partial" ? "bg-gradient-to-r from-ink from-50% to-transparent to-50% ring-1 ring-inset ring-ink" : "ring-1 ring-inset ring-faint")} />
+                    <span aria-hidden className={cx("inline-block h-2 w-2 shrink-0 translate-y-[-1px] rounded-full [print-color-adjust:exact]", d.status === "evaluated" ? "bg-ink" : d.status === "partial" ? "bg-gradient-to-r from-ink from-50% to-transparent to-50% ring-1 ring-inset ring-ink" : "ring-1 ring-inset ring-faint")} />
                     <span className="text-label text-ink">{d.name}</span>
                   </div>
                   <div className="text-body text-muted"><span className={cx("text-caption", d.status === "not_evaluated" ? "text-faint" : "text-ink")}>{d.status === "evaluated" ? "Evaluated" : d.status === "partial" ? "Partial" : "Not evaluated"}</span> · {d.detail}</div>
@@ -232,9 +232,9 @@ function Meta({ k, children }: { k: ReactNode; children: ReactNode }) {
 
 function Section({ title, aside, children }: { title: string; aside?: string; children: ReactNode }) {
   return (
-    <section className="grid gap-x-10 gap-y-3 pt-10 md:grid-cols-[200px_1fr] print:break-inside-avoid-page print:pt-7">
+    <section className="grid gap-x-10 gap-y-3 pt-10 md:grid-cols-[200px_1fr] print:grid-cols-[150px_1fr] print:pt-7">
       <div>
-        <h2 className="toponym text-toponym-sm text-ink">{title}</h2>
+        <h2 className="toponym text-toponym-sm text-ink print:break-after-avoid">{title}</h2>
         {aside && <p className="mt-1 text-caption text-faint">{aside}</p>}
       </div>
       <div className="min-w-0">{children}</div>
@@ -291,8 +291,8 @@ function KeyFigures({ search, c }: { search: AnalogSearch; c: ReportCandidate | 
     : <>Global screen · Earth as measured · 25 km · mission-weighted</>;
 
   return (
-    <section aria-label="Key figures" className="mt-10 grid grid-cols-2 gap-x-6 gap-y-7 border-y border-line py-6 lg:grid-cols-[1.35fr_1fr_0.8fr_1.2fr] print:break-inside-avoid">
-      <div className="col-span-2 lg:col-span-1">{decision}</div>
+    <section aria-label="Key figures" className="mt-10 grid grid-cols-2 gap-x-6 gap-y-7 border-y border-line py-6 lg:grid-cols-[1.35fr_1fr_0.8fr_1.2fr] print:break-inside-avoid print:grid-cols-[1.35fr_1fr_0.8fr_1.2fr]">
+      <div className="col-span-2 lg:col-span-1 print:col-span-1">{decision}</div>
       <Fig label={<Term k="similarity">{c?.tier === 1 ? "Screen similarity" : "Similarity S"}</Term>}
         value={<Measure value={c ? c.score : null} digits={3} className="text-figure text-ink" />}
         note={scoreBasis} />
