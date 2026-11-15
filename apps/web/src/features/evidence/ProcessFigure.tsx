@@ -40,6 +40,8 @@ const TIN_EDGES = (() => {
 
 const hair = { vectorEffect: "non-scaling-stroke" as const, strokeWidth: 1 };
 const label = { className: "fill-faint font-mono", fontSize: 8, style: { letterSpacing: "0.03em" } };
+/** A label set over linework: a stroke in the page colour, painted under the glyphs, knocks the lines out behind it. */
+const knockout = { ...label, style: { ...label.style, paintOrder: "stroke" as const, stroke: "var(--color-space)", strokeWidth: 3, strokeLinejoin: "round" as const } };
 
 function Plate({ view, children }: { view: string; children: ReactNode }) {
   return (
@@ -172,7 +174,7 @@ function Blend() {
       {/* Worked example: two neighbouring native columns feed one blended column. */}
       <path d={`M${nx(K) + W3 / 2} ${YA}L${vx} ${YB - BL[K]}L${nx(K + 1) + W3 / 2} ${YA}`} className="fill-none stroke-ink" {...hair} />
       <rect x={vx - 1.4} y={YB - BL[K] - 1.4} width={2.8} height={2.8} className="fill-ink" />
-      <text x={nx(K + 1) + W3 + 4} y={YA + 14} {...label} className="fill-muted font-mono">MEAN</text>
+      <text x={nx(K + 1) + W3 + 4} y={YA + 14} {...knockout} className="fill-muted font-mono">MEAN</text>
       {/* Half-bin offset, dimensioned at the west edge. */}
       <path d={`M${nx(0)} ${YB + 10}H${bxl(0)}M${nx(0)} ${YB + 7}v6M${bxl(0)} ${YB + 7}v6`} className="fill-none stroke-ink" {...hair} />
       <text x={bxl(0) + 4} y={YB + 13} {...label} className="fill-muted font-mono">½ BIN EAST</text>
@@ -224,11 +226,13 @@ function Warp() {
       <rect x={t[0] - 1.4} y={t[1] - 1.4} width={2.8} height={2.8} className="fill-ink" />
       {/* Site centre */}
       <path d={`M${mid - 4} ${midY}H${mid + 4}M${mid} ${midY - 4}V${midY + 4}`} className="stroke-ink" {...hair} />
-      <text x={mid + 6} y={midY + 12} {...label}>SITE</text>
+      <text x={mid + 6} y={midY + 12} {...knockout}>SITE</text>
       <North x={192} y={18} />
-      <text x={SRC.bl[0] - 8} y={VB_H - 10} {...label}>NATIVE BINS</text>
-      <text x={DST.x} y={VB_H - 10} {...label}>AEQD WINDOW</text>
-      <text x={DST.x} y={VB_H - 2} {...label}>BILINEAR READ</text>
+      {/* Key for the dotted line, on the view line: the read is the dotted line, not a property of either grid. */}
+      <line x1={DST.x - 14} x2={DST.x - 5} y1={10.2} y2={10.2} className="stroke-muted" {...hair} strokeDasharray="2 2" />
+      <text x={DST.x - 1} y={13} {...label}>BILINEAR READ</text>
+      <text x={SRC.bl[0] - 8} y={VB_H - 8} {...label}>NATIVE BINS</text>
+      <text x={DST.x} y={VB_H - 8} {...label}>AEQD WINDOW</text>
     </Plate>
   );
 }
@@ -273,7 +277,7 @@ export function ProcessFigure({ m, fig }: { m: EvidenceModel; fig?: string }) {
     },
     {
       letter: st[3]?.letter || "W", title: st[3]?.title ?? "Warp", chain: st[3]?.raw ?? null, art: <Warp />,
-      caption: <>The result is resampled bilinearly onto a square, equidistant (<Gloss k="aeqd" />) window centred on the site, so Mars and Earth share one grid.</>,
+      caption: <>The result is resampled bilinearly onto a square, equidistant <span className="whitespace-nowrap">(<Gloss k="aeqd" />)</span> window centred on the site, so Mars and Earth share one grid.</>,
       value: <><span className="num text-ink">{gridM ?? "—"}</span> m grid · <span className="num text-ink">{m.coverage.tier2Km ?? "—"}</span> km window</>,
       evidence: "ev-coverage",
     },
