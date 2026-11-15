@@ -2,9 +2,12 @@
  * Globe iframe entry. One planet per JS realm (Ellipsoid.default is global mutable state).
  * Query string: ?planet=mars|earth. The parent sends `init` (with optional ion token) after `boot`.
  *
- * Besides rendering, this realm reports camera telemetry (altitude, ground scale, heading, pitch) and the
- * projected screen positions of tracked points, so the React shell can draw map instruments and
- * leader-line annotations in HTML without reaching into Cesium.
+ * Besides rendering, this realm reports camera telemetry (altitude, ground scale, heading, pitch, the ground
+ * in view) and the projected screen positions of tracked points, so the React shell can draw map instruments
+ * and leader-line annotations in HTML without reaching into Cesium.
+ *
+ * Snapshots (report plates) run one at a time, can be withdrawn, settle on the tile load queue and can hide
+ * everything the app draws; while one renders, camera commands wait and telemetry pauses (see runSnapshot).
  *
  * 3D: site flights end in an oblique view pitched about −50° (geometry in camera.ts) and the TILT control
  * or the T key switches top-down ⇄ oblique around the point under the reticle. Footprints are drawn as
@@ -1005,10 +1008,9 @@ function flyTo(lat: number, lon: number, heightKm = planet === "mars" ? 1_400 : 
  * Switch top-down ⇄ 3D around the point under the reticle, at the same ground scale. Looking past the planet
  * there is nothing to turn about: the choice still holds for later flights, and the shell is told so.
  */
-function setTilt(on: boolean, turn = true) {
+function setTilt(on: boolean) {
   if (!viewer) return;
   tiltPref = on;
-  if (!turn) return;
   const t = viewTarget();
   if (!t) {
     post({ t: "tilt", on, turned: false });
