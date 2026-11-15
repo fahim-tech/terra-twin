@@ -23,15 +23,20 @@ export function Wordmark({ compact }: { compact?: boolean }) {
 const DECISION_SHORT: Record<string, string> = {
   named_leader: "stable leader", tied_set: "tie", no_convincing_analog: "no convincing analog", insufficient_evidence: "not enough evidence",
 };
+/** Phone tokens: the full outcome stays in the accessible name; these never cut a G5-derived word mid-way. */
+const DECISION_TINY: Record<string, string> = {
+  named_leader: "leader", tied_set: "tie", no_convincing_analog: "none", insufficient_evidence: "n/a",
+};
 
 /** The investigation trail: Mars · target › Earth · outcome › Compare. Locked steps say what unlocks them. */
 function Trail({ compact }: { compact: boolean }) {
   const { stage, selection, search, candidateId, go } = useApp();
   const t = searchTarget(search);
-  const steps: { id: Stage; planet: string; detail: string | null; locked: string | null }[] = [
-    { id: "mars", planet: "Mars", detail: selection?.label ?? null, locked: null },
-    { id: "earth", planet: "Earth", detail: search ? (search.status === "available" ? DECISION_SHORT[search.tier2.decision.type] : "not enough evidence") : null, locked: search ? null : "Run Find Earth Analogs first" },
-    { id: "compare", planet: "Compare", detail: t && candidateId ? t.label : null, locked: !search ? "Run Find Earth Analogs first" : !candidateId ? "Choose an Earth candidate first" : null },
+  const outcome = search ? (search.status === "available" ? search.tier2.decision.type : "insufficient_evidence") : null;
+  const steps: { id: Stage; planet: string; detail: string | null; tiny: string | null; locked: string | null }[] = [
+    { id: "mars", planet: "Mars", detail: selection?.label ?? null, tiny: selection ? (selection.siteId ? selection.label : "point") : null, locked: null },
+    { id: "earth", planet: "Earth", detail: outcome ? DECISION_SHORT[outcome] : null, tiny: outcome ? DECISION_TINY[outcome] : null, locked: search ? null : "Run Find Earth Analogs first" },
+    { id: "compare", planet: "Compare", detail: t && candidateId ? t.label : null, tiny: t && candidateId ? (t.siteId ? t.label : "point") : null, locked: !search ? "Run Find Earth Analogs first" : !candidateId ? "Choose an Earth candidate first" : null },
   ];
   const visible = compact ? steps.filter((s) => s.id === (stage === "evidence" || stage === "report" ? "mars" : stage)) : steps;
   return (
@@ -39,15 +44,18 @@ function Trail({ compact }: { compact: boolean }) {
       <ol className="flex min-w-0 items-center gap-1">
         {visible.map((s, i) => {
           const current = stage === s.id;
+          const shown = compact ? s.tiny : s.detail;
           return (
             <li key={s.id} className="flex min-w-0 items-center gap-1">
               {i > 0 && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-faint" aria-hidden />}
               <button type="button" onClick={() => !s.locked && go(s.id)} aria-current={current ? "step" : undefined} aria-disabled={!!s.locked}
-                title={s.locked ?? undefined}
-                className={cx("hit group flex min-w-0 items-baseline gap-1.5 rounded-control px-2 py-1 text-label transition-colors",
+                title={s.locked ?? undefined} aria-label={compact && s.detail ? `${s.planet}: ${s.detail}${s.locked ? ` (${s.locked})` : ""}` : undefined}
+                className={cx("hit group flex min-w-0 items-center rounded-control px-2 py-1 text-label transition-colors",
                   s.locked ? "cursor-default text-faint" : current ? "text-ink" : "text-muted hover:text-ink")}>
-                <span className={cx(current && s.id === "mars" && "text-mars", current && s.id === "earth" && "text-earth")}>{s.planet}</span>
-                {s.detail && <span className={cx("truncate", current ? "text-ink" : "text-muted")}>· {s.detail}</span>}
+                <span className="flex min-w-0 items-baseline">
+                  <span className={cx("shrink-0", current && s.id === "mars" && "text-mars", current && s.id === "earth" && "text-earth")}>{s.planet}</span>
+                  {shown && <><span aria-hidden className="mx-1.5 shrink-0 text-faint">·</span><span className="truncate text-muted">{shown}</span></>}
+                </span>
                 {s.locked && !compact && <span className="sr-only">({s.locked})</span>}
               </button>
             </li>
@@ -55,6 +63,16 @@ function Trail({ compact }: { compact: boolean }) {
         })}
       </ol>
     </nav>
+  );
+}
+
+function BackButton({ compact, onClick }: { compact: boolean; onClick: () => void }) {
+  const prev = useApp((s) => s.previousStage);
+  const [full, short] = prev === "mars" ? ["Mars", "Mars"] : prev === "compare" ? ["comparison", "Compare"] : ["Earth", "Earth"];
+  return (
+    <button type="button" onClick={onClick} aria-label={`Back to ${full}`} className="hit shrink-0 whitespace-nowrap rounded-control px-2 py-1 text-label text-muted hover:text-ink">
+      ← {compact ? short : `Back to ${full}`}
+    </button>
   );
 }
 
@@ -74,7 +92,7 @@ export function TopBar({ compact }: { compact: boolean }) {
     <header className="no-print relative z-30 flex h-[52px] shrink-0 items-center gap-3 bg-gradient-to-b from-space via-space/90 to-space/70 px-3 sm:gap-5 sm:px-5">
       <Wordmark compact={compact} />
       {fullPage ? (
-        <button type="button" onClick={back} className="hit rounded-control px-2 py-1 text-label text-muted hover:text-ink">← Back to {useApp.getState().previousStage === "mars" ? "Mars" : useApp.getState().previousStage === "compare" ? "comparison" : "Earth"}</button>
+        <BackButton compact={compact} onClick={back} />
       ) : <Trail compact={compact} />}
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <HoverReadout />
@@ -112,8 +130,21 @@ function MoreMenu() {
     window.addEventListener("pointerdown", onDown);
     return () => { window.removeEventListener("keydown", onKey, true); window.removeEventListener("pointerdown", onDown); };
   }, [open]);
+  const items = () => Array.from(menu.current?.querySelectorAll<HTMLElement>("[role=menuitemradio],[role=menuitemcheckbox]") ?? []);
+  const onMenuKey = (e: React.KeyboardEvent) => {
+    const list = items();
+    const i = list.indexOf(document.activeElement as HTMLElement);
+    const to = e.key === "ArrowDown" ? (i + 1) % list.length : e.key === "ArrowUp" ? (i - 1 + list.length) % list.length
+      : e.key === "Home" ? 0 : e.key === "End" ? list.length - 1 : -1;
+    if (to >= 0 && list.length) { e.preventDefault(); list[to].focus(); }
+    else if (e.key === "Tab") setOpen(false);
+  };
+  const onMenuBlur = (e: React.FocusEvent) => {
+    const next = e.relatedTarget as Node | null;
+    if (next && !menu.current?.contains(next) && !btn.current?.contains(next)) setOpen(false);
+  };
   const item = (on: boolean, label: string, note: string, act: () => void, role: "menuitemradio" | "menuitemcheckbox" = "menuitemradio") => (
-    <button key={label} role={role} aria-checked={on} onClick={act}
+    <button key={label} role={role} aria-checked={on} onClick={act} tabIndex={-1}
       className="flex w-full items-center justify-between gap-4 rounded-control px-2.5 py-2 text-left hover:bg-space/60 focus-visible:bg-space/60">
       <span className="flex items-center gap-2 text-label"><span aria-hidden className={cx("h-1.5 w-1.5 rounded-full", on ? "bg-ink" : "ring-1 ring-faint")} />{label}</span>
       <span className="text-caption text-faint">{note}</span>
@@ -127,7 +158,7 @@ function MoreMenu() {
         <MoreHorizontal className="h-4 w-4" />
       </button>
       {open && (
-        <div ref={menu} role="menu" aria-label="Layers and status" className="surface-solid absolute right-0 top-11 z-50 w-[320px] rounded-[12px] p-2">
+        <div ref={menu} role="menu" aria-label="Layers and status" onKeyDown={onMenuKey} onBlur={onMenuBlur} className="surface-solid absolute right-0 top-11 z-50 w-[320px] rounded-[12px] p-2">
           <div className="kicker px-2.5 pb-1 pt-1.5">Mars imagery</div>
           {MARS_LAYERS.map((l) => item(marsLayer === l.id, l.label, l.note, () => set({ marsLayer: l.id })))}
           <div className="kicker px-2.5 pb-1 pt-3">Earth imagery</div>
