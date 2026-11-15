@@ -1,154 +1,160 @@
 import { ArrowRight, Sparkles } from "lucide-react";
-import { useState } from "react";
-import { Bar, Button, Chip, cx, fmt, Note, pct, Section, Segmented, Spinner } from "../../components/ui";
+import { useMemo } from "react";
+import { Disclosure, PanelBody, PanelFooter, PanelHeader, Tabs, Term } from "../../components/primitives";
+import { Button, cx, Spinner } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
-import { api } from "../../services/api";
+import { zoneName } from "../../lib/glossary";
+import { useMissions } from "../../services/api";
 import { useApp } from "../../store/app";
-import type { Tier2Result } from "../../types/contracts";
-import { candidateList, type CandidateView, prettyWindow, selectedCandidate } from "./candidates";
+import { resultsAreStale, searchTarget, type SearchTarget } from "../../store/searchTarget";
+import type { AnalogSearch } from "../../types/contracts";
+import { type CandidateView, candidateList, measuresOf, prettyWindow, selectedCandidate, T2_MEASURES } from "./candidates";
+import { GlobalStage } from "./GlobalStage";
+import { NoResult } from "./NoResult";
+import { ResearchStage } from "./ResearchStage";
+import { switchTier } from "./tierMemory";
 
-export const DECISION_COPY: Record<Tier2Result["decision"]["type"], { title: string; tone: "ok" | "warn" | "neutral" | "bad" }> = {
-  named_leader: { title: "Named leader", tone: "ok" },
-  tied_set: { title: "Tied set", tone: "warn" },
-  no_convincing_analog: { title: "No convincing analog", tone: "neutral" },
-  insufficient_evidence: { title: "Insufficient evidence", tone: "bad" },
-};
+export { DECISION_COPY, DecisionBlock } from "./Verdict";
 
-export function DecisionBlock({ t2 }: { t2: Tier2Result }) {
-  const d = DECISION_COPY[t2.decision.type];
-  return (
-    <div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Chip tone={d.tone}>{d.title}</Chip>
-        {t2.decision.rotations_checked > 0 && <Chip>{t2.decision.rotations_checked} orientations checked</Chip>}
-        <Chip tone={t2.operator.status === "ok" ? "earth" : "bad"}>operator {t2.operator.status}</Chip>
-      </div>
-      {t2.decision.label && <p className="mt-2.5 text-[12px] leading-relaxed text-muted">{t2.decision.label}</p>}
-    </div>
-  );
+function targetName(t: SearchTarget) {
+  return t.siteId ? zoneName(t.siteId) : t.label;
 }
 
-function CandidateRow({ c, on, onClick }: { c: CandidateView; on: boolean; onClick: () => void }) {
-  const t1 = c.t1, t2 = c.t2;
-  const gate = t2?.landcover?.gate;
-  return (
-    <button onClick={onClick} aria-pressed={on}
-      className={cx("w-full rounded-lg px-3 py-2.5 text-left transition-colors", on ? "bg-earth/10 ring-1 ring-inset ring-earth/30" : "hover:bg-elevated")}>
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="flex min-w-0 items-baseline gap-2">
-          {c.rank !== undefined && <span className="num w-7 shrink-0 font-mono text-[10.5px] text-faint">#{c.rank}</span>}
-          <span className={cx("truncate text-[12.5px]", on ? "text-earth" : "text-ink/90")}>{c.label}</span>
-        </div>
-        <span className="num shrink-0 text-[13px] font-medium">{fmt(c.score, undefined, 3)}</span>
-      </div>
-      <div className={cx("mt-1.5 flex items-center gap-3", c.rank !== undefined && "pl-9")}>
-        <Bar value={c.score} className="flex-1" />
-        <span className="num shrink-0 font-mono text-[10.5px] text-faint">{formatLat(c.lat, 1)} {formatLon(c.lon, 1)}</span>
-      </div>
-      <div className={cx("mt-1.5 flex flex-wrap gap-1", c.rank !== undefined && "pl-9")}>
-        <Chip>coverage {pct(c.coverage)}</Chip>
-        {t1?.known_analog.status === "near_documented_analog" && <Chip tone="warn">near {t1.known_analog.name}</Chip>}
-        {t1?.quality_flags.some((f) => f.severity !== "info") && <Chip tone="warn">quality flag</Chip>}
-        {t2?.kind && t2.kind !== "random" && <Chip tone="warn">{t2.kind}</Chip>}
-        {gate && <Chip tone={gate === "pass" ? "ok" : gate === "fail" ? "bad" : "neutral"}>cover {gate}</Chip>}
-      </div>
-    </button>
-  );
-}
-
-export function AnalogResults() {
-  const { search, tier, set, candidateId, knownFilter, go, mission } = useApp();
-  const [loadingMore, setLoadingMore] = useState(false);
-  if (!search) return <div className="p-6"><Spinner label="No search yet" /></div>;
+/** Search scope (coverage counts, pool, filter, what is not connected) — one step away from the headline. */
+function SearchScope({ search }: { search: AnalogSearch }) {
   const t1 = search.tier1, t2 = search.tier2;
-  const all = candidateList(search);
-  const current = selectedCandidate(search, candidateId);
-  const list = all.filter((c) => c.tier === tier).filter((c) => tier === 2 || knownFilter === "all" || c.t1?.known_analog.status === knownFilter);
+  const pool = t2.candidate_pool as (NonNullable<typeof t2.candidate_pool> & { n_random_stratified?: number; n_named_controls?: number }) | null;
+  return (
+    <Disclosure summary="Search scope">
+      <dl className="space-y-3 pb-2 text-caption">
+        <div>
+          <dt className="text-label text-ink"><Term k="globalScreen">Global screen</Term></dt>
+          <dd className="mt-0.5 text-muted">
+            {t1 ? <>
+              <span className="num text-num-sm text-ink">{t1.candidate_pool.n_cells_searched.toLocaleString()}</span> land cells of ≈{t1.candidate_pool.cell_size_km} km,
+              latitudes {formatLat(t1.candidate_pool.lat_range[0], 0)} to {formatLat(t1.candidate_pool.lat_range[1], 0)}. {t1.candidate_pool.coverage_note}
+            </> : "Not run for this target."}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-label text-ink"><Term k="researchComparison">Research comparison</Term></dt>
+          <dd className="mt-0.5 text-muted">
+            {pool ? <>
+              Fixed pool of <span className="num text-num-sm text-ink">{pool.n_windows}</span> windows
+              {pool.n_random_stratified !== undefined && pool.n_named_controls !== undefined && <> (<span className="num text-num-sm">{pool.n_random_stratified}</span> stratified random, <span className="num text-num-sm">{pool.n_named_controls}</span> named controls)</>}
+              , {pool.window_km} km each. {pool.note}
+            </> : "No research record for this target."}
+          </dd>
+        </div>
+        {t2.live_refinement.status !== "available" && (
+          <div>
+            <dt className="text-label text-ink">Not connected yet</dt>
+            <dd className="mt-0.5 text-muted">Live refinement of new shortlists needs {t2.live_refinement.missing_inputs.map((x) => x.replace(/\s*\(.*\)$/, "")).join(", ")}.</dd>
+          </div>
+        )}
+        <div>
+          <dt className="text-label text-ink">Reference set</dt>
+          <dd className="mt-0.5 text-muted">Documented analogs in the research pool. Being outside it is not evidence of novelty; no site here is claimed to be newly discovered.</dd>
+        </div>
+      </dl>
+    </Disclosure>
+  );
+}
 
-  const loadMore = async () => {
-    if (!t1 || !search.mars.site) return;
-    setLoadingMore(true);
-    try {
-      const page = await api.tier1Page(search.mars.site, (search.request as { mission?: string })?.mission ?? mission, t1.candidates.length, 100);
-      set({ search: { ...search, tier1: { ...t1, candidates: [...t1.candidates, ...page.candidates] } } });
-    } finally {
-      setLoadingMore(false);
-    }
-  };
+function Footer({ current, search, target }: { current: CandidateView | null; search: AnalogSearch; target: SearchTarget }) {
+  const go = useApp((s) => s.go);
+  const set = useApp((s) => s.set);
+  const tier = useApp((s) => s.tier);
+  const d = search.tier2.decision;
+  if (!current) {
+    const hint = tier === 2
+      ? d.type === "tied_set" ? `Choose one of the ${d.members.length} tied windows to compare it with ${targetName(target)} — none is preferred.`
+        : search.tier2.candidates.length ? `Select a research window to compare it with ${targetName(target)}.` : null
+      : `Select a cell to compare it with ${targetName(target)}.`;
+    return hint ? <PanelFooter><p className="text-caption text-muted">{hint}</p></PanelFooter> : null;
+  }
+  const isT2 = current.tier === 2;
+  const tieIdx = isT2 && d.type === "tied_set" ? d.members.indexOf(current.t2!.id) : -1;
+  const n = isT2 ? measuresOf(current.coverage, T2_MEASURES) : current.t1?.n_features_used ?? null;
+  const total = isT2 ? T2_MEASURES : 7;
+  return (
+    <PanelFooter className="shadow-[0_-1px_0_rgb(255_255_255/0.06)]">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className={cx("truncate text-label text-earth")}>{isT2 ? prettyWindow(current.t2!.id) : `${formatLat(current.lat, 2)} ${formatLon(current.lon, 2)}`}</span>
+        <span className="num shrink-0 text-num text-ink">S {current.score === null ? "—" : current.score.toFixed(3)} <span className="text-faint">· {n ?? "—"}/{total}</span></span>
+      </div>
+      <p className="mt-0.5 text-caption text-muted">
+        {isT2 ? `Research comparison · ${current.t2!.window_km || 50} km window · as MOLA would observe it` : `Global screen · ${search.tier1?.candidate_pool.cell_size_km ?? 25} km cell · as measured`}
+        {tieIdx >= 0 && <> · <span className="text-ink">member of a tie ({tieIdx + 1} of {d.members.length})</span></>}
+      </p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button variant="outline" onClick={() => { go("compare"); set({ whyOpen: true }); }}><Sparkles className="h-3.5 w-3.5" aria-hidden /> Why this analog?</Button>
+        <Button variant="primary-earth" onClick={() => go("compare")}>Compare <ArrowRight className="h-3.5 w-3.5" aria-hidden /></Button>
+      </div>
+    </PanelFooter>
+  );
+}
+
+/** Earth results surface: what the search found for its own Mars target, in two ordered stages. */
+export function AnalogResults() {
+  const search = useApp((s) => s.search);
+  const selection = useApp((s) => s.selection);
+  const tier = useApp((s) => s.tier);
+  const candidateId = useApp((s) => s.candidateId);
+  const go = useApp((s) => s.go);
+  const missions = useMissions();
+  const target = useMemo(() => searchTarget(search), [search]);
+  const current = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
+
+  if (!search || !target) return <div className="p-6"><Spinner label="No search yet" /></div>;
+
+  const mission = missions.data?.find((m) => m.id === target.mission);
+  const stale = resultsAreStale(search, selection);
+  const any = candidateList(search).length > 0;
+  const noResult = search.status === "unavailable" || !any;
+  const t1 = search.tier1;
+  const activeTier = tier === 1 && t1 ? 1 : 2;
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="px-5 pb-3 pt-5">
-        <div className="flex items-center gap-2"><Chip tone="earth">Earth analogs</Chip>
-          {search.status === "unavailable" && <Chip tone="bad">unavailable</Chip>}</div>
-        <h2 className="mt-2.5 text-[17px] font-semibold tracking-[-0.015em]">Candidate terrain on Earth</h2>
-        <div className="mt-3">
-          <Segmented ariaLabel="Result tier" value={tier} onChange={(v) => set({ tier: v })}
-            options={[{ value: 2, label: "Tier 2 · OOM" }, { value: 1, label: `Tier 1 · global${t1 ? ` (${t1.total.toLocaleString()})` : ""}`, disabled: !t1 }]} />
-        </div>
-      </div>
-
-      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-        {tier === 2 ? (
-          <Section title="Decision" aside={<span className="text-[10.5px] text-faint">{t2.target.window_km} km windows</span>}>
-            <DecisionBlock t2={t2} />
-            {t2.operator.status !== "ok" && (
-              <div className="mt-3 space-y-2">
-                <Note tone="warning">No similarity score is shown: the target-specific MOLA observation operator is unavailable here, and the app does not substitute the uncorrected comparison.</Note>
-                <div className="flex flex-wrap gap-1.5">{(t2.operator as { missing_inputs?: string[] }).missing_inputs?.map((x) => <Chip key={x} className="whitespace-normal text-left">{x}</Chip>)}</div>
-              </div>
-            )}
-            {t2.landcover_gate && (
-              <p className="mt-3 text-[11px] leading-relaxed text-faint">
-                Land cover {t2.landcover_gate.mode === "exclude" ? "gate applied before ranking" : "reported, never used to exclude"} ·
-                bare ≥ {t2.landcover_gate.bare_min}, vegetated ≤ {t2.landcover_gate.veg_max} (working hypotheses).
-              </p>
-            )}
-          </Section>
-        ) : t1 && (
-          <Section title="Global screen" aside={<span className="text-[10.5px] text-faint">25 km cells</span>}>
-            <div className="num grid grid-cols-3 gap-2 text-[11px] text-muted">
-              <div><div className="text-faint">Leader S</div><span className="text-[14px] text-ink">{fmt(t1.summary.leader_similarity, undefined, 3)}</span></div>
-              <div><div className="text-faint">Within 0.05</div><span className="text-[14px] text-ink">{t1.summary.n_within_0p05_of_leader}</span></div>
-              <div><div className="text-faint">S ≥ 0.75</div><span className="text-[14px] text-ink">{t1.summary.n_strong_ge_0p75.toLocaleString()}</span></div>
-            </div>
-            <p className="mt-3 text-[11px] leading-relaxed text-faint">{t1.disclaimer}</p>
-          </Section>
-        )}
-
-        <div className="space-y-0.5 px-2 pb-3">
-          {list.map((c) => <CandidateRow key={c.id} c={c} on={current?.id === c.id} onClick={() => set({ candidateId: c.id })} />)}
-          {list.length === 0 && <p className="px-3 py-4 text-[12px] text-muted">No candidates in this view.</p>}
-          {tier === 1 && t1 && t1.candidates.length < t1.total && (
-            <Button variant="ghost" className="w-full" onClick={loadMore} disabled={loadingMore}>
-              {loadingMore ? "Loading…" : `Load next 100 of ${t1.total.toLocaleString()}`}
-            </Button>
-          )}
-        </div>
-
-        {tier === 2 && t2.as_measured_baseline && (
-          <Section title="Uncorrected comparator">
-            <div className="flex items-baseline justify-between text-[12px]">
-              <span className="text-muted">Leader as measured: <span className="text-ink">{prettyWindow(t2.as_measured_baseline.leader)}</span></span>
-              <span className="num">{fmt(t2.as_measured_baseline.S, undefined, 3)}</span>
-            </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-faint">{t2.as_measured_baseline.label}</p>
-          </Section>
-        )}
-      </div>
-
-      {current && (
-        <div className="border-t border-line/70 p-4">
-          <div className="mb-3 flex items-baseline justify-between gap-2">
-            <span className="truncate text-[12.5px] text-earth">{current.label}</span>
-            <span className="num text-[11px] text-faint">{current.tier === 2 ? "50 km window" : "25 km cell"}</span>
+    <div className="flex h-full min-h-0 flex-col">
+      <PanelHeader className="pb-1">
+        <h2 data-stage-heading="earth" tabIndex={-1} className="outline-none focus-visible:outline-none">
+          <span className="block text-caption text-muted">Results for</span>
+          <span className="toponym mt-0.5 block text-toponym text-ink">{targetName(target)}</span>
+        </h2>
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
+          <span className="text-mars">{mission?.label ?? target.mission.replace(/_/g, " ")}</span>
+          <span aria-hidden>·</span>
+          <span className="num text-num-sm">{formatLat(target.lat, 3)} {formatLon(target.lon, 3)}</span>
+        </p>
+        {stale && selection && (
+          <div role="status" className="mt-3 rounded-control bg-warn/10 px-3 py-2 text-caption text-ink">
+            <span aria-hidden className="mr-1 text-warn">⚠</span>
+            Your selection moved to <span className="text-warn">{selection.label}</span>. These results are still for {targetName(target)}.{" "}
+            <button type="button" onClick={() => go("mars")} className="hit inline-flex items-center gap-1 text-ink underline decoration-warn/60 underline-offset-2 hover:decoration-warn">
+              Find Earth Analogs for the new point <ArrowRight className="h-3 w-3" aria-hidden />
+            </button>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={() => { go("compare"); set({ whyOpen: true }); }}><Sparkles className="h-3.5 w-3.5" /> Why this analog?</Button>
-            <Button variant="primary-earth" onClick={() => go("compare")}>Compare <ArrowRight className="h-3.5 w-3.5" /></Button>
+        )}
+        {!noResult && (
+          <Tabs ariaLabel="Result stage" className="mt-3 shadow-[inset_0_-1px_0_rgb(255_255_255/0.06)]" value={String(activeTier) as "1" | "2"} onChange={(v) => switchTier(Number(v) as 1 | 2)}
+            options={[
+              { value: "2", label: <span><span className="num mr-1.5 text-num-sm text-faint">1</span>Research comparison</span> },
+              { value: "1", label: <span><span className="num mr-1.5 text-num-sm text-faint">2</span>Global screen</span>, disabled: !t1 },
+            ]} />
+        )}
+      </PanelHeader>
+
+      <PanelBody className="pt-3">
+        {noResult ? <NoResult search={search} target={target} /> : (
+          <div role="tabpanel" aria-label={activeTier === 2 ? "Research comparison" : "Global screen"}>
+            {activeTier === 2 ? <ResearchStage search={search} candidateId={candidateId} /> : <GlobalStage search={search} candidateId={candidateId} />}
           </div>
-        </div>
-      )}
+        )}
+        <div className="mt-2 pb-3"><SearchScope search={search} /></div>
+      </PanelBody>
+
+      {!noResult && <Footer current={current} search={search} target={target} />}
     </div>
   );
 }

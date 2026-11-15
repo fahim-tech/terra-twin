@@ -1,57 +1,125 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useGlobeBus, useGlobeEvents } from "../../app/globeBus";
-import type { GlobeMarker } from "../../globes/protocol";
+import type { GlobeFootprint, GlobeMarker } from "../../globes/protocol";
 import { api, useEarthPool, useEarthSites } from "../../services/api";
 import { useApp } from "../../store/app";
-import { candidateList, selectedCandidate } from "./candidates";
+import { boundsOf, type CandidateView, candidateList, selectedCandidate } from "./candidates";
+import { useEarthLocal } from "./earthLocal";
+import { chooseCandidate, useTierMemorySync } from "./tierMemory";
 
-/** Keeps the Earth globe in step with search results and the selected candidate. */
+/** Short marker labels: the panel carries the full name. */
+function markerLabel(c: CandidateView) {
+  if (c.tier === 1) return undefined;
+  const m = /^rand_d\d_(\d+)$/.exec(c.t2!.id);
+  return m ? `Window ${m[1]}` : c.label;
+}
+
+/**
+ * The set the Earth stage is about right now: tier-2 decision members (else all tier-2 windows),
+ * or — on the global screen, or when the research comparison has nothing — the first page of cells.
+ */
+export function activeSet(cands: CandidateView[], tier: 1 | 2, members: string[], firstPage: number): CandidateView[] {
+  const t2 = cands.filter((c) => c.tier === 2);
+  const t1 = cands.filter((c) => c.tier === 1).slice(0, firstPage);
+  if (tier === 2 && t2.length) {
+    const m = t2.filter((c) => members.includes(c.t2!.id));
+    return m.length ? m : t2;
+  }
+  return t1.length ? t1 : t2;
+}
+
+/** Keeps the Earth globe in step with search results, the active stage and the selected candidate. */
 export function EarthGlobeSync() {
+  useTierMemorySync();
   const bus = useGlobeBus();
   const earthSites = useEarthSites();
   const search = useApp((s) => s.search);
   const candidateId = useApp((s) => s.candidateId);
+  const tier = useApp((s) => s.tier);
   const stage = useApp((s) => s.stage);
   const overlays = useApp((s) => s.earthOverlays);
+  const showReference = useEarthLocal((s) => s.referenceSites);
   const pool = useEarthPool();
   const site = search?.mars.site ?? null;
   const mission = (search?.request as { mission?: string } | undefined)?.mission ?? null;
   const cands = useMemo(() => candidateList(search), [search]);
   const current = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
+  const members = useMemo(() => search?.tier2.decision.members ?? [], [search]);
 
+  // Named reference / control windows only when their layer is on.
   useEffect(() => {
-    if (!earthSites.data) return;
+    const show = showReference && earthSites.data;
     bus.send("earth", {
-      t: "setMarkers", group: "reference", markers: earthSites.data.map((x) => ({
+      t: "setMarkers", group: "reference", options: { labels: "selected" }, markers: show ? earthSites.data!.map((x) => ({
         id: `ref:${x.id}`, lat: x.lat, lon: x.lon, kind: x.category === "negative_control" ? "control" : "reference", label: x.name,
-      })),
+      })) : [],
     });
-  }, [bus, earthSites.data]);
+  }, [bus, earthSites.data, showReference]);
 
+  // Research windows (tier 2) and screened cells (tier 1) are separate groups: cells cluster, windows never do.
   useEffect(() => {
-    const markers: GlobeMarker[] = cands.map((c) => ({ id: c.id, lat: c.lat, lon: c.lon, kind: c.tier === 2 ? "leader" : "candidate", label: c.label, rank: c.tier === 1 ? c.rank : undefined }));
-    bus.send("earth", { t: "setMarkers", group: "candidates", markers, options: { cluster: true } });
-  }, [bus, cands]);
+    const t2: GlobeMarker[] = cands.filter((c) => c.tier === 2).map((c) => ({
+      id: c.id, lat: c.lat, lon: c.lon, kind: members.includes(c.t2!.id) ? "leader" : "candidate", label: markerLabel(c),
+    }));
+    const t1: GlobeMarker[] = cands.filter((c) => c.tier === 1).map((c) => ({ id: c.id, lat: c.lat, lon: c.lon, kind: "candidate", rank: c.rank }));
+    bus.send("earth", { t: "setMarkers", group: "candidates", markers: [] });
+    bus.send("earth", { t: "setMarkers", group: "t2", markers: t2, options: { labels: "selected" } });
+    bus.send("earth", { t: "setMarkers", group: "t1", markers: t1, options: { cluster: true, labels: "none" } });
+  }, [bus, cands, members]);
 
+  // 50 km windows of the tier-2 members, drawn while the research comparison is the active stage.
   useEffect(() => {
-    if (!current) {
-      bus.send("earth", { t: "setFootprints", group: "cand", footprints: [] });
-      bus.send("earth", { t: "select", id: null });
+    const fps: GlobeFootprint[] = tier === 2
+      ? cands.filter((c) => c.tier === 2 && members.includes(c.t2!.id) && c.id !== current?.id)
+        .map((c) => ({ id: `m:${c.id}`, kind: "window", lat: c.lat, lon: c.lon, km: c.t2!.window_km || 50 }))
+      : [];
+    bus.send("earth", { t: "setFootprints", group: "members", footprints: fps });
+  }, [bus, cands, members, tier, current?.id]);
+
+  // Selected candidate: highlight + its true footprint (25 km cell box or 50 km window).
+  useEffect(() => {
+    bus.send("earth", { t: "select", id: current?.id ?? null });
+    bus.send("earth", {
+      t: "setFootprints", group: "cand", footprints: !current ? [] : [current.tier === 1 && current.bbox
+        ? { id: current.id, kind: "cell", lat: current.lat, lon: current.lon, bbox: current.bbox }
+        : { id: current.id, kind: "window", lat: current.lat, lon: current.lon, km: current.t2?.window_km || 50 }],
+    });
+  }, [bus, current]);
+
+  // Camera: frame the active set on arrival, on a new search and on a stage switch; fly to a candidate
+  // only when the user picks one.
+  const frameKey = stage === "earth" && search ? `${search.id}|${tier}` : null;
+  const last = useRef<{ frameKey: string | null; candidateId: string | null }>({ frameKey: null, candidateId: null });
+  useEffect(() => {
+    const prev = last.current;
+    last.current = { frameKey, candidateId };
+    if (!frameKey || !search) return;
+    if (frameKey !== prev.frameKey) {
+      const intent = useEarthLocal.getState().intent;
+      useEarthLocal.setState({ intent: null });
+      if (intent === "select" && current) {
+        bus.send("earth", { t: "flyTo", lat: current.lat, lon: current.lon, heightKm: current.tier === 1 ? 900 : 1100 });
+        return;
+      }
+      const set = activeSet(cands, tier, members, search.tier1?.limit || 50);
+      const b = boundsOf(set.map((c) => ({ lat: c.lat, lon: c.lon, bbox: c.tier === 1 ? c.bbox : undefined })));
+      if (!b) { bus.send("earth", { t: "reset" }); return; }
+      // A single 50 km window still gets regional context around it.
+      const padLat = Math.max(0, (3 - (b.north - b.south)) / 2);
+      const span = ((b.east - b.west) % 360 + 360) % 360;
+      const padLon = Math.max(0, (3 - span) / 2);
+      bus.send("earth", {
+        t: "fitBounds", west: b.west - padLon, east: b.east + padLon,
+        south: Math.max(-89, b.south - padLat), north: Math.min(89, b.north + padLat), padding: 0.16, minHeightKm: 600, maxHeightKm: 20_000,
+      });
       return;
     }
-    bus.send("earth", { t: "select", id: current.id });
-    bus.send("earth", {
-      t: "setFootprints", group: "cand", footprints: [current.tier === 1 && current.bbox
-        ? { id: current.id, kind: "cell", lat: current.lat, lon: current.lon, bbox: current.bbox }
-        : { id: current.id, kind: "window", lat: current.lat, lon: current.lon, km: 50 }],
-    });
-    if (stage === "earth") bus.send("earth", { t: "flyTo", lat: current.lat, lon: current.lon, heightKm: 1600 });
-  }, [bus, current, stage]);
-
-  useEffect(() => {
-    if (stage === "earth" && !current) bus.send("earth", { t: "reset" });
+    if (candidateId && candidateId !== prev.candidateId && current) {
+      useEarthLocal.setState({ intent: null });
+      bus.send("earth", { t: "flyTo", lat: current.lat, lon: current.lon, heightKm: current.tier === 1 ? 900 : 1100 });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage]);
+  }, [frameKey, candidateId]);
 
   // Tier-1 similarity field for the searched Mars target (display product from the API).
   useEffect(() => {
@@ -63,7 +131,7 @@ export function EarthGlobeSync() {
     bus.send("earth", { t: "setOverlay", id: "coverage", url: overlays.coverage ? api.coverageRasterUrl() : null, alpha: 1 });
   }, [bus, overlays.coverage]);
 
-  // The 230 windows tier-2 actually examined, shown faintly so refinement coverage is honest.
+  // The 230 windows the research comparison actually examined, shown faintly so its coverage is honest.
   useEffect(() => {
     const show = overlays.pool && !!search && pool.data;
     bus.send("earth", {
@@ -77,7 +145,9 @@ export function EarthGlobeSync() {
   }, [bus]);
 
   useGlobeEvents("earth", (m) => {
-    if (m.t === "markerClick" && !m.id.startsWith("ref:") && !m.id.startsWith("pool:")) useApp.getState().set({ candidateId: m.id });
+    if (m.t !== "markerClick" || m.id.startsWith("ref:") || m.id.startsWith("pool:")) return;
+    useEarthLocal.setState({ intent: "select" });
+    chooseCandidate(m.id);
   });
   return null;
 }
