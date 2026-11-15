@@ -70,16 +70,26 @@ export function MarsSearch() {
   const n = sites.data?.length;
 
   const options = useMemo(() => {
+    if (parseCoordinate(q)) return [];
     const all = (sites.data ?? []).map((s) => ({ ...s, display: zoneName(s.id) }));
     const t = q.trim().toLowerCase();
-    if (coord) return [];
     if (!t) {
       const start = START_HERE.map((id) => all.find((s) => s.id === id)).filter(Boolean) as typeof all;
       const rest = all.filter((s) => !START_HERE.includes(s.id)).sort((a, b) => a.display.localeCompare(b.display));
       return [...start.map((s) => ({ ...s, group: "Start here" })), ...rest.map((s) => ({ ...s, group: `All ${all.length} research zones` }))];
     }
     return all.filter((s) => s.display.toLowerCase().includes(t) || s.id.toLowerCase().includes(t)).map((s) => ({ ...s, group: "Matching zones" }));
-  }, [sites.data, q, coord]);
+  }, [sites.data, q]);
+  /** The options in their listbox groups, each keeping its index in the flat keyboard order. */
+  const groups = useMemo(() => {
+    const out: { name: string; items: { s: (typeof options)[number]; i: number }[] }[] = [];
+    options.forEach((s, i) => {
+      const last = out[out.length - 1];
+      if (last && last.name === s.group) last.items.push({ s, i });
+      else out.push({ name: s.group, items: [{ s, i }] });
+    });
+    return out;
+  }, [options]);
 
   const go = (s: Selection, viaKeyboard: boolean) => {
     useExplorer.getState().set({ origin: null });
@@ -134,17 +144,17 @@ export function MarsSearch() {
     if (!open || !byKeys.current || !activeId) return;
     byKeys.current = false;
     const ul = list.current;
-    const row = document.getElementById(activeId)?.parentElement;
+    const row = document.getElementById(activeId);
     if (!ul || !row) return;
-    const d = revealDelta(row.getBoundingClientRect(), ul.getBoundingClientRect(), 16);
+    const head = row.previousElementSibling?.hasAttribute("data-group-head") ? row.previousElementSibling : null;
+    const d = revealDelta({ top: (head ?? row).getBoundingClientRect().top, bottom: row.getBoundingClientRect().bottom }, ul.getBoundingClientRect(), 16);
     if (d) ul.scrollTop += d;
   }, [open, activeId]);
 
-  const placeholder = selection
-    ? `${selection.siteId ? zoneName(selection.siteId) : formatCoord(selection.lat, selection.lon)} · search zones`
-    : n ? `Search ${n} research zones` : "Search research zones";
+  // The field never repeats the selected place: the inspector, the top bar and the globe callout carry it,
+  // and a long zone name here would be cut mid-word next to the LAT, LON hint.
+  const placeholder = n ? `Search ${n} research zones` : "Search research zones";
 
-  let lastGroup = "";
   return (
     <div className="relative w-full" onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOpen(false); }}>
       {!selection && <h1 data-stage-heading="mars" tabIndex={-1} className="sr-only">Mars explorer</h1>}
@@ -158,7 +168,7 @@ export function MarsSearch() {
         <input ref={input} value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); setActive(0); }} onFocus={openList} onClick={openList} onKeyDown={onKey}
           role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list" aria-activedescendant={activeId} aria-keyshortcuts="/"
           placeholder={placeholder} aria-label="Search research zones or enter a latitude and longitude" spellCheck={false} autoComplete="off"
-          style={{ outline: "none" }} className="h-full min-w-0 flex-1 bg-transparent pl-3 pr-2 text-body text-ink placeholder:text-muted" />
+          style={{ outline: "none" }} className="h-full min-w-0 flex-1 text-ellipsis bg-transparent pl-3 pr-2 text-body text-ink placeholder:text-muted" />
         <span className="flex shrink-0 items-center gap-2 pr-2">
           {q ? (
             <>
@@ -218,31 +228,34 @@ export function MarsSearch() {
                     : sites.isLoading ? "Loading research zones…"
                     : <>No zone matches “{q.trim()}”. Try a name, or a coordinate like <span className="num text-ink">18.4, 77.5</span>.</>}
                 </li>
-              ) : options.map((s, i) => {
-                const note = s.group === "Start here" && s.id === "Cerberus" ? <PositiveControlNote /> : null;
-                const head = s.group !== lastGroup ? s.group : null;
-                lastGroup = s.group;
-                const o = bySite[s.id];
-                const current = selection?.siteId === s.id;
-                const on = i === active;
-                return (
-                  <li key={s.id} role="presentation">
-                    {head && <div role="presentation" className="kicker rule-after px-4 pb-1.5 pt-3">{head}</div>}
-                    <div id={`${listId}-${s.id}`} role="option" aria-selected={on} aria-current={current || undefined}
-                      onMouseDown={(e) => e.preventDefault()} onMouseMove={() => { if (!on) setActive(i); }} onClick={() => choose(i)}
-                      className={cx("relative flex cursor-pointer items-center gap-3 py-[7px] pl-4 pr-4 [@media(pointer:coarse)]:min-h-[44px]", on && "bg-white/[0.06]")}>
-                      {on && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-ink" />}
-                      <OutcomeGlyph type={o?.type} />
-                      <span className="min-w-0 flex-1">
-                        <span className={cx("block truncate text-label", current ? "text-mars" : "text-ink")}>{s.display}</span>
-                        {note}
-                      </span>
-                      {current && <span className="sr-only">(selected)</span>}
-                      <span className="num shrink-0 text-num-sm text-faint">{formatCoord(s.lat, s.lon, 1)}</span>
-                    </div>
-                  </li>
-                );
-              })}
+              ) : groups.map((g, k) => (
+                // Listbox groups: screen readers name the group ("Start here") as the highlight enters it.
+                <li key={g.name} role="presentation">
+                  <div role="group" aria-labelledby={`${listId}-g${k}`}>
+                    <div id={`${listId}-g${k}`} aria-hidden data-group-head="" className="kicker rule-after px-4 pb-1.5 pt-3">{g.name}</div>
+                    {g.items.map(({ s, i }) => {
+                      const note = s.group === "Start here" && s.id === "Cerberus" ? <PositiveControlNote /> : null;
+                      const o = bySite[s.id];
+                      const current = selection?.siteId === s.id;
+                      const on = i === active;
+                      return (
+                        <div key={s.id} id={`${listId}-${s.id}`} role="option" aria-selected={on} aria-current={current || undefined}
+                          onMouseDown={(e) => e.preventDefault()} onMouseMove={() => { if (!on) setActive(i); }} onClick={() => choose(i)}
+                          className={cx("relative flex cursor-pointer items-center gap-3 py-[7px] pl-4 pr-4 [@media(pointer:coarse)]:min-h-[44px]", on && "bg-white/[0.06]")}>
+                          {on && <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-ink" />}
+                          <OutcomeGlyph type={o?.type} />
+                          <span className="min-w-0 flex-1">
+                            <span className={cx("block truncate text-label", current ? "text-mars" : "text-ink")}>{s.display}</span>
+                            {note}
+                          </span>
+                          {current && <span className="sr-only">(selected)</span>}
+                          <span className="num shrink-0 text-num-sm text-faint">{formatCoord(s.lat, s.lon, 1)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </li>
+              ))}
             </ul>
             {!coord && (
               <div className="border-t border-line px-4 pb-3 pt-2.5">
