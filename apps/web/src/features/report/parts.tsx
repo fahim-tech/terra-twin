@@ -1,8 +1,10 @@
 /**
  * Small presentational pieces shared by the dossier: numeral typesetting, numbered section heads,
- * decision and status marks, and hairline readout grids. Square, 1 px linework; no rounded containers.
+ * decision and status marks (the app's shared set), and hairline readout grids. Square, 1 px linework; no
+ * rounded containers.
  */
 import type { ReactNode } from "react";
+import { OutcomeMark, outcomeKind, StatusMark as SharedStatusMark, type StatusKind } from "../../components/marks";
 import { cx } from "../../components/ui";
 import type { DecisionType, DimensionStatus } from "./model";
 import { splitNumerals } from "./typeset";
@@ -44,36 +46,21 @@ export function DossierSection({ id, index, title, aside, children, className }:
 }
 
 /**
- * Research decision mark, drawn as 1 px linework with the same meaning as the glyphs in the other views:
- * ◉ stable leader, ◎ tie, — no convincing analog, ⊘ not enough evidence. Always paired with words.
+ * Research decision mark: the app's shared outcome mark (components/marks.tsx), so the dossier draws a
+ * decision exactly as the Mars, Earth and comparison views do: solid square = stable leader, two nested
+ * squares = tie, hollow square = no analog named (no convincing analog, not enough evidence). Always paired
+ * with words. `size` in px, drawn on the pixel grid.
  */
-export function DecisionMark({ type, className }: { type: DecisionType; className?: string }) {
-  return (
-    <svg viewBox="0 0 12 12" aria-hidden className={cx("inline-block h-[0.66em] w-[0.66em] shrink-0 overflow-visible", className)}>
-      {type === "no_convincing_analog" ? (
-        <path d="M1 6h10" stroke="currentColor" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />
-      ) : (
-        <>
-          <circle cx="6" cy="6" r="5.25" fill="none" stroke="currentColor" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />
-          {type === "named_leader" && <circle cx="6" cy="6" r="2.4" fill="currentColor" />}
-          {type === "tied_set" && <circle cx="6" cy="6" r="2.4" fill="none" stroke="currentColor" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />}
-          {type === "insufficient_evidence" && <path d="M2.3 9.7L9.7 2.3" stroke="currentColor" strokeWidth="1.25" vectorEffect="non-scaling-stroke" />}
-        </>
-      )}
-    </svg>
-  );
+export function DecisionMark({ type, size = 9, className }: { type: DecisionType; size?: number; className?: string }) {
+  return <OutcomeMark kind={outcomeKind(type)} size={size} className={className} />;
 }
 
 const STATUS_WORD: Record<DimensionStatus, string> = { evaluated: "Evaluated", partial: "Partial", not_evaluated: "Not evaluated" };
+const STATUS_KIND: Record<DimensionStatus, StatusKind> = { evaluated: "on", partial: "partial", not_evaluated: "off" };
 
-/** 6 px status square: filled = evaluated, half = partial, outlined = not evaluated. Always with the word. */
+/** Shared status square: filled = evaluated, half filled = partial, outlined = not evaluated. Always with the word. */
 export function StatusMark({ status, className }: { status: DimensionStatus; className?: string }) {
-  return (
-    <span aria-hidden className={cx("relative inline-block h-1.5 w-1.5 shrink-0 [print-color-adjust:exact]",
-      status === "evaluated" ? "bg-ink" : status === "partial" ? "ring-1 ring-inset ring-ink" : "ring-1 ring-inset ring-faint", className)}>
-      {status === "partial" && <span className="absolute inset-y-0 left-0 w-1/2 bg-ink" />}
-    </span>
-  );
+  return <SharedStatusMark state={STATUS_KIND[status]} className={className} />;
 }
 
 export function statusWord(s: DimensionStatus): string {

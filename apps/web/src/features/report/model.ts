@@ -3,11 +3,14 @@
  * the stored analog search (bound to its own target via searchTarget) and the chosen candidate.
  * Pure functions, no React — tested in model.test.ts.
  */
+import { DECISION_WORDS } from "../../components/marks";
+import { formatLat, formatLon } from "../../lib/geodesy";
 import { decisionG5Label, G5 } from "../../lib/glossary";
 import { clock, marsTime } from "../../lib/instruments";
 import { searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, MissionProfile, Tier1Candidate, Tier2Candidate } from "../../types/contracts";
 import { memberOrder, researchWindowKm, screenCellKm } from "../analogs/candidates";
+import { tiedWindowsListed } from "../analogs/readout";
 import { interpret, PLANETARY_DIFFERENCES, TIER1_SPECS } from "../comparison/science";
 import { indexLabel } from "./typeset";
 
@@ -41,9 +44,10 @@ export function cellLabel(c: Tier1Candidate): string {
   return c.known_analog.name ? `Cell near ${c.known_analog.name}` : `Cell at ${fmtCoord(c.lat, c.lon, 2)}`;
 }
 
-export function fmtLat(lat: number, d = 2) { return `${Math.abs(lat).toFixed(d)}° ${lat >= 0 ? "N" : "S"}`; }
-export function fmtLon(lon: number, d = 2) { return `${Math.abs(lon).toFixed(d)}° ${lon >= 0 ? "E" : "W"}`; }
-export function fmtCoord(lat: number, lon: number, d = 2) { return `${fmtLat(lat, d)} ${fmtLon(lon, d)}`; }
+/** Coordinates through the app's shared helpers (lib/geodesy), so the dossier writes a point as every view does. */
+export function fmtLat(lat: number, d = 2) { return formatLat(lat, d); }
+export function fmtLon(lon: number, d = 2) { return formatLon(lon, d); }
+export function fmtCoord(lat: number, lon: number, d = 2) { return `${formatLat(lat, d)} ${formatLon(lon, d)}`; }
 
 const T2_DESCRIPTORS = 8;
 const T1_DESCRIPTORS = Object.keys(TIER1_SPECS).length;
@@ -83,12 +87,13 @@ export function candidateRole(search: AnalogSearch, c: ReportCandidate): Candida
   return "research_window";
 }
 
+/** Each decision's plain name (the words every view prints) and its G5 label; the mark is drawn by parts.tsx DecisionMark. */
 export const DECISION = {
-  named_leader: { title: "Stable leader", glyph: "◉", g5: G5.leader },
-  tied_set: { title: "Tie", glyph: "◎", g5: G5.tied },
-  no_convincing_analog: { title: "No convincing analog", glyph: "—", g5: null },
-  insufficient_evidence: { title: "Not enough evidence", glyph: "⊘", g5: null },
-} satisfies Record<DecisionType, { title: string; glyph: string; g5: string | null }>;
+  named_leader: { title: DECISION_WORDS.named_leader, g5: G5.leader },
+  tied_set: { title: DECISION_WORDS.tied_set, g5: G5.tied },
+  no_convincing_analog: { title: DECISION_WORDS.no_convincing_analog, g5: null },
+  insufficient_evidence: { title: DECISION_WORDS.insufficient_evidence, g5: null },
+} satisfies Record<DecisionType, { title: string; g5: string | null }>;
 
 /** Headline for the research decision, e.g. "Tie · 3 equivalent windows". */
 export function decisionHeadline(search: AnalogSearch): string {
@@ -312,7 +317,7 @@ export function buildCsv(search: AnalogSearch, c: ReportCandidate | null, eviden
   const byId = new Map(t2.candidates.map((x) => [x.id, x]));
   const researchRows = [...order.map((id) => byId.get(id)).filter((x): x is Tier2Candidate => !!x), ...t2.candidates.filter((x) => !order.includes(x.id))];
   for (const x of researchRows) {
-    rows.push({ section: "research_comparison", tier: 2, representation: t2.representation, id: x.id, label: windowLabel(x.id), lat: x.lat, lon: x.lon, score: x.S, score_name: "S_research", unit: "index 0-1", coverage: x.coverage, decision: t2.decision.members.includes(x.id) ? t2.decision.type : "not_a_decision_member", note: t2.decision.type === "tied_set" && t2.decision.members.includes(x.id) ? "tie member; equivalent at this resolution, not ranked" : "" });
+    rows.push({ section: "research_comparison", tier: 2, representation: t2.representation, id: x.id, label: windowLabel(x.id), lat: x.lat, lon: x.lon, score: x.S, score_name: "S_research", unit: "index 0-1", coverage: x.coverage, decision: t2.decision.members.includes(x.id) ? t2.decision.type : "not_a_decision_member", note: t2.decision.type === "tied_set" && t2.decision.members.includes(x.id) ? `${tiedWindowsListed(t2.decision.members.length)}; equivalent at this resolution, not ranked` : "" });
   }
   const b = t2.as_measured_baseline;
   if (b) rows.push({ section: "uncorrected_comparator", tier: 2, representation: "as_measured", id: b.leader, label: b.leader, lat: b.lat, lon: b.lon, score: b.S, score_name: "S_as_measured", unit: "index 0-1", coverage: b.coverage, decision: "comparator_not_a_fallback", note: b.label });

@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
+import { SFigure } from "../../components/marks";
 import { Term } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
 import type { AnalogSearch } from "../../types/contracts";
 import { screenCellKm } from "../analogs/candidates";
+import { tiedWindowsListed } from "../analogs/readout";
 import { candidateRole, decisionHeadline, decisionLabel, representationLabel, type ReportCandidate } from "./model";
 import { DecisionMark, DISPLAY, Numerals } from "./parts";
 
@@ -36,6 +38,9 @@ const PLACE = [
 
 interface Fig { key: string; label: ReactNode; value: ReactNode; note: ReactNode }
 
+/** A label-case phrase continued inside a sentence ("One of 3 …" → "one of 3 …"). */
+const inSentence = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+
 /**
  * Numerals: mono at figure size. Words: condensed caps, smaller, on the same baseline. IBM Plex Mono is
  * loaded at 400/500, so numerals inside the semibold caps are held at 500 (never a synthesized bold).
@@ -54,32 +59,38 @@ export function KeyFigures({ search, c }: { search: AnalogSearch; c: ReportCandi
     ? {
         key: "decision", label: "Screen rank",
         value: <span className={NUM_VALUE}>#{c.t1!.rank}</span>,
-        note: <>Global screening cell — a screen rank, not a decision. Research decision for this zone: <span className="whitespace-nowrap text-ink"><DecisionMark type={d.type} className="mr-1 -translate-y-px" />{decisionHeadline(search)}</span>.</>,
+        note: <>Global screening cell — a screen rank, not a decision. Research decision for this zone: <span className="whitespace-nowrap text-ink"><DecisionMark type={d.type} size={8} className="mr-1.5" /><Numerals text={decisionHeadline(search)} /></span>.</>,
       }
     : {
         key: "decision", label: "Research decision",
         value: (
-          <span className={cx(WORD_VALUE, "inline-flex items-baseline gap-2.5")}>
-            <DecisionMark type={d.type} className="h-[0.62em] w-[0.62em]" />
+          <span className={cx(WORD_VALUE, "inline-flex items-baseline gap-3")}>
+            {/* Cap height of the 23 px caps, on their baseline. */}
+            <DecisionMark type={d.type} size={15} className="shrink-0" />
             <Numerals text={decisionHeadline(search)} />
           </span>
         ),
         note: <>
           {decisionLabel(search)}
-          {role === "tie_member" && <span className="mt-1.5 block text-ink">This window is one member of the tie — not a winner.</span>}
+          {/* The app's one tie wording: the set and its size, never a position in it. */}
+          {role === "tie_member" && <span className="mt-1.5 block text-ink"><Numerals text={`This window is ${inSentence(tiedWindowsListed(d.members.length))} — not a winner.`} /></span>}
           {role === "research_window" && d.members.length > 0 && <span className="mt-1.5 block text-ink">This window is not a decision member.</span>}
         </>,
       };
 
   const scoreBasis = !c ? (d.type === "insufficient_evidence" ? "No score — not enough evidence" : "No candidate selected; no score is reported")
-    : c.tier === 2 ? <>Research comparison · {representationLabel(t2.representation)}{role === "tie_member" ? " · does not rank tie members" : ""}</>
+    : c.tier === 2 ? <>Research comparison · {representationLabel(t2.representation)}{role === "tie_member" ? " · S does not rank the tied windows" : ""}</>
     : <>Global screen · Earth as measured{cellKm !== null ? <> · <span className="num">{cellKm}</span> km</> : ""} · mission-weighted</>;
 
+  // "S 0.614" as every view sets it (the symbol beside the figure). A screening cell's score is the screen
+  // similarity, which the dossier keeps apart from the research S.
   const figs: Fig[] = [
     decision,
     {
-      key: "s", label: <Term k="similarity">{c?.tier === 1 ? "Screen similarity" : "Similarity S"}</Term>,
-      value: c && c.score !== null ? <span className={NUM_VALUE}>{c.score.toFixed(3)}</span> : <span className={cx(NUM_VALUE, "!text-faint")}>—</span>,
+      key: "s", label: <Term k="similarity">{c?.tier === 1 ? "Screen similarity" : "Similarity"}</Term>,
+      value: !c || c.score === null ? <span className={cx(NUM_VALUE, "!text-faint")}>—</span>
+        : c.tier === 2 ? <SFigure value={c.score} className={NUM_VALUE} />
+        : <span className={NUM_VALUE}>{c.score.toFixed(3)}</span>,
       note: scoreBasis,
     },
     {

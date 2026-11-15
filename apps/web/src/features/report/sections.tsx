@@ -3,11 +3,13 @@
  * values show as missing, never as 0. Numerals are set in the mono face throughout.
  */
 import type { ReactNode } from "react";
+import { PlanetMark, SFigure } from "../../components/marks";
 import { Measure, Tag, Term } from "../../components/primitives";
 import { Button, cx } from "../../components/ui";
 import { useApp } from "../../store/app";
 import type { AnalogSearch } from "../../types/contracts";
 import { screenCellKm } from "../analogs/candidates";
+import { TIE_ORDER } from "../analogs/readout";
 import { DIFFERENCES_SOURCE, PLANETARY_DIFFERENCES } from "../comparison/science";
 import {
   decisionHeadline, decisionLabel, decisionMemberRows, dimensions, type EvidenceRecord, fmtLat, fmtLon, footprintRobustness, limitations, REFERENCES,
@@ -53,7 +55,7 @@ export function ResearchSummary({ search, c }: { search: AnalogSearch; c: Report
     note: d.rotations_checked > 0 ? <>S is reported at rotation <N>0°</N>, equal weights</> : undefined,
   });
   if (b) {
-    items.push({ key: "baseline", label: "Uncorrected comparator", value: <><Numerals text={windowLabel(b.leader)} /> · S <Measure value={b.S} digits={3} /></>, note: <>{representationLabel("as_measured")}. Not a fallback.</> });
+    items.push({ key: "baseline", label: "Uncorrected comparator", value: <><Numerals text={windowLabel(b.leader)} /> · <SFigure value={b.S} /></>, note: <>{representationLabel("as_measured")}. Not a fallback.</> });
   }
   const robust = footprintRobustness(search);
   if (robust) items.push({ key: "robust", label: "Robustness", value: <Numerals text={robust.value} />, note: <Numerals text={robust.note} /> });
@@ -69,9 +71,9 @@ export function ResearchSummary({ search, c }: { search: AnalogSearch; c: Report
       )}
       {members.length > 0 && d.type === "tied_set" && (
         <div>
-          <div className="kicker flex flex-wrap gap-x-2"><span>Equivalent windows ·</span><span>unordered, listed west to east</span></div>
+          <div className="kicker flex flex-wrap gap-x-2"><span>Equivalent windows ·</span><span>unordered, {TIE_ORDER}</span></div>
           <table className="mt-2 w-full border-collapse text-left">
-            <caption className="sr-only">Equivalent windows of the tie, unordered, listed west to east</caption>
+            <caption className="sr-only">Equivalent windows of the tie, unordered, {TIE_ORDER}</caption>
             <thead>
               <tr className="border-b border-line-strong">
                 <th scope="col" className="kicker py-2 pr-4">Window</th>
@@ -151,7 +153,7 @@ export function TerrainComparison({ search, c }: { search: AnalogSearch; c: Repo
     <>
       <p className="mb-5 max-w-[72ch] text-body text-muted">
         {c.tier === 2
-          ? <>Earth values come from the {cellKm !== null ? <><N>{cellKm}</N> km </> : ""}screening cell that contains this window, as measured. Its screen similarity is <Measure value={terrain.S} digits={3} className="text-ink" /> — a different basis from the research S <Measure value={c.score} digits={3} className="text-ink" />.</>
+          ? <>Earth values come from the {cellKm !== null ? <><N>{cellKm}</N> km </> : ""}screening cell that contains this window, as measured. Its screen similarity is <Measure value={terrain.S} digits={3} className="text-ink" /> — a different basis from the research <SFigure value={c.score} className="text-ink" />.</>
           : <>Each row compares the Mars zone median with this cell, both on the shared {cellKm !== null ? <><N>{cellKm}</N> km </> : ""}screening operator, Earth as measured.</>}
       </p>
       <RatioChart rows={terrain.rows} />
@@ -192,8 +194,8 @@ export function Differences() {
         <thead>
           <tr className="border-b border-line-strong [&>th]:align-baseline">
             <th scope="col" className="kicker w-[30%] py-2 pr-4">Factor</th>
-            <th scope="col" className="kicker py-2 pr-4 !text-mars"><span aria-hidden className="mr-2 inline-block h-1.5 w-1.5 bg-mars [print-color-adjust:exact]" />Mars</th>
-            <th scope="col" className="kicker py-2 !text-earth"><span aria-hidden className="mr-2 inline-block h-1.5 w-1.5 bg-earth [print-color-adjust:exact]" />Earth</th>
+            <th scope="col" className="kicker py-2 pr-4 !text-mars"><PlanetMark planet="mars" className="mr-2" />Mars</th>
+            <th scope="col" className="kicker py-2 !text-earth"><PlanetMark planet="earth" className="mr-2" />Earth</th>
           </tr>
         </thead>
         <tbody>

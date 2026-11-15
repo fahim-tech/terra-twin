@@ -1,10 +1,12 @@
 import { Check, Copy, Download, Printer } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { PlanetMark, StatusMark } from "../../components/marks";
 import { cx } from "../../components/ui";
 import { useEvidence } from "../../services/api";
 import { useApp } from "../../store/app";
 import type { SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, MissionProfile } from "../../types/contracts";
+import { tiedWindows } from "../analogs/readout";
 import {
   buildCsv, buildReportJson, candidateRole, exportBaseName, fmtCoord, generatedStamp, provenanceSummary, type ReportCandidate,
 } from "./model";
@@ -43,7 +45,9 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
   const researchVersion = (t2 as { method_version?: string }).method_version ?? (t2.operator as { version?: string }).version ?? null;
   const marsGeneric = !target.siteId;
   const earthName = !c ? null : c.tier === 1 && !c.t1?.known_analog.name ? "Screening cell" : c.label;
-  const earthKicker = !c ? "Earth · No candidate" : c.tier === 1 ? "Earth · Screening cell" : role === "tie_member" ? "Earth · Tie member" : "Earth · Research window";
+  // A tied window is named by the app's one tie wording: the set and its size, never a position in it.
+  const earthKicker = !c ? "Earth · No candidate" : c.tier === 1 ? "Earth · Screening cell"
+    : role === "tie_member" ? `Earth · ${tiedWindows(t2.decision.members.length)}` : "Earth · Research window";
 
   return (
     <header className="frame print-keep relative border border-line bg-surface">
@@ -82,7 +86,7 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
 
       {/* Status */}
       <p className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-t border-line px-4 py-3 md:px-6" role="note">
-        <span className="flex items-center gap-2"><span aria-hidden className="h-1.5 w-1.5 bg-warn [print-color-adjust:exact]" /><span className="kicker !text-warn">Status</span></span>
+        <span className="flex items-center gap-2"><StatusMark state="caution" /><span className="kicker !text-warn">Status</span></span>
         <span className="text-label text-warn">Candidate identification — not validation of a new analog</span>
       </p>
       {stale && (
@@ -154,7 +158,7 @@ function Designation({ tone, kicker, name, coord, coordSpoken = false, muted = f
   return (
     <span className="block min-w-0">
       <span aria-hidden className="flex items-center gap-2.5">
-        <span className={cx("h-1.5 w-1.5 shrink-0 [print-color-adjust:exact]", tone === "mars" ? "bg-mars" : "bg-earth")} />
+        <PlanetMark planet={tone} />
         <span className={cx("kicker", tone === "mars" ? "!text-mars" : "!text-earth")}>{kicker}</span>
       </span>
       <span className={cx(DISPLAY, "mt-3 block text-balance leading-[0.95] tracking-[0.02em]",
