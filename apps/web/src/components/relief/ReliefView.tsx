@@ -27,6 +27,7 @@ import {
   representationNote, SUN, TINT, toGrid,
   type Grid, type Model,
 } from "./reliefMath";
+import { unavailableWords } from "./unavailable";
 
 export const EXAGGERATIONS = [1, 2, 4, 8] as const;
 export type Exaggeration = (typeof EXAGGERATIONS)[number];
@@ -52,8 +53,13 @@ export interface ReliefViewProps {
    * under it, a one-line legend; the host names the window and captions the source (`caption`).
    */
   density?: "full" | "compact";
-  /** Scene height in CSS px ("compact"; "full" fills its container). */
+  /** Scene height in CSS px (compact: 260 by default; full fills its container unless given). */
   sceneHeight?: number;
+  /**
+   * Where the exaggeration and view controls sit: "float" in the scene's lower corners from sm up (a wide scene
+   * has room beside the block; phones keep a deck), "deck" in a row under the scene. Full floats, compact decks.
+   */
+  controls?: "deck" | "float";
   /**
    * Plain wheel or trackpad scrolling over the scene. "zoom" zooms the view. "modifier", for a view inside a
    * scrolling panel, leaves plain scrolling to the panel and zooms only with Ctrl or ⌘ held (a trackpad pinch
@@ -73,14 +79,16 @@ export interface ReliefViewProps {
 
 /** Fetches the grid for a window (Earth) or Exploration Zone (Mars) and shows it, or says why it cannot. */
 export function ReliefView({
-  planet, id, title, defaultExaggeration = 4, exaggeration, onExaggerationChange, exaggerationControl = true, density = "full", sceneHeight = 260,
-  wheel = "zoom", caption, header = true, renderer = "auto", occludes, className,
+  planet, id, title, defaultExaggeration = 4, exaggeration, onExaggerationChange, exaggerationControl = true, density = "full", sceneHeight: sceneHeightProp,
+  controls: controlsProp, wheel = "zoom", caption, header = true, renderer = "auto", occludes, className,
 }: ReliefViewProps) {
   const earth = useRelief(planet === "earth" ? id : null);
   const mars = useMarsRelief(planet === "mars" ? id : null);
   const q = planet === "earth" ? earth : mars;
   const relief = q.data ?? null;
   const compact = density === "compact";
+  const sceneHeight = sceneHeightProp ?? (compact ? 260 : null);
+  const controls = controlsProp ?? (compact ? "deck" : "float");
   // Mars: the Exploration Zone's own name and centre from the site list, even while no grid is connected.
   const sites = useSites();
   const site = planet === "mars" ? sites.data?.find((s) => s.id === id) ?? null : null;
@@ -98,14 +106,15 @@ export function ReliefView({
       {relief ? (
         <ReliefScene key={relief.id} relief={relief} planet={planet} name={name ?? relief.id} compact={compact} sceneHeight={sceneHeight}
           defaultExaggeration={defaultExaggeration} exaggeration={exaggeration} onExaggerationChange={onExaggerationChange}
-          exaggerationControl={exaggerationControl} wheel={wheel} caption={caption} renderer={renderer} />
+          exaggerationControl={exaggerationControl} controls={controls} wheel={wheel} caption={caption} renderer={renderer} />
       ) : compact ? (
-        <div className={cx("relative border border-line-strong", SCENE_BG)} style={{ height: sceneHeight }}>
+        // At least the scene's height, and taller when a message needs it (it is never cut).
+        <div className={cx("relative grid border border-line-strong", SCENE_BG)} style={{ minHeight: sceneHeight ?? undefined }}>
           {body}
           <span aria-hidden className="frame pointer-events-none absolute inset-0" />
         </div>
       ) : (
-        <div className={cx("relative min-h-[240px] flex-1 border-t border-line", SCENE_BG)}>{body}</div>
+        <div className={cx("relative grid border-t border-line", sceneHeight === null && "min-h-[240px] flex-1", SCENE_BG)} style={{ minHeight: sceneHeight ?? undefined }}>{body}</div>
       )}
       {/* Corner registration brackets above the content, so the scene's own background never covers them. */}
       {!compact && <span aria-hidden className="frame pointer-events-none absolute inset-0 z-20" />}
@@ -173,30 +182,30 @@ function Message({ title, planet, children }: { title: string; planet: "earth" |
 }
 
 /**
+ * A scene-sized box that says why there is no relief to draw (for hosts that know before asking the server, e.g.
+ * a screening cell, which has no pool window). Same frame and message as the view's own states.
+ */
+export function ReliefNotice({ planet, title, height, children }: { planet: "earth" | "mars"; title: string; height: number; children: ReactNode }) {
+  return (
+    <div role="status" className={cx("relative grid border border-line-strong", SCENE_BG)} style={{ minHeight: height }}>
+      <Message planet={planet} title={title}>{children}</Message>
+      <span aria-hidden className="frame pointer-events-none absolute inset-0" />
+    </div>
+  );
+}
+
+/**
  * Why there is no grid, in plain words first; the server's own reason and what it needs (dataset, setting,
  * owner) follow as one technical line. Mars relief needs the MOLA mosaic, which this API does not read yet.
  */
 function Unavailable({ planet, error }: { planet: "earth" | "mars"; error: Error }) {
-  const api = error instanceof ApiError ? error : null;
-  const detail = api?.detail && typeof api.detail === "object" ? (api.detail as { reason?: string; missing_inputs?: string[]; owner?: string }) : undefined;
-  const reason = detail?.reason ?? (typeof api?.detail === "string" ? api.detail : null);
-  const technical = [
-    api?.status ? String(api.status) : null,
-    reason,
-    detail?.missing_inputs?.length ? `needs ${detail.missing_inputs.join(", ")}` : null,
-    detail?.owner ?? null,
-  ].filter(Boolean).join(" · ");
-  const marsNotConnected = planet === "mars" && api?.status === 503 && (!reason || /not connected/i.test(reason));
-  const plain = planet === "mars"
-    ? marsNotConnected ? "No Mars elevation grid is connected to this server (MOLA mosaic)."
-      : api?.status === 503 ? "This server cannot serve a Mars elevation grid yet." : "The Mars elevation grid could not be loaded."
-    : "The elevation grid of this window could not be loaded.";
+  const w = unavailableWords(planet, error instanceof ApiError ? error : { message: error.message });
   return (
     <div role="status" className="h-full">
-      <Message planet={planet} title={planet === "mars" ? "No Mars elevation grid" : "Relief unavailable"}>
-        <p className="text-body text-ink">{plain}</p>
+      <Message planet={planet} title={w.title}>
+        <p className="text-body text-ink">{w.plain}</p>
         {planet === "mars" && <p className="mt-1.5">No other surface is shown in its place.</p>}
-        {technical && <p className="num mt-2.5 text-[10.5px] leading-snug text-faint">{technical}</p>}
+        {w.technical && <p className="num mt-2.5 text-[10.5px] leading-snug text-faint">{w.technical}</p>}
       </Message>
     </div>
   );
@@ -220,18 +229,18 @@ interface ViewRefs {
 }
 
 /**
- * Home view. A compact instrument (a squarer frame) looks a little steeper, so the block fills the frame's height
- * as well as its width; the distance still frames the whole block from every side.
+ * Home view. A panel instrument with its controls in a deck (a squarer frame) looks a little steeper, so the block
+ * fills the frame's height as well as its width; the distance still frames the whole block from every side.
  */
-const homeFor = (ve: number, compact: boolean) => (compact ? { ...homePose(ve), el: 38 * DEG } : homePose(ve));
+const homeFor = (ve: number, steep: boolean) => (steep ? { ...homePose(ve), el: 38 * DEG } : homePose(ve));
 
 /** Transient status-bar message (e.g. how to zoom inside a scrolling panel). */
 type Nudge = () => void;
 
-function ReliefScene({ relief, planet, name, compact, sceneHeight, defaultExaggeration, exaggeration, onExaggerationChange, exaggerationControl, wheel, caption, renderer }: {
-  relief: Relief; planet: "earth" | "mars"; name: string; compact: boolean; sceneHeight: number;
+function ReliefScene({ relief, planet, name, compact, sceneHeight, defaultExaggeration, exaggeration, onExaggerationChange, exaggerationControl, controls, wheel, caption, renderer }: {
+  relief: Relief; planet: "earth" | "mars"; name: string; compact: boolean; sceneHeight: number | null;
   defaultExaggeration: Exaggeration; exaggeration: Exaggeration | undefined; onExaggerationChange: ((v: Exaggeration) => void) | undefined;
-  exaggerationControl: boolean; wheel: "zoom" | "modifier"; caption: ReliefViewProps["caption"]; renderer: "auto" | "2d";
+  exaggerationControl: boolean; controls: "deck" | "float"; wheel: "zoom" | "modifier"; caption: ReliefViewProps["caption"]; renderer: "auto" | "2d";
 }) {
   const grid = useMemo(() => toGrid(relief), [relief]);
   const model = useMemo(() => buildModel(grid), [grid]);
@@ -243,7 +252,7 @@ function ReliefScene({ relief, planet, name, compact, sceneHeight, defaultExagge
   const [nudged, setNudged] = useState(false);
   const veLabel = useId();
   const reduced = !!useReducedMotion();
-  const [orbit] = useState(() => new Orbit(homeFor(ve, compact), reduced));
+  const [orbit] = useState(() => new Orbit(homeFor(ve, compact && controls === "deck"), reduced));
   const refs: ViewRefs = {
     orbit, kick: useRef(() => {}), needle: useRef<SVGSVGElement | null>(null),
     heading: useRef<HTMLSpanElement | null>(null), pitch: useRef<HTMLSpanElement | null>(null), probe: useRef<HTMLSpanElement | null>(null),
@@ -278,17 +287,17 @@ function ReliefScene({ relief, planet, name, compact, sceneHeight, defaultExagge
     if (text) announce(text);
   };
   const label = ariaSummary(relief, ve, planet, mode);
-  // Full, 3D: the controls float in the scene's lower corners from sm up. Compact (and the 2D map): a deck row under the scene.
-  const float = !compact && mode === "3d";
+  // "float": the controls sit in the scene's lower corners from sm up (a deck row below on phones and for the 2D map).
+  const float = controls === "float" && mode === "3d";
   const veControl = exaggerationControl && model && (
-    <ExaggerationControl ve={ve} choose={choose} planet={planet} labelId={veLabel} compact={compact || !float} mode={mode} />
+    <ExaggerationControl ve={ve} choose={choose} planet={planet} labelId={veLabel} compact={!float} mode={mode} />
   );
 
   return (
     <>
-      <div className={cx("relative flex flex-col", compact ? "border border-line-strong" : "min-h-[320px] flex-1 border-t border-line", SCENE_BG)}
-        style={compact ? { height: sceneHeight } : undefined}>
-        <div className={cx("relative flex-1 overflow-hidden", !compact && "min-h-[260px]")}>
+      <div className={cx("relative flex flex-col", compact ? "border border-line-strong" : "border-t border-line", sceneHeight === null && "min-h-[320px] flex-1", SCENE_BG)}
+        style={sceneHeight !== null ? { height: sceneHeight } : undefined}>
+        <div className={cx("relative flex-1 overflow-hidden", sceneHeight === null && "min-h-[260px]")}>
           {!model ? (
             <Message planet={planet} title="No elevation in this window">Every cell of this grid is empty; there is no surface to draw.</Message>
           ) : mode === "3d" ? (
@@ -350,17 +359,41 @@ function ExaggerationControl({ ve, choose, planet, labelId, compact, mode }: {
         {compact ? <><span aria-hidden>V.E.</span><span className="sr-only">Vertical exaggeration</span></> : <>Vertical exaggeration <span className="num tracking-normal">×{ve}</span></>}
         {mode === "2d" && <span className="ml-1.5 text-faint">(shading)</span>}
       </span>
-      <div role="radiogroup" aria-labelledby={labelId} onKeyDown={radioGroupKeys(EXAGGERATIONS, ve, choose)}
-        className={cx("inline-flex w-max divide-x divide-line-strong border border-line-strong bg-[rgb(3_4_5/0.86)]", compact && "pointer-coarse:w-auto pointer-coarse:flex-1")}>
-        {EXAGGERATIONS.map((v) => (
-          <button key={v} type="button" role="radio" aria-checked={v === ve} tabIndex={v === ve ? 0 : -1} onClick={() => choose(v)}
-            className={cx("hit num text-[12px] transition-colors duration-150 active:duration-0", compact ? "h-7 w-9 pointer-coarse:w-auto pointer-coarse:flex-1" : "h-8 w-11",
-              v === ve ? cx("bg-ink text-space", planet === "mars" ? "shadow-[inset_0_-2px_0_var(--color-mars)]" : "shadow-[inset_0_-2px_0_var(--color-earth)]")
-                : "text-muted hover:bg-white/[0.06] hover:text-ink active:bg-white/[0.12]")}>
-            ×{v}
-          </button>
-        ))}
-      </div>
+      <ExaggerationCells ve={ve} choose={choose} tone={planet} labelId={labelId} compact={compact} />
+    </div>
+  );
+}
+
+function ExaggerationCells({ ve, choose, tone, labelId, compact }: {
+  ve: Exaggeration; choose: (v: Exaggeration) => void; tone: "earth" | "mars" | "ink"; labelId: string; compact: boolean;
+}) {
+  return (
+    <div role="radiogroup" aria-labelledby={labelId} onKeyDown={radioGroupKeys(EXAGGERATIONS, ve, choose)}
+      className={cx("inline-flex w-max divide-x divide-line-strong border border-line-strong bg-[rgb(3_4_5/0.86)]", compact && "pointer-coarse:w-auto pointer-coarse:flex-1")}>
+      {EXAGGERATIONS.map((v) => (
+        <button key={v} type="button" role="radio" aria-checked={v === ve} tabIndex={v === ve ? 0 : -1} onClick={() => choose(v)}
+          className={cx("hit num text-[12px] transition-colors duration-150 active:duration-0", compact ? "h-7 w-9 pointer-coarse:w-auto pointer-coarse:flex-1" : "h-8 w-11",
+            v === ve ? cx("bg-ink text-space", tone === "mars" ? "shadow-[inset_0_-2px_0_var(--color-mars)]" : tone === "earth" ? "shadow-[inset_0_-2px_0_var(--color-earth)]" : "")
+              : "text-muted hover:bg-white/[0.06] hover:text-ink active:bg-white/[0.12]")}>
+          ×{v}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * One vertical-exaggeration control for several relief views (each then set `exaggerationControl={false}` and
+ * take `exaggeration` from the host), so a Mars | Earth pair is always drawn at the same exaggeration.
+ */
+export function ExaggerationSwitch({ value, onChange, label = "Vertical exaggeration", className }: {
+  value: Exaggeration; onChange: (v: Exaggeration) => void; label?: ReactNode; className?: string;
+}) {
+  const id = useId();
+  return (
+    <div className={cx("flex items-center gap-2.5", className)}>
+      <span id={id} className="kicker !text-[10px] !text-muted">{label}</span>
+      <ExaggerationCells ve={value} choose={onChange} tone="ink" labelId={id} compact />
     </div>
   );
 }
