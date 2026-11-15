@@ -12,9 +12,10 @@
  * Requires a running dev server (it uses the dev-only `window.__terratwin` hook to drive state)
  * and the API on VITE_API_BASE_URL. Uses the locally installed Google Chrome via playwright-core.
  *
- * Waits are condition-based and bounded: the page waits for both globes to report ready (store/globes.ts)
- * and for the web fonts, long pages are captured screen by screen to the end, the report waits for its
- * location plates to finish rendering, and "compare-relief" opens the comparison's 3D relief mode.
+ * Waits are condition-based and bounded: the page waits for both globes to report ready (store/globes.ts),
+ * the web fonts and a quiet network (imagery tiles, again before each capture), long pages are captured
+ * screen by screen to the end, the report waits for its location plates to finish rendering, and
+ * "compare-relief" opens the comparison's 3D relief mode.
  */
 import { chromium } from "playwright-core";
 import { mkdirSync } from "node:fs";
@@ -33,7 +34,9 @@ const SETTLE = Number(arg("settle", "6500"));
 
 /** Upper bounds for the condition waits (ms). */
 const BOOT_TIMEOUT = 30_000;
-const BOOT_SETTLE = 1_200; // after both globes are ready: first imagery tiles
+/** After both globes are ready, and again before each capture: imagery tiles still arriving. */
+const QUIET_MS = 700; // network quiet this long counts as settled …
+const QUIET_TIMEOUT = 8_000; // … waiting at most this long (a spinning globe may keep fetching)
 const PLATES_TIMEOUT = 30_000;
 /** Long pages: capture screens until the end of the scroll container, at most this many. */
 const MAX_PAGES = 40;
@@ -147,15 +150,34 @@ const VIEWS = {
   },
 };
 
-/** Waits for both globes to report ready (bounded), the web fonts, then a short settle for the first tiles. */
-async function waitForBoot(page) {
+/** Counts the page's requests in flight (every frame, so the globe iframes' tile requests too). */
+function trackNetwork(page) {
+  let inflight = 0;
+  let last = Date.now();
+  const start = () => { inflight++; last = Date.now(); };
+  const end = () => { inflight = Math.max(0, inflight - 1); last = Date.now(); };
+  page.on("request", start);
+  page.on("requestfinished", end);
+  page.on("requestfailed", end);
+  /** Resolves once no request has been in flight for QUIET_MS, or after QUIET_TIMEOUT. */
+  return async function quiet() {
+    const t0 = Date.now();
+    while (Date.now() - t0 < QUIET_TIMEOUT) {
+      if (inflight === 0 && Date.now() - last >= QUIET_MS) return;
+      await page.waitForTimeout(100);
+    }
+  };
+}
+
+/** Waits for both globes to report ready (bounded), the web fonts, then for the first tiles to arrive (bounded). */
+async function waitForBoot(page, quiet) {
   const ready = await page.waitForFunction(() => {
     const r = window.__terratwin?.useGlobes?.getState().ready;
     return !!r && r.mars && r.earth;
   }, null, { timeout: BOOT_TIMEOUT }).then(() => true, () => false);
   if (!ready) console.log(`  note: globes not ready after ${BOOT_TIMEOUT / 1000} s — continuing`);
   await page.evaluate(() => document.fonts.ready.then(() => true));
-  await page.waitForTimeout(BOOT_SETTLE);
+  await quiet();
 }
 
 const names = ONLY ? ONLY.split(",") : Object.keys(VIEWS);
@@ -173,13 +195,14 @@ for (const [w, h] of SIZES) {
     if (!view) { console.error(`unknown view ${name}`); continue; }
     const ctx = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: mobile ? 2 : 1, isMobile: mobile, hasTouch: mobile });
     const page = await ctx.newPage();
+    const quiet = trackNetwork(page);
     const errors = [];
     page.on("pageerror", (e) => errors.push(String(e)));
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });
     try {
       await page.goto(BASE, { waitUntil: "load" });
       await page.waitForFunction(() => !!window.__terratwin, null, { timeout: 20000 });
-      await waitForBoot(page);
+      await waitForBoot(page, quiet);
       await page.evaluate(async ({ src, p }) => {
         // eslint-disable-next-line no-new-func
         const fn = new Function("h", "p", `return (${src})(h, p)`);
@@ -187,6 +210,7 @@ for (const [w, h] of SIZES) {
       }, { src: view.run.toString(), p: { jezero: JEZERO, offsite: OFFSITE } });
       await page.waitForTimeout(view.settle ?? SETTLE);
       if (view.after && (await view.after(page)) === false) { await ctx.close(); continue; }
+      await quiet(); // tiles requested by the last camera move
       const file = resolve(OUT, `${w}x${h}-${name}.jpg`);
       await page.screenshot({ path: file, type: "jpeg", quality: 82 });
       // Long pages scroll inside the stage: capture further screens of the first scrollable container.
