@@ -18,7 +18,7 @@ import type { CompareTargets } from "./model";
  * or a window the pool does not list has none, and no other terrain is shown in its place. That grid is Earth as
  * measured (the MOLA observation model is not applied); a research window's score uses Earth as MOLA would observe
  * it and a screening cell's uses Earth as measured, and the caption says which (`scoreBasisLine`). Mars is the
- * Exploration Zone's grid, which needs a MOLA mosaic the server does not have yet: that half says so in plain words.
+ * research zone's grid, served when the MOLA mosaic is connected; until then that half says so in plain words.
  * When both grids exist they share one vertical exaggeration, set by one control, and the line beside it says so.
  */
 export interface ReliefViewerProps {

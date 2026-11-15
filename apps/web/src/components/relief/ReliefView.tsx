@@ -96,8 +96,10 @@ export function ReliefView({
   const site = planet === "mars" ? sites.data?.find((s) => s.id === id) ?? null : null;
   // The zone name as every view spells it (zoneName fixes the API record's misspellings), never site.name.
   const name = title ?? (site ? zoneName(site.id) : id) ?? null;
-  const siteKind = site ? (site.category === "nasa_exploration_zone" ? "NASA Exploration Zone" : site.category.replace(/_/g, " ")) : null;
-  const where = relief ? { lat: relief.lat, lon: relief.lon, kind: relief.kind } : site && siteKind ? { lat: site.lat, lon: site.lon, kind: siteKind } : null;
+  // One name for a Mars target everywhere ("research zone"); other kinds read as words, never as a raw API key.
+  const kindWords = (k: string) => (k === "nasa_exploration_zone" ? "Research zone" : k.replace(/_/g, " "));
+  const siteKind = site ? kindWords(site.category) : null;
+  const where = relief ? { lat: relief.lat, lon: relief.lon, kind: kindWords(relief.kind) } : site && siteKind ? { lat: site.lat, lon: site.lon, kind: siteKind } : null;
   let body: ReactNode;
   if (!id) body = <Message title="No window selected" planet={planet}>Choose a research window to see its terrain in 3D.</Message>;
   else if (q.isPending) body = <div className="grid h-full place-items-center"><Spinner label="Loading relief grid" /></div>;
@@ -137,7 +139,7 @@ function Header({ planet, name, relief, where }: {
         <span aria-hidden className={cx("h-1.5 w-1.5", planet === "mars" ? "bg-mars" : "bg-earth")} />
         <span className="kicker !text-muted">Terrain relief</span>
         <span aria-hidden className="h-px w-4 bg-line-strong" />
-        <span className="kicker">{planet === "mars" ? "Mars · Exploration Zone" : "Earth · research window"}</span>
+        <span className="kicker">{planet === "mars" ? "Mars · research zone" : "Earth · research window"}</span>
       </div>
       <div className="mt-2 flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
