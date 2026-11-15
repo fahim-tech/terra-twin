@@ -1,20 +1,23 @@
-import { ArrowLeft, ChevronDown, MessageCircleQuestion } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { IconButton, Kicker, Measure, Tabs } from "../../components/primitives";
-import { CompareTerm as Term } from "./CompareTerm";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { IconButton, Measure, SPRING } from "../../components/primitives";
 import { Button, cx } from "../../components/ui";
 import { useLayout } from "../../app/useLayout";
-import { G5 } from "../../lib/glossary";
 import { useApp } from "../../store/app";
 import type { AnalogSearch } from "../../types/contracts";
 import { type CandidateView, researchWindowKm, screenCellKm, selectedCandidate } from "../analogs/candidates";
 import { ComparePlates } from "./ComparePlates";
 import { EvidenceMode } from "./EvidenceMode";
 import { StageProbe, useCompareStage, whyDrawerWidth } from "./layout";
-import { basisFor, compareTargets, verdictFor, type Verdict } from "./model";
+import { NO_RING, SectionRule } from "./marks";
+import { basisFor, compareTargets, verdictFor } from "./model";
+import { type CompareMode, visibleModes } from "./modes";
+import { MODE_PANEL_ID, ModeSwitch, modeTabId } from "./ModeSwitch";
 import { RatioChart } from "./RatioChart";
+import { BackToResults, CompactReadout, PhoneReadout, TelemetryReadout, WhyButton } from "./Readout";
 import { RelevanceMode } from "./RelevanceMode";
+import { ReliefViewer } from "./relief";
 import { ratioRow, TIER1_SPECS } from "./science";
 import { WhyDrawer } from "./WhyDrawer";
 
@@ -40,20 +43,12 @@ export function tier1Rows(search: AnalogSearch, c: CandidateView): { rows: Compa
   };
 }
 
-type Mode = "spatial" | "measurements" | "evidence" | "relevance";
-const PANEL_ID = "compare-mode-panel";
-const tabId = (m: Mode) => `compare-mode-tab-${m}`;
-const MODES: { value: Mode; label: string }[] = [
-  { value: "spatial", label: "Spatial" },
-  { value: "measurements", label: "Measurements" },
-  { value: "evidence", label: "Evidence" },
-  { value: "relevance", label: "Relevance" },
-];
-
 /**
- * Comparison stage: a summary strip over the split globes (pair, verdict, score with its basis and
- * scope) whose modes expand it; plates name each footprint; the Why drawer explains the pair. All
- * result text is bound to searchTarget(search), never to the live Mars selection.
+ * Comparison stage, as a mission-control telemetry strip docked over the split globes: a title bar
+ * (back, what is compared, the square mode switch), the readout cells (Mars | Earth pair, score with its
+ * basis, the decision) and the scope line; a mode other than Spatial expands the strip. Plates and
+ * dimension lines label each footprint on its globe; the Why drawer is the technical brief. All result
+ * text is bound to searchTarget(search), never to the live Mars selection.
  */
 export function ComparisonPanel() {
   const search = useApp((s) => s.search);
@@ -62,10 +57,12 @@ export function ComparisonPanel() {
   const set = useApp((s) => s.set);
   const layout = useLayout();
   const phone = layout === "phone";
-  const [mode, setModeState] = useState<Mode>("spatial");
+  const modes = useMemo(() => visibleModes({ relief: ReliefViewer !== null }), []);
+  const [modeState, setModeState] = useState<CompareMode>("spatial");
+  const mode: CompareMode = modes.some((m) => m.value === modeState) ? modeState : "spatial";
   const stripRef = useRef<HTMLElement>(null);
-  // The summary re-lays out between collapsed and expanded, so keep keyboard focus on the chosen tab.
-  const setMode = useCallback((m: Mode) => {
+  // Keep keyboard focus on the chosen tab when the strip re-lays out (and when Escape collapses a mode).
+  const setMode = useCallback((m: CompareMode) => {
     setModeState(m);
     requestAnimationFrame(() => stripRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true }));
   }, []);
@@ -75,6 +72,7 @@ export function ComparisonPanel() {
   const rows = useMemo(() => (t1 ? t1.rows.map((r) => ratioRow(r.key, r.mars, r.earth, r.s, r.label, r.unit)) : []), [t1]);
   const verdict = useMemo(() => (search && c ? verdictFor(search, c) : null), [search, c]);
   const expanded = mode !== "spatial";
+  const stageW = useCompareStage((s) => s.w);
 
   useEffect(() => {
     if (!targets || !verdict || !c) return;
@@ -98,92 +96,114 @@ export function ComparisonPanel() {
     return () => { if (useApp.getState().closeTopmost === closeTopmost) useApp.setState({ closeTopmost: shell }); };
   }, [expanded, setMode]);
 
-  // The shared Tabs primitive has no roving focus or tab/panel ids yet; add both here.
-  useLayoutEffect(() => {
-    const tabs = stripRef.current?.querySelectorAll<HTMLElement>('[role="tablist"][aria-label="Comparison mode"] [role="tab"]');
-    tabs?.forEach((t, i) => {
-      const m = MODES[i]?.value;
-      if (!m) return;
-      const on = m === mode;
-      t.id = tabId(m);
-      t.tabIndex = on ? 0 : -1;
-      if (on && expanded) t.setAttribute("aria-controls", PANEL_ID); else t.removeAttribute("aria-controls");
-    });
-  });
-  const onTabKeys = useCallback((e: React.KeyboardEvent) => {
-    const keys = ["ArrowLeft", "ArrowRight", "Home", "End"];
-    if (!keys.includes(e.key) || (e.target as HTMLElement).getAttribute("role") !== "tab") return;
-    e.preventDefault();
-    const i = MODES.findIndex((m) => m.value === mode);
-    const n = MODES.length;
-    const next = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (i + (e.key === "ArrowRight" ? 1 : -1) + n) % n;
-    setMode(MODES[next].value);
-  }, [mode, setMode]);
-
   // Height of the strip, so a narrowed strip can still mark the full bottom band as covered (below).
   const [stripH, setStripH] = useState(0);
+  const hasStrip = !!(search && c && targets && verdict);
   useEffect(() => {
     const el = stripRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => setStripH(el.offsetHeight));
     ro.observe(el);
     return () => ro.disconnect();
-  });
+  }, [hasStrip, phone]);
 
-  const cellKm = screenCellKm(search);
-  const winKm = researchWindowKm(search, c?.t2);
   if (!search || !c || !targets || !verdict) return <NoCandidate hasSearch={!!search} phone={phone} />;
 
+  const cellKm = screenCellKm(search);
+  const winKm = researchWindowKm(search, c.t2);
+  const basis = basisFor(c, search);
+  const onWhy = () => set({ whyOpen: true });
   // With the Why drawer open, the strip reflows into the width the drawer leaves free (so the G5 scope
   // line is never hidden under it), as long as that leaves a usable strip; otherwise the modal covers it.
-  const stageW = useCompareStage((s) => s.w);
   const drawerW = whyDrawerWidth(stageW);
   const stripRight = whyOpen && !phone && stageW - drawerW - 36 >= 520 ? drawerW + 24 : null;
+  const narrow = stripRight !== null;
+  const modeIndex = modes.findIndex((m) => m.value === mode) + 1;
+  const modeSpec = modes.find((m) => m.value === mode)!;
+  const readout = { c, basis, targets, verdict, onWhy };
+
+  const panel = expanded && (
+    <div role="tabpanel" id={MODE_PANEL_ID} aria-labelledby={modeTabId(mode)} className="relative flex min-h-0 flex-1 flex-col border-t border-line">
+      <motion.div key={mode} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
+        className="scroll-thin fade-edges min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-4 max-md:px-4">
+        {mode === "measurements" && (
+          <>
+            <ModeHeader index={modeIndex} title={modeSpec.title} basis={`Global-screen descriptors${cellKm !== null ? `, ${cellKm} km` : ""}, as measured — context, not the research score`}>
+              {t1 && <>Global-screen S <Measure value={t1.S} digits={3} className="text-num" /> for this pair{c.tier === 2 ? ` (the ${cellKm !== null ? `${cellKm} km ` : "screening "}cell under the window centre)` : ""}. Mars: median of the zone&rsquo;s {cellKm !== null ? `${cellKm} km ` : "screening "}cells from the 463 m MOLA grid; Earth: GMTED2010.</>}
+            </ModeHeader>
+            {rows.length ? <RatioChart rows={rows} compact={!phone} /> : <p className="text-body text-muted">Global-screen descriptors are not available for this candidate.</p>}
+          </>
+        )}
+        {mode === "evidence" && (
+          <>
+            <ModeHeader index={modeIndex} title={modeSpec.title} basis={c.tier === 2 ? `Research comparison${winKm !== null ? ` · ${winKm} km windows` : ""} · research record` : `Global screen${cellKm !== null ? ` · ${cellKm} km cell` : ""} · Earth as measured`} />
+            <EvidenceMode search={search} c={c} />
+          </>
+        )}
+        {mode === "relevance" && (
+          <>
+            <ModeHeader index={modeIndex} title={modeSpec.title} basis="What the comparison does and does not cover" />
+            <RelevanceMode c={c} gate={search.tier2.landcover_gate} />
+          </>
+        )}
+        {mode === "relief" && ReliefViewer && (
+          <>
+            <ModeHeader index={modeIndex} title={modeSpec.title} />
+            <ReliefViewer search={search} c={c} targets={targets} phone={phone} />
+          </>
+        )}
+      </motion.div>
+    </div>
+  );
+
   return (
     <>
       <StageProbe />
-      {!phone && <ComparePlates targets={targets} planets={["mars", "earth"]} whyOpen={whyOpen} />}
+      {!phone && <ComparePlates targets={targets} planets={["mars", "earth"]} whyOpen={whyOpen} compact={expanded} />}
       {/* Phones: the shell's Mars|Earth switch sits over the top of the frame; mark that band as covered
           so the globe frames the compared window below it (the switch itself is not an occluder). */}
       {phone && <div aria-hidden data-occludes="both" className="pointer-events-none absolute inset-x-0 top-0 h-[64px]" />}
       {/* A strip narrowed by the Why drawer no longer spans most of the Earth half, so the inset model
           would stop treating it as a bottom cover and the Earth window would sit lower than the Mars one.
           Mark the full-width band it occupies so both globes keep the same free area and baseline. */}
-      {stripRight !== null && stripH > 0 && <div aria-hidden data-occludes="both" className="pointer-events-none absolute inset-x-3 bottom-3" style={{ height: stripH }} />}
+      {narrow && stripH > 0 && <div aria-hidden data-occludes="both" className="pointer-events-none absolute inset-x-3 bottom-3" style={{ height: stripH }} />}
       <motion.section ref={stripRef} aria-label="Mars–Earth comparison" data-occludes="both"
-        initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", bounce: 0, duration: 0.35 }}
-        style={{ ...(expanded ? { height: phone ? "70%" : "56%" } : null), ...(stripRight !== null ? { right: stripRight } : null) }}
-        className={cx("surface no-print absolute z-20 flex flex-col overflow-hidden",
-          phone ? "inset-x-0 bottom-0 rounded-t-surface [padding-bottom:env(safe-area-inset-bottom)]" : "inset-x-3 bottom-3 rounded-surface")}>
-        <Summary c={c} basis={basisFor(c, search)} targets={targets} verdict={verdict} mode={mode} setMode={setMode} onTabKeys={onTabKeys} phone={phone} narrow={stripRight !== null} onWhy={() => set({ whyOpen: true })} />
-        {expanded && (
-          <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(mode)} className="relative flex min-h-0 flex-1 flex-col">
-            <div className="mx-6 h-px shrink-0 bg-line/70 max-md:mx-4" aria-hidden />
-            <IconButton label="Collapse to spatial view" onClick={() => setMode("spatial")} className="absolute right-3 top-1.5 z-10"><ChevronDown className="h-4 w-4" /></IconButton>
-            <motion.div key={mode} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
-              className="scroll-thin fade-edges min-h-0 flex-1 overflow-y-auto px-6 pb-5 pt-3 max-md:px-4">
-              {mode === "measurements" && (
-                <>
-                  <ModeHeader title="Terrain measurements" basis={`Global-screen descriptors${cellKm !== null ? `, ${cellKm} km` : ""}, as measured — context, not the research score`}>
-                    {t1 && <>Global-screen S <Measure value={t1.S} digits={3} className="text-num" /> for this pair{c.tier === 2 ? ` (the ${cellKm !== null ? `${cellKm} km ` : "screening "}cell under the window centre)` : ""}. Mars: median of the zone's {cellKm !== null ? `${cellKm} km ` : "screening "}cells from the 463 m MOLA grid; Earth: GMTED2010.</>}
-                  </ModeHeader>
-                  {rows.length ? <RatioChart rows={rows} compact={!phone} /> : <p className="text-body text-muted">Global-screen descriptors are not available for this candidate.</p>}
-                </>
-              )}
-              {mode === "evidence" && (
-                <>
-                  <ModeHeader title="Scientific evidence" basis={c.tier === 2 ? `Research comparison${winKm !== null ? ` · ${winKm} km windows` : ""} · research record` : `Global screen${cellKm !== null ? ` · ${cellKm} km cell` : ""} · Earth as measured`} />
-                  <EvidenceMode search={search} c={c} />
-                </>
-              )}
-              {mode === "relevance" && (
-                <>
-                  <ModeHeader title="Exploration relevance" basis="What the comparison does and does not cover" />
-                  <RelevanceMode c={c} gate={search.tier2.landcover_gate} />
-                </>
-              )}
-            </motion.div>
-          </div>
+        initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={SPRING}
+        style={{ ...(expanded ? { height: phone ? "70%" : "56%" } : null), ...(narrow ? { right: stripRight } : null) }}
+        className={cx("surface frame @container no-print absolute z-20 flex flex-col overflow-hidden",
+          phone ? "inset-x-0 bottom-0 [padding-bottom:env(safe-area-inset-bottom)]" : "inset-x-3 bottom-3 rounded-surface")}>
+        {/* The title bar is drawn first but follows the readout in the DOM: the shell focuses the stage heading
+            (the pair, in the readout), and Tab then reaches the summary, the controls and the open mode in turn. */}
+        {phone ? (
+          <>
+            <PhoneReadout {...readout} expanded={expanded} />
+            <div className="order-first flex min-h-11 shrink-0 items-center justify-between gap-3 border-b border-line py-1.5 pl-4 pr-1.5">
+              <BackToResults />
+              <WhyButton onWhy={onWhy} className="!px-3 !py-2" />
+            </div>
+            {panel}
+            <div className="shrink-0 overflow-x-auto border-t border-line px-2 py-2 scroll-thin">
+              <ModeSwitch modes={modes} value={mode} expanded={expanded} onChange={setMode} fill />
+            </div>
+          </>
+        ) : (
+          <>
+            {expanded ? <CompactReadout {...readout} narrow={narrow} /> : <TelemetryReadout {...readout} narrow={narrow} />}
+            <div className="order-first flex min-h-11 shrink-0 items-center gap-3 border-b border-line py-1.5 pl-4 pr-2">
+              <BackToResults />
+              <span aria-hidden className="h-4 w-px shrink-0 bg-line-strong" />
+              <span className="kicker hidden min-w-0 truncate @min-[760px]:block">Comparison · {targets.footprintLabel}s</span>
+              <div className="ml-auto flex shrink-0 items-center gap-1">
+                <ModeSwitch modes={modes} value={mode} expanded={expanded} onChange={setMode} />
+                {expanded && (
+                  <span className="ml-1 hidden @min-[600px]:block">
+                    <IconButton label="Collapse to spatial view" onClick={() => setMode("spatial")}><ChevronDown className="h-4 w-4" strokeWidth={1.75} /></IconButton>
+                  </span>
+                )}
+              </div>
+            </div>
+            {panel}
+          </>
         )}
       </motion.section>
       <AnimatePresence>
@@ -193,121 +213,11 @@ export function ComparisonPanel() {
   );
 }
 
-function Summary({ c, basis, targets, verdict, mode, setMode, onTabKeys, phone, narrow = false, onWhy }: {
-  basis: string;
-  c: CandidateView; targets: NonNullable<ReturnType<typeof compareTargets>>; verdict: Verdict;
-  mode: Mode; setMode: (m: Mode) => void; onTabKeys: (e: React.KeyboardEvent) => void; phone: boolean;
-  /** The strip shares the width with the open Why drawer: two columns, modes below, no second Why button. */
-  narrow?: boolean; onWhy: () => void;
-}) {
-  const go = useApp((s) => s.go);
-  const verdictTerm = verdict.kind === "leader" ? "stableLeader" : verdict.kind === "tie_member" ? "tie" : verdict.kind === "insufficient" ? "notEnough" : null;
-  const back = (
-    <button type="button" onClick={() => go("earth")} className="hit -ml-1 inline-flex items-center gap-1 rounded-control px-1 text-caption text-muted hover:text-ink">
-      <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> Results
-    </button>
-  );
-  const heading = (
-    <h2 data-stage-heading="compare" tabIndex={-1} style={{ outline: "none" }} className={cx("toponym text-ink", phone ? "mt-0.5 text-toponym-sm" : "mt-1 text-toponym")}>
-      <span className="sr-only">Comparing </span>
-      <span>{targets.mars.name}</span>
-      <span className="mx-2 text-muted" aria-label="with">↔</span>
-      <span>{targets.earth.name}</span>
-    </h2>
-  );
-  const verdictLine = (
-    <p className="text-label text-ink">
-      <span aria-hidden className="mr-1.5">{verdict.glyph}</span>
-      {verdictTerm ? <Term k={verdictTerm}>{verdict.headline}</Term> : verdict.headline}
-    </p>
-  );
-  const figure = <Measure value={c.score} digits={3} className="text-figure text-ink" missing="no score" />;
-  const why = (
-    <Button variant="primary-earth" onClick={onWhy} className={cx(phone && "px-3 py-1.5")}>
-      <MessageCircleQuestion className="h-4 w-4" aria-hidden /> Why this analog?
-    </Button>
-  );
-  const tabs = <div onKeyDown={onTabKeys}><Tabs ariaLabel="Comparison mode" value={mode} onChange={setMode} options={MODES} className={phone ? "gap-4" : undefined} /></div>;
-
-  if (phone) {
-    // Phone: one column, the G5 verdict label and scope one tap away (Term popovers).
-    return (
-      <div className="shrink-0 px-4 pb-3 pt-2">
-        <div className="flex items-center justify-between gap-3">{back}{why}</div>
-        {heading}
-        <div className="mt-1 flex items-baseline justify-between gap-3">
-          {verdictLine}
-          <span className="flex items-baseline gap-1.5"><span className="text-caption text-muted"><Term k="similarity">S</Term></span>{figure}</span>
-        </div>
-        <p className="mt-1 text-caption text-ink/90">{basis}</p>
-        <p className="mt-0.5 text-caption text-muted">
-          <Term k="scope" />{c.tier === 2 && <> · validated on <Term k="synthetic" /></>}
-        </p>
-        <div className="-mx-4 mt-1 overflow-x-auto px-4 scroll-thin">{tabs}</div>
-      </div>
-    );
-  }
-
-  if (mode !== "spatial") {
-    // Expanded: the same facts on two lines so the mode gets the room; G5 strings stay one click away.
-    return (
-      <div className="shrink-0 px-6 pb-2.5 pt-3">
-        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
-          {back}
-          <h2 data-stage-heading="compare" tabIndex={-1} style={{ outline: "none" }} className="toponym text-toponym-sm text-ink">
-            <span className="sr-only">Comparing </span>{targets.mars.name}<span className="mx-1.5 text-muted" aria-label="with">↔</span>{targets.earth.name}
-          </h2>
-          {verdictLine}
-          <span className="flex items-baseline gap-1.5"><span className="text-caption text-muted"><Term k="similarity">S</Term></span><Measure value={c.score} digits={3} className="text-title font-normal text-ink" missing="no score" /></span>
-          <div className="ml-auto flex items-center gap-5">{tabs}{why}</div>
-        </div>
-        <p className="mt-0.5 text-caption text-muted">
-          <span className="text-ink/90">{basis}</span> · <Term k="scope" />{c.tier === 2 && <> · validated on <Term k="synthetic" /></>} · <span className="text-faint">{verdict.detail}</span>
-        </p>
-      </div>
-    );
-  }
-
+function ModeHeader({ index, title, basis, children }: { index: number; title: string; basis?: string; children?: ReactNode }) {
   return (
-    <div className={cx("grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)] gap-x-8 gap-y-2 px-6 pb-3 pt-4", !narrow && "xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_auto]")}>
-      {/* Pair and verdict */}
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          {back}
-          <span className="text-faint" aria-hidden>·</span>
-          <Kicker>Comparison · {targets.footprintLabel}s</Kicker>
-        </div>
-        {heading}
-        <div className="mt-1.5">{verdictLine}</div>
-        <p className="mt-0.5 text-caption text-muted">{verdict.detail}</p>
-      </div>
-
-      {/* Score, basis, scope */}
-      <div className="min-w-0 pt-1">
-        <div className="flex items-baseline gap-3">
-          {/* One convention for the figure everywhere (spec): "S 0.614". */}
-          <span className="text-caption text-muted"><Term k="similarity">S</Term></span>
-          {figure}
-        </div>
-        <p className="mt-1 text-caption text-ink/90">{basis}</p>
-        <p className="mt-0.5 text-caption text-muted">{G5.scope}</p>
-        {c.tier === 2 && <p className="mt-0.5 text-caption text-faint">Validated on <Term k="synthetic" /></p>}
-      </div>
-
-      {/* Modes */}
-      <div className={cx("col-span-2 flex min-w-0 flex-wrap items-center justify-between gap-x-6 gap-y-2", !narrow && "xl:col-span-1 xl:flex-col xl:items-end xl:justify-start")}>
-        {tabs}
-        {!narrow && why}
-      </div>
-    </div>
-  );
-}
-
-function ModeHeader({ title, basis, children }: { title: string; basis: string; children?: React.ReactNode }) {
-  return (
-    <header className="mb-3 pr-10">
-      <h3 className="text-title text-ink">{title}</h3>
-      <p className="mt-0.5 text-caption text-ink/90">{basis}</p>
+    <header className="mb-4">
+      <SectionRule index={index} title={title} />
+      {basis && <p className="mt-2 text-caption text-ink/85">{basis}</p>}
       {children && <p className="mt-0.5 text-caption text-muted">{children}</p>}
     </header>
   );
@@ -317,13 +227,17 @@ function NoCandidate({ hasSearch, phone }: { hasSearch: boolean; phone: boolean 
   const go = useApp((s) => s.go);
   return (
     <section aria-label="Mars–Earth comparison" data-occludes="both"
-      className={cx("surface no-print absolute z-20 px-6 py-5", phone ? "inset-x-0 bottom-0 rounded-t-surface" : "inset-x-3 bottom-3 rounded-surface")}>
-      <Kicker>Comparison</Kicker>
-      <h2 data-stage-heading="compare" tabIndex={-1} className="toponym mt-1 text-toponym-sm text-ink outline-none">No Earth candidate selected</h2>
-      <p className="mt-1 text-body text-muted">{hasSearch ? "Choose a research window or a screening cell in the Earth results to compare it with the Mars target." : "Run Find Earth Analogs on a Mars research zone first."}</p>
-      <Button variant={hasSearch ? "primary-earth" : "primary-mars"} className="mt-3" onClick={() => go(hasSearch ? "earth" : "mars")}>
-        {hasSearch ? "Back to Earth results" : "Back to Mars"}
-      </Button>
+      className={cx("surface frame no-print absolute z-20", phone ? "inset-x-0 bottom-0 [padding-bottom:env(safe-area-inset-bottom)]" : "inset-x-3 bottom-3 rounded-surface")}>
+      <div className="flex min-h-11 items-center border-b border-line px-4">
+        <span className="kicker">Comparison</span>
+      </div>
+      <div className="px-4 pb-4 pt-3">
+        <h2 data-stage-heading="compare" tabIndex={-1} style={NO_RING} className="toponym text-toponym-sm text-ink">No Earth candidate selected</h2>
+        <p className="mt-1.5 max-w-[640px] text-body text-muted">{hasSearch ? "Choose a research window or a screening cell in the Earth results to compare it with the Mars target." : "Run Find Earth Analogs on a Mars research zone first."}</p>
+        <Button variant={hasSearch ? "primary-earth" : "primary-mars"} className="mt-3" onClick={() => go(hasSearch ? "earth" : "mars")}>
+          {hasSearch ? "Back to Earth results" : "Back to Mars"}
+        </Button>
+      </div>
     </section>
   );
 }
