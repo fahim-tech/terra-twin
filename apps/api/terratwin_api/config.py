@@ -29,7 +29,11 @@ class Settings:
     # Optional GIS refinement provider, "package.module:function" (see docs/research-integration.md).
     gis_provider: str | None = field(default_factory=lambda: os.environ.get("TERRATWIN_GIS_PROVIDER") or None)
     cors_origins: tuple[str, ...] = field(default_factory=lambda: tuple(
-        o.strip() for o in os.environ.get("TERRATWIN_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if o.strip()))
+        o.strip() for o in os.environ.get("TERRATWIN_CORS_ORIGINS", "http://localhost:5180,http://127.0.0.1:5180").split(",") if o.strip()))
+
+
+    # Any localhost port is allowed during development; set TERRATWIN_CORS_LOCALHOST=0 in production.
+    cors_localhost: bool = field(default_factory=lambda: os.environ.get("TERRATWIN_CORS_LOCALHOST", "1") == "1")
 
 
 settings = Settings()

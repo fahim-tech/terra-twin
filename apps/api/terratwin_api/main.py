@@ -11,6 +11,7 @@ from .routes.api import router
 app = FastAPI(title="TerraTwin API", version=API_VERSION,
               description="Mars–Earth analog discovery. Tier-1 global screen + G-series OOM research records.")
 app.add_middleware(GZipMiddleware, minimum_size=1024)
-app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins), allow_methods=["GET", "POST"],
+app.add_middleware(CORSMiddleware, allow_origins=list(settings.cors_origins),
+                   allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?" if settings.cors_localhost else None, allow_methods=["GET", "POST"],
                    allow_headers=["Content-Type"])
 app.include_router(router)
