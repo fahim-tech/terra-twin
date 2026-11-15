@@ -135,8 +135,13 @@ export function ComparisonPanel() {
         className="scroll-thin fade-edges min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-4 max-md:px-4">
         {mode === "measurements" && (
           <>
-            <ModeHeader index={modeIndex} title={modeSpec.title} basis={`Global-screen descriptors${cellKm !== null ? `, ${cellKm} km` : ""}, as measured — context, not the research score`}>
-              {t1 && <>Global-screen S <Measure value={t1.S} digits={3} className="text-num" /> for this pair{c.tier === 2 ? ` (the ${cellKm !== null ? `${cellKm} km ` : "screening "}cell under the window centre)` : ""}. Mars: median of the zone&rsquo;s {cellKm !== null ? `${cellKm} km ` : "screening "}cells from the 463 m MOLA grid; Earth: GMTED2010.</>}
+            {/* A research window's S is not computed from these (they are context); a screening cell's S is. */}
+            <ModeHeader index={modeIndex} title={modeSpec.title}
+              basis={keepFigures(`Global-screen descriptors${cellKm !== null ? `, ${cellKm} km` : ""}, as measured — ${c.tier === 2 ? "context, not the research score" : "the descriptors this screening S was computed from"}`)}>
+              {t1 && <>
+                {c.tier === 2 && <>Global-screen S <Measure value={t1.S} digits={3} className="text-num" /> for this pair {keepFigures(`(the ${cellKm !== null ? `${cellKm} km ` : "screening "}cell under the window centre)`)}. </>}
+                {keepFigures(`Mars: median of the zone’s ${cellKm !== null ? `${cellKm} km ` : "screening "}cells from the 463 m MOLA grid; Earth: GMTED2010.`)}
+              </>}
             </ModeHeader>
             {rows.length ? <RatioChart rows={rows} compact={!phone} /> : <p className="text-body text-muted">Global-screen descriptors are not available for this candidate.</p>}
           </>
