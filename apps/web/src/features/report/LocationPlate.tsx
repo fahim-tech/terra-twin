@@ -10,6 +10,7 @@ import { useGlobes } from "../../store/globes";
 import { fmtLat, fmtLon } from "./model";
 import { DISPLAY } from "./parts";
 import { withCleanGlobe } from "./plateCapture";
+import { createCaptureQueue } from "./captureQueue";
 import { DiskLocator } from "./DiskLocator";
 import { type EdgeTick, formatTick, groundAt, nadirKmPerPx, plateBody, plateCamera, type PlateTicks, plateTicks, shotSize, visibleRect } from "./plateGeometry";
 import { splitDesignation } from "./typeset";
@@ -42,14 +43,10 @@ type State = SnapshotState;
 // Snapshots are expensive (the globe re-renders off-view); keep them for the session.
 const cache = new Map<string, Promise<Shot | null>>();
 
-// A snapshot moves its globe's camera until the image is taken, so two captures on one globe must never
-// overlap: they run one after another, in the order they were asked for (the plate, then its locator).
-const queue: Record<Planet, Promise<unknown>> = { mars: Promise.resolve(), earth: Promise.resolve() };
-function inTurn<T>(planet: Planet, job: () => Promise<T>): Promise<T> {
-  const run = queue[planet].then(job, job);
-  queue[planet] = run.catch(() => undefined);
-  return run;
-}
+// Captures on one globe run one after another, in the order asked (the plate, then its locator), and only
+// while the report still wants them: by then the reader may be back on a stage where that globe is visible.
+const captures = createCaptureQueue();
+const onReport = () => useApp.getState().stage === "report";
 
 /**
  * Real imagery from the planet's own globe, or a failure that the plate shows honestly: the view straight down
@@ -71,13 +68,16 @@ export function useSnapshot(planet: Planet, lat: number, lon: number, enabled = 
       const t = setTimeout(() => { if (live) setState({ status: "failed" }); }, 25000);
       return () => { live = false; clearTimeout(t); };
     }
+    const release = captures.want(key);
     let p = cache.get(key);
     if (!p) {
       const h = bus.handles[planet].current;
+      const stillWanted = () => captures.wanted(key) && onReport();
       p = h
-        ? inTurn(planet, () => waitForStillCamera(planet)
+        ? captures.run(planet, key, () => waitForStillCamera(planet)
           // A camera that never settles means the capture could show another place: no imagery rather than wrong imagery.
-          .then((ok) => (ok ? withCleanGlobe(bus, qc, planet, () => h.snapshot(lat, lon, heightKm, PLATE_MAX_WIDTH)) : null)))
+          // The reader may also have left while it settled: then the globe is left alone.
+          .then((ok) => (ok && stillWanted() ? withCleanGlobe(bus, qc, planet, () => h.snapshot(lat, lon, heightKm, PLATE_MAX_WIDTH)) : null)), onReport)
           .catch(() => null)
         : Promise.resolve(null);
       cache.set(key, p);
@@ -89,7 +89,7 @@ export function useSnapshot(planet: Planet, lat: number, lon: number, enabled = 
       const name = planet === "mars" ? "Mars" : "Earth";
       if (announce) useApp.getState().announce(r ? `${name} ${announce} ready` : `${name} imagery unavailable; the ${announce} shows coordinates only`);
     });
-    return () => { live = false; };
+    return () => { live = false; release(); };
   }, [bus, qc, planet, lat, lon, ready, key, enabled, heightKm, announce]);
 
   return state;
