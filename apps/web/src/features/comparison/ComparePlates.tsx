@@ -45,8 +45,9 @@ function Plate({ planet, targets, compact }: { planet: Planet; targets: CompareT
   const sub = planet === "earth" ? targets.earth.sub : null;
   const noteClear = useNoteClearance(planet, !!sub && !compact);
   return (
-    // A dark glass plate (not a scrim), so the labels stay legible over bright terrain and cloud.
-    <section ref={noteClear.plate} aria-label={`${planet === "mars" ? "Mars" : "Earth"} location`} title={sub && !noteClear.show ? sub : undefined}
+    // A dark glass plate (not a scrim), so the labels stay legible over bright terrain and cloud. A labelled
+    // group, not a landmark region: the strip below is the comparison's one region.
+    <div ref={noteClear.plate} role="group" aria-label={`${planet === "mars" ? "Mars" : "Earth"} location`} title={sub && !noteClear.show ? sub : undefined}
       className="surface frame absolute left-3 top-3 w-max max-w-[min(280px,calc(100%-24px))] rounded-surface px-3.5 pb-3 pt-2.5 [--frame-l:8px]">
       <PlanetLabel planet={planet} role={planet === "mars" ? "Target" : "Candidate"} />
       <div className="toponym mt-2 text-[20px] leading-[1.02] tracking-[0.04em] text-ink">{t.name}</div>
@@ -63,7 +64,7 @@ function Plate({ planet, targets, compact }: { planet: Planet; targets: CompareT
       {sub && !compact && noteClear.show && (
         <div ref={noteClear.note} className="mt-1.5 line-clamp-1 border-t border-line pt-1.5 text-caption text-faint @min-[680px]:line-clamp-3" title={sub}>{sub}</div>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -73,7 +74,7 @@ function Plate({ planet, targets, compact }: { planet: Planet; targets: CompareT
  * remembered from the last time it showed), so hiding the note cannot flip the answer back.
  */
 function useNoteClearance(planet: Planet, wanted: boolean) {
-  const plate = useRef<HTMLElement>(null);
+  const plate = useRef<HTMLDivElement>(null);
   const note = useRef<HTMLDivElement>(null);
   const noteH = useRef(34);
   const [show, setShow] = useState(true);
