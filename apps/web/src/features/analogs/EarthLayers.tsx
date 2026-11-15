@@ -8,13 +8,19 @@ import { useApp } from "../../store/app";
 import { searchTarget } from "../../store/searchTarget";
 import { useEarthLocal } from "./earthLocal";
 
-function Toggle({ on, onClick, children, swatch, compact }: { on: boolean; onClick: () => void; children: ReactNode; swatch: ReactNode; compact?: boolean }) {
+/** One chip style for every layer toggle: on/off is shown by fill and glyph only, never by a different shape. */
+function Toggle({ on, onClick, children, swatch, compact, label, unavailable }: {
+  on: boolean; onClick: () => void; children: ReactNode; swatch: ReactNode; compact?: boolean; label: string; unavailable?: string;
+}) {
+  const shown = on && !unavailable;
   return (
-    <button type="button" aria-pressed={on} onClick={onClick}
-      className={cx("hit inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full py-1.5 text-caption", compact ? "gap-1 pl-1.5 pr-2" : "pl-2 pr-3", " transition-[color,background,transform] duration-150 active:scale-[0.97]",
-        on ? "bg-elevated text-ink shadow-[inset_0_0_0_1px_rgb(255_255_255/0.10)]" : "text-muted hover:text-ink")}>
-      <span aria-hidden className="grid h-4 w-4 place-items-center">{on ? <Check className="h-3.5 w-3.5" /> : swatch}</span>
-      {children}
+    <button type="button" aria-pressed={shown} aria-disabled={!!unavailable} aria-label={unavailable ? `${label} (${unavailable})` : label}
+      title={unavailable} onClick={unavailable ? undefined : onClick}
+      className={cx("hit inline-flex shrink-0 items-center whitespace-nowrap rounded-full py-1.5 text-caption shadow-[inset_0_0_0_1px_rgb(255_255_255/0.10)] transition-[color,background,transform] duration-150",
+        compact ? "gap-1 pl-1.5 pr-2" : "gap-1.5 pl-2 pr-3",
+        unavailable ? "cursor-default text-faint" : shown ? "bg-elevated text-ink active:scale-[0.97]" : "text-muted hover:bg-elevated/50 hover:text-ink active:scale-[0.97]")}>
+      <span aria-hidden className={cx("grid h-4 w-4 place-items-center", unavailable && "opacity-50")}>{shown ? <Check className="h-3.5 w-3.5" /> : swatch}</span>
+      <span aria-hidden={compact}>{children}</span>
     </button>
   );
 }
@@ -45,14 +51,15 @@ export function EarthLayers() {
   return (
     <div className={cx("surface rounded-surface", phone ? "p-1" : "p-2")} data-occludes="earth" role="group" aria-label="Earth layers">
       <div className="flex items-center">
-      <div className={cx(phone ? "flex min-w-0 flex-1 items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [mask-image:linear-gradient(to_right,black_85%,transparent)]" : "grid flex-1 grid-cols-2 gap-0.5")}>
-        <Toggle compact={phone} on={overlays.similarity} onClick={() => toggle("similarity")}
+      <div className={cx(phone ? "flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none]" : "grid flex-1 grid-cols-2 gap-1")}>
+        <Toggle compact={phone} label="Similarity field" on={overlays.similarity} onClick={() => toggle("similarity")}
+          unavailable={hasSearch && !hasT1 ? "not available: the global screen did not run for this target" : undefined}
           swatch={<span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: lg ? `linear-gradient(135deg, ${lg.stops[0][1]}, ${lg.stops[lg.stops.length - 1][1]})` : undefined }} />}>
           {phone ? "Similarity" : "Similarity field"}
         </Toggle>
-        <Toggle compact={phone} on={overlays.pool} onClick={() => toggle("pool")} swatch={<span className="h-1.5 w-1.5 rounded-full bg-muted" />}>{phone ? "Pool" : "Research pool"}</Toggle>
-        <Toggle compact={phone} on={overlays.coverage} onClick={() => toggle("coverage")} swatch={<span className="h-2.5 w-2.5 rounded-[3px] ring-1 ring-inset ring-muted" />}>{phone ? "Screened" : "Screened land"}</Toggle>
-        <Toggle compact={phone} on={reference} onClick={() => useEarthLocal.setState({ referenceSites: !reference })} swatch={<span className="h-2 w-2 rotate-45 ring-1 ring-inset ring-muted" />}>{phone ? "Reference" : "Reference sites"}</Toggle>
+        <Toggle compact={phone} label="Research pool" on={overlays.pool} onClick={() => toggle("pool")} swatch={<span className="h-1.5 w-1.5 rounded-full bg-muted" />}>{phone ? "Pool" : "Research pool"}</Toggle>
+        <Toggle compact={phone} label="Screened land" on={overlays.coverage} onClick={() => toggle("coverage")} swatch={<span className="h-2.5 w-2.5 rounded-[3px] ring-1 ring-inset ring-muted" />}>{phone ? "Land" : "Screened land"}</Toggle>
+        <Toggle compact={phone} label="Reference sites" on={reference} onClick={() => useEarthLocal.setState({ referenceSites: !reference })} swatch={<span className="h-2 w-2 rotate-45 ring-1 ring-inset ring-muted" />}>{phone ? "Sites" : "Reference sites"}</Toggle>
       </div>
         {phone && anyLegend && (
           <button type="button" aria-expanded={legendOpen} aria-label={legendOpen ? "Hide legend" : "Show legend"} onClick={() => useEarthLocal.setState({ legendOpen: !legendOpen })}
