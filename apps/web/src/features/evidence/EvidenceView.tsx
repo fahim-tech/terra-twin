@@ -345,7 +345,8 @@ function Body({ m, ds, dsLoading, dsError, targetSite }: { m: EvidenceModel; ds?
       </Section>
 
       <p className="mt-20 max-w-[78ch] border-t border-line pt-5 text-caption text-faint">
-        Every number on this page is read from the research package served by <span className="num text-muted">/api/evidence</span> and <span className="num text-muted">/api/datasets</span>. Gate thresholds and verdict cut-offs are working hypotheses.
+        {/* "Measured value", not "number": section and figure numbers are document structure, and FIG 01 is a drawing. */}
+        Every measured value on this page is read from the research package served by <span className="num text-muted">/api/evidence</span> and <span className="num text-muted">/api/datasets</span>; the FIG {sectionNo("ev-process")} drawings are schematic. Gate thresholds and verdict cut-offs are working hypotheses.
       </p>
     </>
   );
