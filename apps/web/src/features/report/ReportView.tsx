@@ -19,6 +19,7 @@ import { dossierPrintCss } from "./print";
 import { ReliefSnapshotSlot } from "./ReliefSlot";
 import { LiveReport } from "./LiveReport";
 import { useLiveCompare } from "../comparison/useLive";
+import { FactorsTable } from "../factors/FactorsPanel";
 import {
   Differences, Dimensions, Limitations, LIMITATIONS_ASIDE, NoCandidatePlate, Provenance, References, ResearchSummary, ScreenSummary, TerrainComparison,
   terrainAside,
@@ -192,6 +193,10 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
             <Dimensions c={c} cellKm={cellKm} />
           </Section>
         )}
+
+        <Section of={sections} id="context" aside="Characterization only · never in the score">
+          <FactorsTable lat={search.mars.coordinate.lat} lon={search.mars.coordinate.lon} />
+        </Section>
 
         <Section of={sections} id="differences" aside="No Earth site reproduces these">
           <Differences />

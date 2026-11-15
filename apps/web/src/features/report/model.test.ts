@@ -160,12 +160,12 @@ describe("dossier layout", () => {
   it("numbers only the sections the search can fill, without gaps", () => {
     const s = makeSearch("named_leader");
     const full = dossierSections(s, resolveCandidate(s, "t2:Atacama Yungay"));
-    expect(full.map((x) => x.id)).toEqual(["plates", "figures", "research", "screen", "terrain", "dimensions", "differences", "provenance", "limitations", "claims", "references"]);
-    expect(full.map((x) => x.index)).toEqual(["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11"]);
+    expect(full.map((x) => x.id)).toEqual(["plates", "figures", "research", "screen", "terrain", "dimensions", "context", "differences", "provenance", "limitations", "claims", "references"]);
+    expect(full.map((x) => x.index)).toEqual(["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]);
     // No candidate: no terrain or dimensions. No global screen: no screen section. Numbering closes up.
     const bare = dossierSections(makeSearch("insufficient_evidence"), null);
-    expect(bare.map((x) => x.id)).toEqual(["plates", "figures", "research", "differences", "provenance", "limitations", "claims", "references"]);
-    expect(bare.at(-1)).toMatchObject({ index: "08", title: "References" });
+    expect(bare.map((x) => x.id)).toEqual(["plates", "figures", "research", "context", "differences", "provenance", "limitations", "claims", "references"]);
+    expect(bare.at(-1)).toMatchObject({ index: "09", title: "References" });
   });
 
   it("lists tie members west to east with their window centres, never by S", () => {

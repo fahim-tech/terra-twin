@@ -356,7 +356,7 @@ export function exportBaseName(search: AnalogSearch): string {
 // ---------------------------------------------------------------------------------- dossier layout
 
 export type SectionId =
-  | "plates" | "figures" | "research" | "screen" | "terrain" | "dimensions"
+  | "plates" | "figures" | "research" | "screen" | "terrain" | "dimensions" | "context"
   | "differences" | "provenance" | "limitations" | "claims" | "references";
 
 export const SECTION_TITLES: Record<SectionId, string> = {
@@ -366,6 +366,7 @@ export const SECTION_TITLES: Record<SectionId, string> = {
   screen: "Global screen",
   terrain: "Terrain comparison",
   dimensions: "Dimensions of analogy",
+  context: "Mars planetary context",
   differences: "Planetary differences",
   provenance: "Provenance",
   limitations: "Limitations",
@@ -380,7 +381,7 @@ export function dossierSections(search: AnalogSearch, c: ReportCandidate | null)
   const ids: SectionId[] = ["plates", "figures", "research"];
   if (search.tier1) ids.push("screen");
   if (c) ids.push("terrain", "dimensions");
-  ids.push("differences", "provenance", "limitations", "claims", "references");
+  ids.push("context", "differences", "provenance", "limitations", "claims", "references");
   return ids.map((id, i) => ({ id, index: indexLabel(i + 1), title: SECTION_TITLES[id] }));
 }
 
