@@ -61,9 +61,10 @@ function Trail({ compact }: { compact: boolean }) {
               {i > 0 && <span aria-hidden className="mx-1 h-px w-5 shrink-0 bg-line-strong" />}
               <button type="button" onClick={() => !s.locked && go(s.id)} aria-current={current ? "step" : undefined} aria-disabled={!!s.locked}
                 title={s.locked ?? undefined} aria-label={compact && s.detail ? `${s.planet}: ${s.detail}${s.locked ? ` (${s.locked})` : ""}` : undefined}
-                className={cx("hit group relative flex h-full min-w-0 items-center rounded-control px-2 transition-colors",
+                className={cx("hit group relative flex h-full min-w-0 items-center px-2 transition-colors focus-visible:outline-none",
                   s.locked ? "cursor-default text-faint/70" : current ? "text-ink" : "text-muted hover:text-ink")}>
-                <span className={cx("flex min-w-0 items-baseline", compact ? "gap-1.5" : "gap-2")}>
+                {/* The button spans the rail's height (its rule sits on the bottom hairline); the focus ring hugs the label instead. */}
+                <span className={cx("flex min-w-0 items-baseline rounded-control group-focus-visible:outline group-focus-visible:outline-offset-[5px] group-focus-visible:outline-ink", compact ? "gap-1.5" : "gap-2")}>
                   <span aria-hidden className={cx("num shrink-0 text-[10.5px]", current ? (tone === "mars" ? "text-mars" : tone === "earth" ? "text-earth" : "text-ink") : "text-faint")}>{String(n).padStart(2, "0")}</span>
                   {compact ? (
                     // Step name over its detail, like a labelled readout: the detail gets the step's whole width.
