@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { OutcomeLegend, type OutcomeKind, outcomeKind } from "../../components/marks";
+import { legendKinds, OutcomeLegend, outcomeKind } from "../../components/marks";
 import { Disclosure } from "../../components/primitives";
 import { Button } from "../../components/ui";
 import { useSites } from "../../services/api";
@@ -71,8 +71,7 @@ function NearbyZones({ lat, lon }: { lat?: number; lon?: number }) {
     .sort((x, y) => x.km - y.km)
     .slice(0, 3);
   // The legend names only the outcome marks these rows show, in the shared order.
-  const shown = new Set(near.map(({ s }) => outcomeKind(bySite[s.id]?.type)));
-  const kinds = LEGEND_ORDER.filter((k) => shown.has(k));
+  const kinds = legendKinds(near.map(({ s }) => outcomeKind(bySite[s.id]?.type)));
   return (
     <Section n={1} title="Nearest research zones" aside="to zone centre">
       <ul className="border-y border-line">
@@ -95,8 +94,6 @@ function NearbyZones({ lat, lon }: { lat?: number; lon?: number }) {
     </Section>
   );
 }
-
-const LEGEND_ORDER: OutcomeKind[] = ["leader", "tie", "none", "not_loaded"];
 
 /** Kept here too for views that already import it from this module (the Earth no-result view). */
 export { KmFigure };

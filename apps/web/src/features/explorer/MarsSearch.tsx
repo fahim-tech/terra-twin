@@ -1,7 +1,7 @@
 import { Search, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { decisionWord, OutcomeLegend, OutcomeMark, outcomeKind } from "../../components/marks";
+import { decisionWord, legendKinds, OutcomeLegend, OutcomeMark, outcomeKind } from "../../components/marks";
 import { cx } from "../../components/ui";
 import { normLon } from "../../lib/geodesy";
 import { zoneName } from "../../lib/glossary";
@@ -139,6 +139,9 @@ export function MarsSearch() {
   }, []);
 
   const activeId = open && !coord && options[active] ? `${listId}-${options[active].id}` : open && coord ? `${listId}-coord` : undefined;
+  // The legend names only the outcome marks the listed zones show (a mission without research shows none).
+  const noOutcomes = !gateMode && !!missions.data;
+  const legend = noOutcomes ? [] : legendKinds(options.map((s) => outcomeKind(bySite[s.id]?.type)));
 
   // Keep the keyboard's selection bar in view (with its group heading when it is the first row of one).
   useEffect(() => {
@@ -260,11 +263,11 @@ export function MarsSearch() {
             </ul>
             {!coord && (
               <div className="border-t border-line px-4 pb-3 pt-2.5">
-                <p className="kicker !text-muted">{missionLabel} · research outcome</p>
-                {!gateMode && missions.data
+                {(legend.length > 0 || noOutcomes) && <p className="kicker !text-muted">{missionLabel} · research outcome</p>}
+                {noOutcomes
                   ? <p className="mt-1.5 text-caption text-faint">None for this mission</p>
-                  : <OutcomeLegend className="mt-1.5" kinds={["leader", "tie", "none", "not_loaded"]} />}
-                <p aria-hidden className="mt-2.5 hidden items-center gap-4 text-[11px] text-faint [@media(hover:hover)]:flex">
+                  : legend.length > 0 && <OutcomeLegend className="mt-1.5" kinds={legend} />}
+                <p aria-hidden className="mt-2.5 hidden items-center gap-4 text-[11px] text-faint first:mt-0 [@media(hover:hover)]:flex">
                   <span className="flex items-center gap-1.5"><Kbd>↑</Kbd><Kbd>↓</Kbd>move</span>
                   <span className="flex items-center gap-1.5"><Kbd>↵</Kbd>go</span>
                   <span className="flex items-center gap-1.5"><Kbd>esc</Kbd>close</span>

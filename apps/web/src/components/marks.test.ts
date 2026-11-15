@@ -2,7 +2,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { GLOSSARY } from "../lib/glossary";
-import { DECISION_WORDS, decisionWord, NEAR_ANALOG, OUTCOME_MARKS, OutcomeMark, outcomeKind, type OutcomeKind, STATUS_MARKS, StatusMark, type StatusKind } from "./marks";
+import {
+  DECISION_WORDS, decisionWord, legendKinds, NEAR_ANALOG, OUTCOME_MARKS, OUTCOME_ORDER, OutcomeMark, outcomeKind, type OutcomeKind, STATUS_MARKS, StatusMark, type StatusKind,
+} from "./marks";
 
 const OUTCOMES: OutcomeKind[] = ["leader", "tie", "none", "screening", "not_loaded"];
 const STATUSES: StatusKind[] = ["on", "off", "partial", "caution", "fault", "struck"];
@@ -48,6 +50,17 @@ describe("decision outcome marks", () => {
     expect(html("leader").match(/<rect/g)).toHaveLength(1);
     expect(html("none")).toContain('fill="none"');
     expect(html("screening")).toContain("<path");
+  });
+});
+
+describe("outcome legends", () => {
+  it("name only the marks on screen, each once, in the one legend order", () => {
+    expect(OUTCOME_ORDER).toEqual(["leader", "tie", "none", "screening", "not_loaded"]);
+    expect(legendKinds(["tie", "leader", "tie", "leader"])).toEqual(["leader", "tie"]);
+    expect(legendKinds(["not_loaded", "none"])).toEqual(["none", "not_loaded"]);
+    expect(legendKinds([])).toEqual([]);
+    // Real research decisions, as the Mars list draws them: two kinds, never the hollow mark nobody shows.
+    expect(legendKinds(["named_leader", "tied_set", "named_leader"].map(outcomeKind))).toEqual(["leader", "tie"]);
   });
 });
 

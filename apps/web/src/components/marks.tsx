@@ -213,6 +213,18 @@ export function MarkLegend({ items, label, className }: { items: { key: string; 
   );
 }
 
+/** The one order outcome marks are listed in, in every legend. */
+export const OUTCOME_ORDER: readonly OutcomeKind[] = ["leader", "tie", "none", "screening", "not_loaded"];
+
+/**
+ * The outcome kinds a set of rows actually shows, each once and in the legend order: a legend names the
+ * marks on screen, never ones that cannot appear (with no outcome loaded it is just the dash).
+ */
+export function legendKinds(shown: Iterable<OutcomeKind>): OutcomeKind[] {
+  const s = new Set(shown);
+  return OUTCOME_ORDER.filter((k) => s.has(k));
+}
+
 /** Legend of decision outcome marks, with the canonical words (or the view's own, in the same order). */
 export function OutcomeLegend({ kinds, words, label = "Research outcome marks", className }: {
   kinds: OutcomeKind[]; words?: Partial<Record<OutcomeKind, string>>; label?: string; className?: string;
