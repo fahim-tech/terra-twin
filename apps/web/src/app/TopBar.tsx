@@ -7,11 +7,16 @@ import { useDatasets, useHealth } from "../services/api";
 import { type Stage, useApp } from "../store/app";
 import { useGlobes } from "../store/globes";
 import { searchTarget } from "../store/searchTarget";
+import { useGisStatus } from "../services/gis";
+import { gisSentence, gisSummary } from "./gisStatus";
+import { useGlobeSources } from "./globeSources";
+import { imageryCredit } from "../lib/credits";
 
 export function Wordmark({ compact }: { compact?: boolean }) {
   return (
     <button type="button" onClick={() => useApp.getState().set({ stage: "mars", introOpen: true, whyOpen: false })}
-      aria-label="TerraTwin — back to the start" className="hit flex shrink-0 items-center justify-center gap-3 rounded-control">
+      aria-label="TerraTwin — back to the start"
+      className="hit flex shrink-0 items-center justify-center gap-3 rounded-control px-1 text-ink/90 transition-[color,opacity] duration-150 hover:text-ink active:opacity-60 active:duration-0 [&_svg]:transition-opacity hover:[&_svg]:opacity-100 [&_svg]:opacity-85">
       {/* Two bodies on one axis: the Mars–Earth twin, drawn as instrument linework. */}
       <svg width="26" height="18" viewBox="0 0 26 18" aria-hidden>
         <circle cx="7" cy="9" r="5.5" fill="none" stroke="var(--color-mars)" strokeWidth="1.2" />
@@ -31,7 +36,7 @@ const DECISION_SHORT: Record<string, string> = {
 };
 /** Phone tokens: the full outcome stays in the accessible name; these never cut a G5-derived word mid-way. */
 const DECISION_TINY: Record<string, string> = {
-  named_leader: "leader", tied_set: "tie", no_convincing_analog: "none", insufficient_evidence: "n/a", unavailable: "no data",
+  named_leader: "stable leader", tied_set: "tie", no_convincing_analog: "none", insufficient_evidence: "n/a", unavailable: "no data",
 };
 
 /**
@@ -64,9 +69,9 @@ function Trail({ compact }: { compact: boolean }) {
               {i > 0 && <span aria-hidden className="mx-1 h-px w-5 shrink-0 bg-line-strong max-lg:w-3" />}
               <button type="button" onClick={() => !s.locked && go(s.id)} aria-current={current ? "step" : undefined} aria-disabled={!!s.locked}
                 title={s.locked ?? undefined} aria-label={compact && s.detail ? `${s.planet}: ${s.detail}${s.locked ? ` (${s.locked})` : ""}` : undefined}
-                className={cx("hit group relative flex h-full items-center px-2 transition-colors focus-visible:outline-none",
+                className={cx("hit group relative flex h-full items-center px-2 transition-colors active:duration-0 focus-visible:outline-none",
                   compact && "min-w-0 max-xs:px-1.5",
-                  s.locked ? "cursor-default text-faint/70" : current ? "text-ink" : "text-muted hover:text-ink")}>
+                  s.locked ? "cursor-default text-faint/70" : current ? "text-ink active:text-ink/70" : "text-muted hover:text-ink active:bg-white/[0.06] active:text-ink")}>
                 {/* The button spans the rail's height (its rule sits on the bottom hairline); the focus ring hugs
                     the label instead, square like every other edge of the rail. */}
                 {compact ? (
@@ -120,7 +125,7 @@ function BackButton({ compact, onClick }: { compact: boolean; onClick: () => voi
   const dest = prev === stage ? "mars" : prev;
   const [full, short] = BACK_LABEL[dest];
   return (
-    <button type="button" onClick={onClick} aria-label={`Back to ${full}`} className="hit label-caps shrink-0 whitespace-nowrap rounded-control px-2 py-1 text-muted hover:text-ink">
+    <button type="button" onClick={onClick} aria-label={`Back to ${full}`} className="hit label-caps shrink-0 whitespace-nowrap rounded-control px-2 py-1 text-muted transition-colors hover:text-ink active:bg-white/[0.08] active:text-ink active:duration-0">
       ← {compact ? short : `Back to ${full}`}
     </button>
   );
@@ -146,11 +151,37 @@ function MissionClock() {
   const utc = clock(d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600 + 1e-7);
   const m = marsTime(now);
   return (
-    <div aria-hidden className="hidden items-center gap-4 border-r border-line pr-4 xl:flex" title="Coordinated Universal Time · Mars Coordinated Time (Mars24)">
+    <div aria-hidden className="hidden items-center gap-4 border-r border-line pr-4 xl:flex"
+      title="Coordinated Universal Time · Mars Coordinated Time (Mars24). The globes are lit for legibility, not by the Sun's position at this time.">
+
       <span className="flex items-baseline gap-1.5"><span className="kicker">UTC</span><span className="num text-num-sm text-ink">{utc}</span></span>
       <span className="flex items-baseline gap-1.5"><span className="kicker text-mars/90">MTC</span><span className="num text-num-sm text-ink">{clock(m.mtcHours)}</span></span>
       <span className="hidden items-baseline gap-1.5 xl:flex"><span className="kicker">MSD</span><span className="num text-num-sm text-muted">{Math.floor(m.msd).toLocaleString("en-US")}</span></span>
     </div>
+  );
+}
+
+/**
+ * GIS data link (from 1280 px): a square mark (filled = live, outlined = not connected), the grid cell size and
+ * the discovery state, all from /api/gis/status. Opens Evidence, where the data and method are documented.
+ */
+function GisRailItem() {
+  const q = useGisStatus();
+  const g = gisSummary(q.data, q.isError);
+  const go = useApp((s) => s.go);
+  const stage = useApp((s) => s.stage);
+  const disc = g.discovery === "available" ? "discovery" : g.discovery === "busy" ? "discovery busy" : g.discovery === "off" ? "no discovery" : "—";
+  return (
+    <button type="button" onClick={() => go("evidence")} aria-label={`${gisSentence(g)}. Open Evidence.`} title={gisSentence(g)}
+      aria-current={stage === "evidence" ? "page" : undefined}
+      className="hit hidden h-9 shrink-0 items-center gap-2 rounded-control border-r border-line px-2.5 pr-4 text-muted transition-colors hover:text-ink active:bg-white/[0.06] active:duration-0 xl:flex">
+      <span aria-hidden className={cx("h-1.5 w-1.5 shrink-0", g.state === "live" ? "bg-ink" : g.state === "off" ? "ring-1 ring-inset ring-warn" : "ring-1 ring-inset ring-faint")} />
+      <span aria-hidden className="kicker text-muted">GIS</span>
+      <span aria-hidden className="num whitespace-nowrap text-num-sm text-ink">
+        {g.state === "off" ? <span className="text-warn">offline</span> : g.gridKm !== null ? <>{g.gridKm}<span className="ml-0.5 font-sans">km</span></> : "—"}
+      </span>
+      {g.state !== "off" && <span aria-hidden className="whitespace-nowrap text-caption text-faint">· {disc}</span>}
+    </button>
   );
 }
 
@@ -161,7 +192,7 @@ export function TopBar({ compact }: { compact: boolean }) {
   // 380 px, where "03 COMPARE" would otherwise run into "Evidence").
   const cell = compact ? "px-2 tracking-[0.1em] max-xs:px-1.5 max-xs:text-[11px] max-xs:tracking-[0.06em]" : "px-2.5";
   return (
-    <header className={cx("no-print relative z-30 flex h-[52px] shrink-0 items-center border-b border-white/[0.07] px-3 sm:gap-5 sm:px-5",
+    <header className={cx("chrome-scale no-print relative z-30 flex h-[52px] shrink-0 items-center border-b border-white/[0.07] px-3 sm:gap-5 sm:px-5",
       compact ? "gap-2 max-xs:gap-1.5" : "gap-3",
       // Full pages scroll text right under the rail: give it a solid backing there (the globe stages keep the scrim).
       fullPage ? "bg-space" : "bg-space/85 backdrop-blur-md")}>
@@ -171,11 +202,12 @@ export function TopBar({ compact }: { compact: boolean }) {
       ) : <Trail compact={compact} />}
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <HoverReadout />
+        {!compact && <GisRailItem />}
         {!compact && <MissionClock />}
         <button type="button" onClick={() => go("evidence")} aria-current={stage === "evidence" ? "page" : undefined}
-          className={cx("hit label-caps rounded-control py-1 hover:text-ink", cell, stage === "evidence" ? "text-ink" : "text-muted")}>Evidence</button>
+          className={cx("hit label-caps rounded-control py-1 transition-colors hover:text-ink active:bg-white/[0.08] active:duration-0", cell, stage === "evidence" ? "text-ink" : "text-muted")}>Evidence</button>
         <button type="button" onClick={() => search && go("report")} aria-disabled={!search} title={search ? undefined : "Run Find Earth Analogs to build a report"}
-          className={cx("hit label-caps rounded-control py-1", cell, !search ? "cursor-default text-faint/70" : stage === "report" ? "text-ink" : "text-muted hover:text-ink")}>Report</button>
+          className={cx("hit label-caps rounded-control py-1 transition-colors", cell, !search ? "cursor-default text-faint/70" : stage === "report" ? "text-ink active:bg-white/[0.08] active:duration-0" : "text-muted hover:text-ink active:bg-white/[0.08] active:duration-0")}>Report</button>
         <MoreMenu />
       </div>
     </header>
@@ -200,6 +232,7 @@ function MoreMenu() {
   const { marsLayer, earthLayer, graticule, set } = useApp();
   const health = useHealth();
   const datasets = useDatasets();
+  const sources = useGlobeSources((s) => s.source);
   const resolution = (dataset: string | null) =>
     (dataset ? datasets.data?.datasets.find((d) => d.id === dataset)?.native_resolution : null) || "—";
   const btn = useRef<HTMLButtonElement>(null);
@@ -241,7 +274,7 @@ function MoreMenu() {
   return (
     <div className="relative">
       <button ref={btn} type="button" aria-label="More: layers, data status, about" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
-        className="hit grid h-9 w-9 place-items-center rounded-control text-muted hover:bg-white/[0.06] hover:text-ink">
+        className="hit grid h-9 w-9 place-items-center rounded-control text-muted transition-colors hover:bg-white/[0.06] hover:text-ink active:bg-white/[0.12] active:duration-0">
         <MoreHorizontal className="h-4 w-4" />
       </button>
       {open && (
@@ -253,6 +286,15 @@ function MoreMenu() {
           <div className="kicker px-2.5 pb-1 pt-3">Overlays</div>
           {item(graticule, "Latitude–longitude grid", "30°", () => set({ graticule: !graticule }), "menuitemcheckbox")}
           <p className="px-2.5 pb-1 pt-3 text-caption text-faint">Imagery is visual context only; measurements come from the analysis datasets.</p>
+          {/* Credits for what each globe reports it draws (never typed in), so a layer switch or ion tiles credit correctly. */}
+          <dl className="px-2.5 pt-1 text-caption">
+            {(["mars", "earth"] as const).map((p) => (
+              <div key={p} className="flex gap-2 py-0.5">
+                <dt className="kicker w-11 shrink-0 pt-px">{p === "mars" ? "Mars" : "Earth"}</dt>
+                <dd className="text-muted">{imageryCredit(p, sources[p], p === "mars" ? marsLayer : earthLayer) ?? "—"}</dd>
+              </div>
+            ))}
+          </dl>
           <div className="mt-2 border-t border-line px-2.5 pt-2.5 text-caption text-muted">{apiTone}</div>
           <div className="px-2.5 pb-1 pt-1 text-caption text-faint">AstroSUST · NASA Space Apps Challenge 2026</div>
         </div>
