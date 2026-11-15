@@ -1,5 +1,6 @@
-import { Compass, Minus, Plus, Scan } from "lucide-react";
+import { Minus, Plus, Scan } from "lucide-react";
 import { useGlobeBus, useGlobeEvents } from "../../app/globeBus";
+import { NorthNeedle } from "../../components/map/Instruments";
 import { cx } from "../../components/ui";
 import { type Planet, tiltAnnouncement, viewName } from "../../globes/protocol";
 import { useApp } from "../../store/app";
@@ -43,7 +44,8 @@ export function CompareNav({ planet, className }: { planet: Planet; className?: 
         <Minus className="h-4 w-4" strokeWidth={1.6} aria-hidden />
       </button>
       <button type="button" className={cell} aria-label={`Face north on ${name} (heading ${Math.round(heading)}°)`} title="Face north (N)" onClick={() => bus.send(planet, { t: "resetHeading" })}>
-        <Compass className="h-4 w-4 transition-transform duration-300 motion-reduce:transition-none" strokeWidth={1.6} style={{ transform: `rotate(${-heading - 45}deg)` }} aria-hidden />
+        {/* The same north needle as the explorer's navigation stack. */}
+        <NorthNeedle heading={heading} />
       </button>
       <button type="button" className={cx(cell, tilt && "!text-ink")} aria-label={`${viewName(true)}, both halves`} aria-pressed={tilt}
         title={tilt ? `${viewName(false)} on both halves (T)` : `${viewName(true)} on both halves (T)`} onClick={toggle}>

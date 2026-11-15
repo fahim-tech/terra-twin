@@ -1,4 +1,5 @@
 import { Home, Minus, Plus } from "lucide-react";
+import { useEffect, useRef } from "react";
 import { useGlobeBus, useGlobeEvents } from "../../app/globeBus";
 import { isTilted } from "../../globes/camera";
 import { type Planet, tiltAnnouncement, viewName } from "../../globes/protocol";
@@ -77,10 +78,28 @@ export function Reticle({ planet, className }: { planet: Planet; className?: str
 const ctl = "hit grid h-9 w-9 place-items-center transition-colors duration-150 hover:bg-white/[0.07] hover:text-ink active:bg-white/[0.14] active:duration-0 focus-visible:outline-offset-[-3px]!";
 const idle = "text-muted";
 
+/** `next` (degrees) moved by whole turns to within 180° of `prev`, so an animated needle turns the short way. */
+export function unwrapDeg(prev: number, next: number): number {
+  return next + 360 * Math.round((prev - next) / 360);
+}
+
+/**
+ * A heading as a continuous angle for a needle whose rotation is eased with CSS: headings arrive in 0–360°, so
+ * crossing north (359.9° → 0.1°) would otherwise spin the needle the long way round, and a view held at north
+ * (readings either side of 0°) would make it whirl.
+ */
+export function useTurnAngle(deg: number): number {
+  const last = useRef<number | null>(null);
+  const angle = last.current === null ? deg : unwrapDeg(last.current, deg);
+  useEffect(() => { last.current = angle; });
+  return angle;
+}
+
 /** North needle: filled half points north, outlined half south; turns with the camera heading. */
-function NorthNeedle({ heading }: { heading: number }) {
+export function NorthNeedle({ heading }: { heading: number }) {
+  const angle = useTurnAngle(heading);
   return (
-    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden className="transition-transform duration-300" style={{ transform: `rotate(${-heading}deg)` }}>
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden className="transition-transform duration-300 motion-reduce:transition-none" style={{ transform: `rotate(${-angle}deg)` }}>
       <path d="M8 1.5 L10.6 8 L5.4 8 Z" fill="currentColor" />
       <path d="M5.4 8 L10.6 8 L8 14.5 Z" fill="none" stroke="currentColor" strokeWidth="1" strokeLinejoin="miter" />
     </svg>
