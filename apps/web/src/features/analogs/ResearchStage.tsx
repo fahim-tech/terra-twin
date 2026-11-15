@@ -3,7 +3,7 @@ import { Disclosure, Measure, Term, Toponym } from "../../components/primitives"
 import { cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
 import type { AnalogSearch, Tier2Candidate } from "../../types/contracts";
-import { coord, decisionMembers, measuresOf, parseWindowId, prettyWindow, shortWindow, T2_MEASURES, unorderedMembers } from "./candidates";
+import { coord, decisionMembers, measuresOf, parseWindowId, prettyWindow, researchWindowKm, shortWindow, T2_MEASURES, unorderedMembers } from "./candidates";
 import { chooseCandidate, switchTier } from "./tierMemory";
 import { DECISION_COPY, decisionLabel, RotationGlyph } from "./Verdict";
 
@@ -27,7 +27,7 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
   const members = decisionMembers(t2);
   const others = t2.candidates.filter((c) => !d.members.includes(c.id) && c.lat !== null);
   const pool = t2.candidate_pool as (NonNullable<typeof t2.candidate_pool> & { n_ranked?: number; ranked_basis?: string }) | null;
-  const winKm = t2.target.window_km || 50;
+  const winKm = researchWindowKm(search);
   const pick = (c: Tier2Candidate) => chooseCandidate(`t2:${c.id}`);
   const isOn = (c: Tier2Candidate) => candidateId === `t2:${c.id}`;
   const phone = useLayout() === "phone";
@@ -35,7 +35,7 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
   return (
     <section aria-labelledby="stage-research" className="pb-2">
       {/* The tab above names the stage; this line states only its basis. */}
-      <p className="text-caption text-faint"><span id="stage-research" className="sr-only">Research comparison: </span>{winKm} km windows · Earth as MOLA would observe it</p>
+      <p className="text-caption text-faint"><span id="stage-research" className="sr-only">Research comparison: </span>{winKm !== null ? `${winKm} km windows · ` : ""}Earth as MOLA would observe it</p>
 
       {/* Verdict headline */}
       <div className="mt-4">
@@ -105,7 +105,7 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
           {label && <p className="mt-2 text-caption text-muted">{label}</p>}
           <p className="mt-2 text-caption text-muted">
             Listed west to east. Equivalent at this resolution — none is preferred, so none is pre-selected.
-            Scores use <Term k="measures">8 measures</Term>; validated on <Term k="synthetic">synthetic twins only</Term>.
+            Scores use <Term k="measures">{T2_MEASURES} measures</Term>; validated on <Term k="synthetic">synthetic twins only</Term>.
           </p>
         </>
       )}
@@ -160,7 +160,7 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
             <span className="num text-num-sm">{t2.landcover_gate.veg_max.toFixed(2)}</span> (working hypotheses)
           </p>
         )}
-        <p className="text-caption text-muted"><Term k="scope">Terrain geometry only</Term> · <Term k="operator">MOLA observation model</Term> · <Term k="scale">{winKm} km windows</Term></p>
+        <p className="text-caption text-muted"><Term k="scope">Terrain geometry only</Term> · <Term k="operator">MOLA observation model</Term> · <Term k="scale">{winKm !== null ? `${winKm} km windows` : "Scale"}</Term></p>
       </div>
 
       {t2.as_measured_baseline && (

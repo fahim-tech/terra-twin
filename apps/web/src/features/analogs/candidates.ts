@@ -173,3 +173,15 @@ export function boundsOf(points: { lat: number; lon: number; bbox?: [number, num
   }
   return { west, south, east, north };
 }
+
+/** The global screen's cell size from the record (tier1.candidate_pool.cell_size_km); null when absent — never a default. */
+export function screenCellKm(search: AnalogSearch | null | undefined): number | null {
+  const km = search?.tier1?.candidate_pool.cell_size_km;
+  return typeof km === "number" && Number.isFinite(km) && km > 0 ? km : null;
+}
+
+/** A research window's size from the record (candidate, else the target); null when absent — never a default. */
+export function researchWindowKm(search: AnalogSearch | null | undefined, c?: Tier2Candidate | null): number | null {
+  const km = c?.window_km ?? search?.tier2.target.window_km;
+  return typeof km === "number" && Number.isFinite(km) && km > 0 ? km : null;
+}

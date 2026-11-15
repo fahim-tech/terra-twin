@@ -7,6 +7,7 @@ import { useEvidence, useMissions } from "../../services/api";
 import { useApp } from "../../store/app";
 import { resultsAreStale, searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
+import { screenCellKm } from "../analogs/candidates";
 import { DIFFERENCES_SOURCE, PLANETARY_DIFFERENCES } from "../comparison/science";
 import { LocationPlate, PLATE_HEIGHT_KM, type PlateFrame, useSnapshot } from "./LocationPlate";
 import {
@@ -73,13 +74,14 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
     : "Research comparison";
 
   // Plates: the Mars window at the search target; the Earth unit at the candidate. Identical frame styling.
-  const marsFrame: PlateFrame = c?.tier === 1
-    ? { nsKm: 25, ewKm: 25, label: "25 km scale reference (descriptors are the zone median)" }
+  const cellKm = screenCellKm(search);
+  const marsFrame: PlateFrame = c?.tier === 1 && cellKm !== null
+    ? { nsKm: cellKm, ewKm: cellKm, label: `${cellKm} km scale reference (descriptors are the zone median)` }
     : researchRan
       ? { nsKm: t2.target.window_km, ewKm: t2.target.window_km, label: `${t2.target.window_km} km research window${windowOffset ? " · centred on the research window, not the requested point" : ""}` }
       : { nsKm: target.footprintKm, ewKm: target.footprintKm, label: `${target.footprintKm} km requested footprint` };
   const earthFrame: PlateFrame | null = !c ? null : c.tier === 1
-    ? { nsKm: c.t1!.footprint.cell_km_ns, ewKm: c.t1!.footprint.cell_km_ew, label: "25 km screening cell" }
+    ? { nsKm: c.t1!.footprint.cell_km_ns, ewKm: c.t1!.footprint.cell_km_ew, label: cellKm !== null ? `${cellKm} km screening cell` : "Screening cell" }
     : { nsKm: c.t2!.window_km, ewKm: c.t2!.window_km, label: `${c.t2!.window_km} km research window` };
   // Both plates are revealed together (each still falls back on its own after its timeout).
   const marsSnap = useSnapshot("mars", marsLat, marsLon);
@@ -162,7 +164,7 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
         {c && (
           <Section title="Dimensions of analogy" aside="What this analysis can and cannot speak to">
             <ul className="divide-y divide-line">
-              {dimensions(c).map((d) => (
+              {dimensions(c, cellKm).map((d) => (
                 <li key={d.name} className="grid gap-1 py-2.5 break-inside-avoid sm:grid-cols-[220px_1fr] sm:gap-6 print:grid-cols-[200px_1fr] print:gap-6">
                   <div className="flex items-baseline gap-2">
                     <span aria-hidden className={cx("inline-block h-2 w-2 shrink-0 translate-y-[-1px] rounded-full [print-color-adjust:exact]", d.status === "evaluated" ? "bg-ink" : d.status === "partial" ? "bg-gradient-to-r from-ink from-50% to-transparent to-50% ring-1 ring-inset ring-ink" : "ring-1 ring-inset ring-faint")} />
@@ -320,7 +322,7 @@ function KeyFigures({ search, c }: { search: AnalogSearch; c: ReportCandidate | 
 
   const scoreBasis = !c ? (d.type === "insufficient_evidence" ? "No score — not enough evidence" : "No candidate selected; no score is reported")
     : c.tier === 2 ? <>Research comparison · {representationLabel(t2.representation)}{role === "tie_member" ? " · does not rank tie members" : ""}</>
-    : <>Global screen · Earth as measured · 25 km · mission-weighted</>;
+    : <>Global screen · Earth as measured{screenCellKm(search) !== null ? ` · ${screenCellKm(search)} km` : ""} · mission-weighted</>;
 
   return (
     <section aria-label="Key figures" className="mt-10 grid grid-cols-2 gap-x-6 gap-y-7 border-y border-line py-6 lg:grid-cols-[1.35fr_1fr_0.8fr_1.2fr] print:break-inside-avoid print:grid-cols-[1.35fr_1fr_0.8fr_1.2fr]">
@@ -388,7 +390,7 @@ function ResearchSummary({ search, c }: { search: AnalogSearch; c: ReportCandida
       <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2">
         {pool && <Meta k="Candidate pool">
           <span className="num">{pool?.n_windows ?? "—"}</span> fixed research windows
-          {pool.n_random_stratified !== undefined && <span className="block text-caption text-faint"><span className="num">{pool.n_random_stratified}</span> stratified random + <span className="num">{pool.n_named_controls}</span> named controls · <span className="num">{pool.window_km ?? 50}</span> km</span>}
+          {pool.n_random_stratified !== undefined && <span className="block text-caption text-faint"><span className="num">{pool.n_random_stratified}</span> stratified random + <span className="num">{pool.n_named_controls}</span> named controls · <span className="num">{pool.window_km ?? "—"}</span> km</span>}
         </Meta>}
         {pool?.n_ranked !== undefined && <Meta k="Ranked">
           <span className="num">{pool.n_ranked}</span> of <span className="num">{pool.n_windows}</span> windows
@@ -437,15 +439,16 @@ function ScreenSummary({ search, c }: { search: AnalogSearch; c: ReportCandidate
 
 function TerrainSection({ search, c }: { search: AnalogSearch; c: ReportCandidate }) {
   const terrain = terrainRows(search, c);
+  const cellKm = screenCellKm(search);
   const reason = (c.t2?.features as { mars_reason?: string } | undefined)?.mars_reason;
   return (
-    <Section title="Terrain comparison" aside="Global-screen descriptors, 25 km, as measured — context, not the research score">
+    <Section title="Terrain comparison" aside={`Global-screen descriptors${cellKm !== null ? `, ${cellKm} km` : ""}, as measured — context, not the research score`}>
       {terrain ? (
         <>
           <p className="mb-4 max-w-[68ch] text-body text-muted">
             {c.tier === 2
-              ? <>Earth values come from the 25 km screening cell that contains this window, as measured. Its screen similarity is <Measure value={terrain.S} digits={3} className="text-num text-ink" /> — a different basis from the research S <Measure value={c.score} digits={3} className="text-num text-ink" />.</>
-              : <>Each row compares the Mars zone median with this cell, both on the shared 25 km screening operator, Earth as measured.</>}
+              ? <>Earth values come from the {cellKm !== null ? `${cellKm} km ` : ""}screening cell that contains this window, as measured. Its screen similarity is <Measure value={terrain.S} digits={3} className="text-num text-ink" /> — a different basis from the research S <Measure value={c.score} digits={3} className="text-num text-ink" />.</>
+              : <>Each row compares the Mars zone median with this cell, both on the shared {cellKm !== null ? `${cellKm} km ` : ""}screening operator, Earth as measured.</>}
           </p>
           <RatioChart rows={terrain.rows} />
           {c.tier === 2 && <p className="mt-3 max-w-[68ch] text-caption text-faint">Per-descriptor research values (Earth as MOLA would observe it) are not loaded.{reason ? ` ${reason}` : ""}</p>}
@@ -472,7 +475,7 @@ function Provenance({ search }: { search: AnalogSearch }) {
         {op.status === "ok" ? <>Version <span className="num">{op.version ?? "—"}</span> · {op.interpolator ?? "—"} · ½-pixel blend{op.registration ? <span className="block text-faint">Registration {op.registration}</span> : null}</> : <>Unavailable at this coordinate. No comparison is made.</>}
       </Prov>
       <Prov k="Earth screen">{search.tier1 ? <>{search.tier1.candidate_pool.source}; <span className="num">{search.tier1.candidate_pool.n_cells_searched.toLocaleString("en-US")}</span> cells; method <span className="num">{search.tier1.method_version}</span>; weights {String((search.tier1 as { weights_status?: string }).weights_status ?? "—")}.</> : "Not run for this target."}</Prov>
-      <Prov k="Earth research pool">Copernicus DEM GLO-90, <span className="num">{t2.candidate_pool?.n_windows ?? "—"}</span> windows of <span className="num">{t2.candidate_pool?.window_km ?? 50}</span> km on a 463 m local grid.</Prov>
+      <Prov k="Earth research pool">Copernicus DEM GLO-90, <span className="num">{t2.candidate_pool?.n_windows ?? "—"}</span> windows of <span className="num">{t2.candidate_pool?.window_km ?? "—"}</span> km on a 463 m local grid.</Prov>
       <Prov k="Land cover">ESA WorldCover 2021 v200{gate ? <> · {gate.mode === "exclude" ? "applied before ranking" : "reported only, never excludes"} · bare-like ≥ <span className="num">{gate.bare_min.toFixed(2)}</span>, vegetated ≤ <span className="num">{gate.veg_max.toFixed(2)}</span> (working hypotheses)</> : null}.</Prov>
       <Prov k="Live refinement">
         {t2.live_refinement.status === "unavailable" ? "Not available" : t2.live_refinement.status}

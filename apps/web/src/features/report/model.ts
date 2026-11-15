@@ -6,7 +6,7 @@
 import { decisionG5Label, G5 } from "../../lib/glossary";
 import { searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, MissionProfile, Tier1Candidate, Tier2Candidate } from "../../types/contracts";
-import { memberOrder } from "../analogs/candidates";
+import { memberOrder, researchWindowKm, screenCellKm } from "../analogs/candidates";
 import { interpret, PLANETARY_DIFFERENCES, TIER1_SPECS } from "../comparison/science";
 
 export type DecisionType = AnalogSearch["tier2"]["decision"]["type"];
@@ -135,11 +135,11 @@ export function terrainRows(search: AnalogSearch, c: ReportCandidate): { rows: T
 }
 
 export type DimensionStatus = "evaluated" | "partial" | "not_evaluated";
-export function dimensions(c: ReportCandidate): { name: string; status: DimensionStatus; detail: string }[] {
+export function dimensions(c: ReportCandidate, cellKm: number | null = null): { name: string; status: DimensionStatus; detail: string }[] {
   const lc = c.t2?.landcover;
   const pc = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)} %`);
   return [
-    { name: "Terrain and geomorphology", status: "evaluated", detail: c.tier === 2 ? `Eight multiscale terrain descriptors, compared with Earth as MOLA would observe it${c.t2 ? ` (${c.t2.window_km} km window)` : ""}.` : "Seven screening descriptors on 25 km cells, Earth as measured." },
+    { name: "Terrain and geomorphology", status: "evaluated", detail: c.tier === 2 ? `Eight multiscale terrain descriptors, compared with Earth as MOLA would observe it${c.t2 ? ` (${c.t2.window_km} km window)` : ""}.` : `Seven screening descriptors on ${cellKm !== null ? `${cellKm} km ` : "global-screen "}cells, Earth as measured.` },
     { name: "Engineering and operations", status: lc?.available ? "partial" : "not_evaluated", detail: lc?.available ? `Exposed-ground check only: ${pc(lc.frac_bare_like)} bare-like, ${pc(lc.frac_vegetated)} vegetated (ESA WorldCover 2021). Trafficability, access and permits not assessed.` : "No surface-cover or access data for this candidate." },
     { name: "Geological materials", status: "not_evaluated", detail: "No lithology or mineralogy dataset is connected for either planet." },
     { name: "Surface processes", status: "not_evaluated", detail: "Process relationships need geological evidence; terrain geometry alone cannot establish them." },
@@ -162,7 +162,7 @@ export function limitations(search: AnalogSearch, evidence?: EvidenceRecord | nu
     synthetic_validation_only: { code: "synthetic_validation_only", text: G5.validation, verbatim: true },
     footprint_dependent: { code: "footprint_dependent", text: G5.scale, verbatim: true },
     no_gravity_atmosphere_radiation: { code: "no_gravity_atmosphere_radiation", text: "Gravity, atmospheric pressure and composition, temperature and surface radiation differ fundamentally; no Earth site reproduces them (see Planetary differences).", verbatim: false },
-    fixed_230_window_research_pool: { code: "fixed_230_window_research_pool", text: `Research comparison candidates come from a fixed pool of ${pool?.n_windows ?? 230} Earth windows (${pool?.window_km ?? 50} km).${pool?.note ? ` ${pool.note}` : ""}`, verbatim: false },
+    fixed_230_window_research_pool: { code: "fixed_230_window_research_pool", text: `Research comparison candidates come from a fixed pool of ${pool?.n_windows ?? "—"} Earth windows${pool?.window_km ? ` (${pool.window_km} km)` : ""}.${pool?.note ? ` ${pool.note}` : ""}`, verbatim: false },
   };
   const out: Limitation[] = t2.disclaimers.map((code) => map[code] ?? { code, text: code.replace(/_/g, " "), verbatim: false });
   const have = new Set(out.map((l) => l.code));
@@ -195,6 +195,8 @@ export function buildReportJson(search: AnalogSearch, c: ReportCandidate | null,
   const t2 = search.tier2;
   const role = c ? candidateRole(search, c) : null;
   const terrain = c ? terrainRows(search, c) : null;
+  const cellKm = screenCellKm(search);
+  const winKm = researchWindowKm(search);
   return {
     product: "TerraTwin characterization report",
     status: "candidate_identification — not validation of a new analog",
@@ -204,7 +206,7 @@ export function buildReportJson(search: AnalogSearch, c: ReportCandidate | null,
       label: target.label, site: target.siteId, lat: target.lat, lon: target.lon,
       coordinate_convention: "planetocentric latitude, east-positive longitude, Mars sphere R = 3,396,190 m",
       requested_footprint_km: target.footprintKm,
-      analysis_units: { tier1: "25 km cells (zone median)", tier2: `${t2.target.window_km} km window` },
+      analysis_units: { tier1: cellKm !== null ? `${cellKm} km cells (zone median)` : null, tier2: winKm !== null ? `${winKm} km window` : null },
       research_window_centre: { lat: t2.target.lat, lon: t2.target.lon, window_km: t2.target.window_km },
       tier1_features: search.mars.tier1_features.map(({ key, value, unit, state, source_id }) => ({ key, value, unit, state, source_id, tier: 1, representation: "as_measured" })),
       observation_support: search.mars.observation_support,
@@ -212,7 +214,9 @@ export function buildReportJson(search: AnalogSearch, c: ReportCandidate | null,
     mission: mission ? { id: mission.id, label: mission.label, gate_mode: mission.gate_mode, weights_status: mission.weights_status } : { id: target.mission },
     earth_candidate: c ? {
       id: c.id, label: c.label, tier: c.tier, role, lat: c.lat, lon: c.lon,
-      unit: c.tier === 2 ? `${c.t2?.window_km ?? 50} km window, 463 m local AEQD` : "25 km GMTED2010 cell",
+      unit: c.tier === 2
+        ? `${researchWindowKm(search, c.t2) !== null ? `${researchWindowKm(search, c.t2)} km ` : ""}window, 463 m local AEQD`
+        : `${cellKm !== null ? `${cellKm} km ` : ""}GMTED2010 cell`,
       score: c.score, score_name: c.tier === 2 ? "S (research comparison, rotation 0°, equal weights)" : "screen similarity (global screen, mission weights)",
       coverage: c.coverage, measures: c.measures,
       representation: c.tier === 2 ? t2.representation : "as_measured",
@@ -227,11 +231,11 @@ export function buildReportJson(search: AnalogSearch, c: ReportCandidate | null,
     landcover_gate: t2.landcover_gate,
     as_measured_baseline: t2.as_measured_baseline,
     terrain_comparison: terrain ? {
-      basis: "Global-screen descriptors, 25 km, Earth as measured — context, not the research score",
+      basis: `Global-screen descriptors${cellKm !== null ? `, ${cellKm} km` : ""}, Earth as measured — context, not the research score`,
       tier: 1, representation: "as_measured", cell: terrain.cell, screen_similarity: terrain.S, coverage: terrain.coverage,
       rows: terrain.rows.map(({ key, label, unit, mars, earth, s, tol, kind, interpretation }) => ({ key, label, unit, mars, earth, similarity_component: s, tolerance: tol, within_tolerance: kind === "unknown" ? null : kind === "match", interpretation })),
     } : null,
-    dimensions_of_analogy: c ? dimensions(c) : [],
+    dimensions_of_analogy: c ? dimensions(c, cellKm) : [],
     coverage: {
       tier1_cells_searched: search.tier1?.candidate_pool.n_cells_searched ?? null,
       tier2_pool: t2.candidate_pool,

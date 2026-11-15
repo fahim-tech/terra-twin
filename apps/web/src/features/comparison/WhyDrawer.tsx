@@ -7,7 +7,7 @@ import { cx, pct } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { G5 } from "../../lib/glossary";
 import type { AnalogSearch } from "../../types/contracts";
-import type { CandidateView } from "../analogs/candidates";
+import { type CandidateView, researchWindowKm, screenCellKm } from "../analogs/candidates";
 import { WHY_DRAWER_WIDTH_CSS } from "./layout";
 import { basisFor, earthName, notLoadedReasons, verdictFor } from "./model";
 import { applications } from "./RelevanceMode";
@@ -42,7 +42,9 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
   const name = earthName(c);
   const g = groupRows(rows);
   const gate = c.t2?.landcover;
-  const t1Basis = "Global-screen descriptors · 25 km · as measured";
+  const cellKm = screenCellKm(search);
+  const winKm = researchWindowKm(search, c.t2);
+  const t1Basis = `Global-screen descriptors${cellKm !== null ? ` · ${cellKm} km` : ""} · as measured`;
   const reasons = notLoadedReasons(c);
   const off = phone ? { y: 24, x: 0 } : { x: 24, y: 0 };
 
@@ -56,7 +58,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
         <Kicker>Why this analog?</Kicker>
         <Toponym as="h2" size="sm" id={titleId} tabIndex={-1} style={{ outline: "none" }} className="mt-1.5 pr-10">{name.name}</Toponym>
         <p className="mt-1 text-caption text-muted">
-          <span className="num text-num-sm">{formatLat(c.lat, 2)} {formatLon(c.lon, 2)}</span> · {c.tier === 2 ? `${c.t2?.window_km ?? 50} km research window` : "25 km screening cell"}
+          <span className="num text-num-sm">{formatLat(c.lat, 2)} {formatLon(c.lon, 2)}</span> · {c.tier === 2 ? (winKm !== null ? `${winKm} km research window` : "research window") : (cellKm !== null ? `${cellKm} km screening cell` : "screening cell")}
         </p>
         <IconButton label="Close" onClick={onClose} className="absolute right-3 top-3"><X className="h-4 w-4" /></IconButton>
       </header>
@@ -68,14 +70,14 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
             <span className="text-right"><span className="text-caption text-faint">S </span><Measure value={c.score} digits={3} className="text-title font-normal" /></span>
           </div>
           <p className="mt-1 text-caption text-muted">{v.detail}</p>
-          <p className="mt-1 text-caption text-faint">{basisFor(c)}</p>
+          <p className="mt-1 text-caption text-faint">{basisFor(c, search)}</p>
         </section>
 
         {c.tier === 2 ? (
           <div>
             <p className="text-label font-normal text-ink">
-              S comes from eight research descriptors on the {c.t2?.window_km ?? search.tier2.target.window_km} km windows, and their values are not loaded here. The two lists
-              below are global-screen context (seven descriptors, 25 km cells, Earth as measured), not what produced S.
+              S comes from eight research descriptors on the {winKm !== null ? `${winKm} km ` : ""}research windows, and their values are not loaded here. The two lists
+              below are global-screen context (seven descriptors{cellKm !== null ? `, ${cellKm} km cells` : ""}, Earth as measured), not what produced S.
             </p>
             <p className="mt-1 text-caption text-muted">Not loaded: {reasons.mars} {c.t2 && search.tier2.representation === "mars_observation_space" ? reasons.earthOom : ""}</p>
           </div>
@@ -104,7 +106,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
         <Section title="Limits" basis="research record and method">
           <Li>{G5.scope}.</Li>
           {c.tier === 2 && <Li>{G5.validation}.</Li>}
-          {c.tier === 2 && <Li>Chosen from a fixed {search.tier2.candidate_pool?.n_windows ?? 230}-window research sample, not a worldwide high-resolution search.</Li>}
+          {c.tier === 2 && <Li>Chosen from a fixed {search.tier2.candidate_pool ? `${search.tier2.candidate_pool.n_windows}-window ` : ""}research sample, not a worldwide high-resolution search.</Li>}
           <Li>{G5.scale}.</Li>
         </Section>
 

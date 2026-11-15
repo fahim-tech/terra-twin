@@ -8,7 +8,7 @@ import { useLayout } from "../../app/useLayout";
 import { G5 } from "../../lib/glossary";
 import { useApp } from "../../store/app";
 import type { AnalogSearch } from "../../types/contracts";
-import { type CandidateView, selectedCandidate } from "../analogs/candidates";
+import { type CandidateView, researchWindowKm, screenCellKm, selectedCandidate } from "../analogs/candidates";
 import { ComparePlates } from "./ComparePlates";
 import { EvidenceMode } from "./EvidenceMode";
 import { StageProbe, useCompareStage, whyDrawerWidth } from "./layout";
@@ -78,7 +78,7 @@ export function ComparisonPanel() {
 
   useEffect(() => {
     if (!targets || !verdict || !c) return;
-    useApp.getState().announce(`Comparing ${targets.mars.name} on Mars with ${targets.earth.name} on Earth. ${verdict.headline}. Similarity ${c.score === null ? "not available" : c.score.toFixed(3)}, ${basisFor(c)}.`);
+    useApp.getState().announce(`Comparing ${targets.mars.name} on Mars with ${targets.earth.name} on Earth. ${verdict.headline}. Similarity ${c.score === null ? "not available" : c.score.toFixed(3)}, ${basisFor(c, search)}.`);
   }, [targets, verdict, c]);
 
   // Escape collapses an expanded mode before it leaves the comparison. The shell routes Escape from
@@ -130,6 +130,8 @@ export function ComparisonPanel() {
     return () => ro.disconnect();
   });
 
+  const cellKm = screenCellKm(search);
+  const winKm = researchWindowKm(search, c?.t2);
   if (!search || !c || !targets || !verdict) return <NoCandidate hasSearch={!!search} phone={phone} />;
 
   // With the Why drawer open, the strip reflows into the width the drawer leaves free (so the G5 scope
@@ -153,7 +155,7 @@ export function ComparisonPanel() {
         style={{ ...(expanded ? { height: phone ? "70%" : "56%" } : null), ...(stripRight !== null ? { right: stripRight } : null) }}
         className={cx("surface no-print absolute z-20 flex flex-col overflow-hidden",
           phone ? "inset-x-0 bottom-0 rounded-t-surface [padding-bottom:env(safe-area-inset-bottom)]" : "inset-x-3 bottom-3 rounded-surface")}>
-        <Summary c={c} targets={targets} verdict={verdict} mode={mode} setMode={setMode} onTabKeys={onTabKeys} phone={phone} narrow={stripRight !== null} onWhy={() => set({ whyOpen: true })} />
+        <Summary c={c} basis={basisFor(c, search)} targets={targets} verdict={verdict} mode={mode} setMode={setMode} onTabKeys={onTabKeys} phone={phone} narrow={stripRight !== null} onWhy={() => set({ whyOpen: true })} />
         {expanded && (
           <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(mode)} className="relative flex min-h-0 flex-1 flex-col">
             <div className="mx-6 h-px shrink-0 bg-line/70 max-md:mx-4" aria-hidden />
@@ -162,15 +164,15 @@ export function ComparisonPanel() {
               className="scroll-thin fade-edges min-h-0 flex-1 overflow-y-auto px-6 pb-5 pt-3 max-md:px-4">
               {mode === "measurements" && (
                 <>
-                  <ModeHeader title="Terrain measurements" basis="Global-screen descriptors, 25 km, as measured — context, not the research score">
-                    {t1 && <>Global-screen S <Measure value={t1.S} digits={3} className="text-num" /> for this pair{c.tier === 2 ? " (the 25 km cell under the window centre)" : ""}. Mars: median of the zone's 25 km cells from the 463 m MOLA grid; Earth: GMTED2010.</>}
+                  <ModeHeader title="Terrain measurements" basis={`Global-screen descriptors${cellKm !== null ? `, ${cellKm} km` : ""}, as measured — context, not the research score`}>
+                    {t1 && <>Global-screen S <Measure value={t1.S} digits={3} className="text-num" /> for this pair{c.tier === 2 ? ` (the ${cellKm !== null ? `${cellKm} km ` : "screening "}cell under the window centre)` : ""}. Mars: median of the zone's {cellKm !== null ? `${cellKm} km ` : "screening "}cells from the 463 m MOLA grid; Earth: GMTED2010.</>}
                   </ModeHeader>
                   {rows.length ? <RatioChart rows={rows} compact={!phone} /> : <p className="text-body text-muted">Global-screen descriptors are not available for this candidate.</p>}
                 </>
               )}
               {mode === "evidence" && (
                 <>
-                  <ModeHeader title="Scientific evidence" basis={c.tier === 2 ? `Research comparison · ${c.t2?.window_km ?? search.tier2.target.window_km} km windows · research record` : "Global screen · 25 km cell · Earth as measured"} />
+                  <ModeHeader title="Scientific evidence" basis={c.tier === 2 ? `Research comparison${winKm !== null ? ` · ${winKm} km windows` : ""} · research record` : `Global screen${cellKm !== null ? ` · ${cellKm} km cell` : ""} · Earth as measured`} />
                   <EvidenceMode search={search} c={c} />
                 </>
               )}
@@ -191,7 +193,8 @@ export function ComparisonPanel() {
   );
 }
 
-function Summary({ c, targets, verdict, mode, setMode, onTabKeys, phone, narrow = false, onWhy }: {
+function Summary({ c, basis, targets, verdict, mode, setMode, onTabKeys, phone, narrow = false, onWhy }: {
+  basis: string;
   c: CandidateView; targets: NonNullable<ReturnType<typeof compareTargets>>; verdict: Verdict;
   mode: Mode; setMode: (m: Mode) => void; onTabKeys: (e: React.KeyboardEvent) => void; phone: boolean;
   /** The strip shares the width with the open Why drawer: two columns, modes below, no second Why button. */
@@ -236,7 +239,7 @@ function Summary({ c, targets, verdict, mode, setMode, onTabKeys, phone, narrow 
           {verdictLine}
           <span className="flex items-baseline gap-1.5"><span className="text-caption text-muted"><Term k="similarity">S</Term></span>{figure}</span>
         </div>
-        <p className="mt-1 text-caption text-ink/90">{basisFor(c)}</p>
+        <p className="mt-1 text-caption text-ink/90">{basis}</p>
         <p className="mt-0.5 text-caption text-muted">
           <Term k="scope" />{c.tier === 2 && <> · validated on <Term k="synthetic" /></>}
         </p>
@@ -259,7 +262,7 @@ function Summary({ c, targets, verdict, mode, setMode, onTabKeys, phone, narrow 
           <div className="ml-auto flex items-center gap-5">{tabs}{why}</div>
         </div>
         <p className="mt-0.5 text-caption text-muted">
-          <span className="text-ink/90">{basisFor(c)}</span> · <Term k="scope" />{c.tier === 2 && <> · validated on <Term k="synthetic" /></>} · <span className="text-faint">{verdict.detail}</span>
+          <span className="text-ink/90">{basis}</span> · <Term k="scope" />{c.tier === 2 && <> · validated on <Term k="synthetic" /></>} · <span className="text-faint">{verdict.detail}</span>
         </p>
       </div>
     );
@@ -285,7 +288,7 @@ function Summary({ c, targets, verdict, mode, setMode, onTabKeys, phone, narrow 
           <span className="text-caption text-muted"><Term k="similarity" /></span>
           {figure}
         </div>
-        <p className="mt-1 text-caption text-ink/90">{basisFor(c)}</p>
+        <p className="mt-1 text-caption text-ink/90">{basis}</p>
         <p className="mt-0.5 text-caption text-muted">{G5.scope}</p>
         {c.tier === 2 && <p className="mt-0.5 text-caption text-faint">Validated on <Term k="synthetic" /></p>}
       </div>

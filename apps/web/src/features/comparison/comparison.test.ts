@@ -91,6 +91,9 @@ describe("verdict", () => {
     expect(v.kind).toBe("screening");
     expect(v.headline).toContain("not a decision");
     expect(basisFor(c)).toContain("Global screen");
+    // No cell size in the record → no size in the basis line (never a default).
+    expect(basisFor(c)).not.toMatch(/\d+ km/);
+    expect(v.detail).not.toMatch(/\d+ km/);
   });
 
   it("does not hide abstention", () => {

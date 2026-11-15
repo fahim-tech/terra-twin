@@ -6,7 +6,7 @@
 import { decisionG5Label, GLOSSARY, zoneName } from "../../lib/glossary";
 import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
-import { type CandidateView, memberOrder } from "../analogs/candidates";
+import { type CandidateView, memberOrder, screenCellKm } from "../analogs/candidates";
 
 export type VerdictKind = "leader" | "tie_member" | "not_member" | "screening" | "no_convincing" | "insufficient";
 
@@ -25,7 +25,7 @@ export function verdictFor(search: AnalogSearch, c: CandidateView): Verdict {
     return {
       kind: "screening", glyph: "○",
       headline: `Screening cell${c.rank ? ` #${c.rank}` : ""} — not a decision`,
-      detail: "A global-screen cell (25 km, Earth as measured). Screening ranks are a wide net, not a research decision.",
+      detail: `A global-screen cell (${screenCellKm(search) !== null ? `${screenCellKm(search)} km, ` : ""}Earth as measured). Screening ranks are a wide net, not a research decision.`,
     };
   }
   const d = search.tier2.decision;
@@ -57,12 +57,13 @@ export function measuresLabel(c: CandidateView): string | null {
   return `${Math.round(c.coverage * 8)}/8 measures`;
 }
 
-/** The basis line printed under every score. */
-export function basisFor(c: CandidateView): string {
+/** The basis line printed under every score. The cell size is the record's; without it the clause is omitted. */
+export function basisFor(c: CandidateView, search?: AnalogSearch | null): string {
+  const km = screenCellKm(search);
   const m = measuresLabel(c);
   return c.tier === 2
     ? `Research comparison · Earth as MOLA would observe it${m ? ` · ${m}` : ""}`
-    : `Global screen · 25 km cell · Earth as measured${m ? ` · ${m}` : ""}`;
+    : `Global screen${km !== null ? ` · ${km} km cell` : ""} · Earth as measured${m ? ` · ${m}` : ""}`;
 }
 
 /** Display name for a research-pool window id (random windows have no toponym; named controls do). */

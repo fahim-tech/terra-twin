@@ -9,7 +9,7 @@ import { useMissions } from "../../services/api";
 import { useApp } from "../../store/app";
 import { resultsAreStale, searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
-import { type CandidateView, candidateList, decisionMembers, measuresOf, prettyWindow, selectedCandidate, T1_MEASURES, T2_MEASURES, unorderedMembers } from "./candidates";
+import { type CandidateView, candidateList, decisionMembers, measuresOf, prettyWindow, researchWindowKm, screenCellKm, selectedCandidate, T1_MEASURES, T2_MEASURES, unorderedMembers } from "./candidates";
 import { EarthLookup } from "./EarthLookup";
 import { GlobalStage } from "./GlobalStage";
 import { NoResult } from "./NoResult";
@@ -90,8 +90,8 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
       {/* The representation is the basis of S: never truncated; phones drop the stage name instead. */}
       <p className="mt-0.5 text-caption text-muted">
         {isT2
-          ? `${phone ? "" : "Research comparison · "}${current.t2!.window_km || 50} km window · as MOLA would observe it`
-          : `${phone ? "" : "Global screen · "}${search.tier1?.candidate_pool.cell_size_km ?? 25} km cell · as measured`}
+          ? `${phone ? "" : "Research comparison · "}${researchWindowKm(search, current.t2) !== null ? `${researchWindowKm(search, current.t2)} km ` : ""}window · as MOLA would observe it`
+          : `${phone ? "" : "Global screen · "}${screenCellKm(search) !== null ? `${screenCellKm(search)} km ` : ""}cell · as measured`}
         {tieIdx >= 0 && <> · <span className="text-ink">member of a tie ({tieIdx + 1} of {d.members.length})</span></>}
       </p>
       <div className="mt-3 grid grid-cols-2 gap-2">

@@ -79,11 +79,11 @@ export function EarthLookup({ search }: { search: AnalogSearch }) {
   const data = r.data;
   const cell = data?.ranked ?? null;
   const on = cell ? candidateId === `t1:${cell.region_id}` : false;
-  const km = t1?.candidate_pool.cell_size_km ?? 25;
+  const km = t1?.candidate_pool.cell_size_km ?? null;
 
   return (
     <Disclosure summary="Inspect an Earth point">
-      <p className="text-caption text-muted">Any coordinate → the nearest {km} km cell of the <Term k="globalScreen">global screen</Term>, Earth as measured.</p>
+      <p className="text-caption text-muted">Any coordinate → the nearest {km !== null ? `${km} km ` : ""}cell of the <Term k="globalScreen">global screen</Term>, Earth as measured.</p>
       <form onSubmit={submit} noValidate className="mt-2 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
         <label htmlFor={ids.lat} className="text-caption text-muted">Latitude
           <input id={ids.lat} inputMode="decimal" autoComplete="off" placeholder="−24.10" value={lat} onChange={(e) => setLat(e.target.value)}
@@ -113,7 +113,7 @@ export function EarthLookup({ search }: { search: AnalogSearch }) {
             <div className="mt-2 flex items-end justify-between gap-3">
               <div>
                 <div className="text-caption text-muted">Rank <span className="num text-num-sm text-ink">{cell.rank.toLocaleString()}</span> of <span className="num text-num-sm">{t1!.candidate_pool.n_cells_searched.toLocaleString()}</span> for {target.label}</div>
-                <div className="text-caption text-faint">{km} km cell · as measured</div>
+                <div className="text-caption text-faint">{km !== null ? `${km} km ` : ""}cell · as measured</div>
               </div>
               <span className="num shrink-0 text-num text-ink">S {cell.similarity === null ? "—" : cell.similarity.toFixed(3)} <span className="text-faint">· {measuresOf(cell.coverage, T1_MEASURES) ?? "—"}/{T1_MEASURES}</span></span>
             </div>
