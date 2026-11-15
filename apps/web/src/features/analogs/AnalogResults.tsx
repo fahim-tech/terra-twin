@@ -23,6 +23,7 @@ import { ResearchStage } from "./ResearchStage";
 import { switchTier } from "./tierMemory";
 import { useSheetFit } from "./useSheetFit";
 import { DiscoveryCompareActions } from "./DiscoveryAction";
+import { FactorsStrip } from "../factors/FactorsPanel";
 
 export { DECISION_COPY, DecisionBlock } from "./Verdict";
 
@@ -232,6 +233,7 @@ export function AnalogResults() {
           <Tag>{mission?.label ?? target.mission.replace(/_/g, " ")}</Tag>
           <span className="num text-num-sm text-muted">{formatLat(target.lat, 3)}  {formatLon(target.lon, 3)}</span>
         </div>
+        {gis && !phone && <FactorsStrip lat={target.lat} lon={target.lon} className="mt-2" />}
         {stale && selection && (
           <div role="status" className="mt-3 border border-warn/45 bg-warn/[0.06] px-3 py-2.5 text-caption text-ink">
             <span className="kicker mb-1 flex items-center gap-2 !text-warn"><StatusMark state="caution" />Caution · results for an earlier target</span>
