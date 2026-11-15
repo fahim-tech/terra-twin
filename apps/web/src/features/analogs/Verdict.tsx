@@ -57,6 +57,21 @@ export function DecisionBlock({ t2 }: { t2: Tier2Result }) {
         <RotationGlyph t2={t2} />
       </div>
       {label && <p className="mt-2 text-caption text-muted">{label}</p>}
+      <OperatorStatus t2={t2} className="mt-1.5" />
     </div>
+  );
+}
+
+/**
+ * Operator status (G5: no S without it). When the MOLA observation model is missing there is no research
+ * score at all, and the uncorrected comparison is never substituted.
+ */
+export function OperatorStatus({ t2, className }: { t2: Tier2Result; className?: string }) {
+  const ok = t2.operator.status === "ok";
+  return (
+    <p className={cx("text-caption", ok ? "text-muted" : "text-ink", className)}>
+      <span aria-hidden className={cx("mr-1.5", ok ? "text-ink" : "text-bad")}>{ok ? "✓" : "⊘"}</span>
+      <Term k="operator">MOLA observation model</Term> {ok ? "applied" : "unavailable · no score shown"}
+    </p>
   );
 }
