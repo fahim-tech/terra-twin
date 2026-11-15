@@ -259,16 +259,23 @@ function ContextSurface({ stage, phone, side, open, children }: { stage: "mars" 
 }
 
 /**
- * Compact legends of the data layers kept on in Compare, top-right of each globe half (phones: the planet shown, under
- * the Globe switch). A layer the reader chose on the Mars or Earth stage stays drawn here, never without its scale.
+ * Compact legends of the data layers kept on in Compare, top-right of each globe half beside its plate card; a half
+ * too narrow for both (tablets) sets the legend under the card. Phones: the planet shown, under the Globe switch
+ * (beside it on a phone held sideways). A layer chosen on the Mars or Earth stage stays drawn here, never without its scale.
  */
 function CompareLegends({ phone, phonePlanet }: { phone: boolean; phonePlanet: Planet }) {
   const planets: Planet[] = phone ? [phonePlanet] : ["mars", "earth"];
   return (
     <div className="no-print pointer-events-none absolute inset-0 z-10">
-      {planets.map((p) => (
-        <div key={p} className={cx("absolute flex justify-end", phone ? "inset-x-3 top-[60px]" : cx("top-3 w-1/2 px-3", p === "mars" ? "left-0" : "right-0"))}>
+      {planets.map((p) => phone ? (
+        <div key={p} className="absolute inset-x-3 top-[60px] flex justify-end short:top-3">
           <DataLayerLegend planet={p} />
+        </div>
+      ) : (
+        <div key={p} className={cx("@container absolute inset-y-0 w-1/2", p === "mars" ? "left-0" : "right-0")}>
+          <div className="absolute inset-x-3 top-3 flex justify-end @max-[639px]:top-[196px]">
+            <DataLayerLegend planet={p} />
+          </div>
         </div>
       ))}
     </div>

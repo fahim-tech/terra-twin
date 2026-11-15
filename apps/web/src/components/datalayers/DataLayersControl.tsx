@@ -239,10 +239,10 @@ export function DataLayerLegend({ planet, className }: { planet: Planet; classNa
   return (
     <section aria-label={`${planet === "mars" ? "Mars" : "Earth"} data layer: ${layer.label}`}
       className={cx("surface frame pointer-events-auto w-[min(240px,calc(100%-24px))] rounded-surface px-3 py-2 [--frame-l:6px]", className)}>
-      <p className="mb-1.5 flex min-w-0 items-center gap-2">
+      <p className="mb-1.5 flex min-w-0 items-baseline gap-2">
         <span aria-hidden className={cx("h-1.5 w-1.5 shrink-0", planet === "mars" ? "bg-mars" : "bg-earth")} />
         <span className="kicker shrink-0">Data layer</span>
-        <span className="min-w-0 truncate text-caption text-ink">{layer.label}</span>
+        <span className="min-w-0 text-caption leading-snug text-ink">{layer.label}</span>
       </p>
       <LegendStrip planet={planet} bare />
     </section>
