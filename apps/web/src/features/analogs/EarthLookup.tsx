@@ -219,7 +219,7 @@ function GridAtPoint({ q, info }: { q: ReturnType<typeof useGridPoint>; info: Gr
             <dl aria-label="Grid terrain descriptors" className="grid grid-cols-2 border-t border-line">
               {terrain.map((t, i) => (
                 <div key={t.key} className={cx("min-w-0 px-3 py-2", i % 2 === 1 && "border-l border-line", i >= 2 && "border-t border-line")}>
-                  <dt className={cx(CAPS, "truncate")} title={t.units ? `${t.label} · ${t.units}` : t.label}>{t.label}</dt>
+                  <dt className={cx(CAPS, "break-words")}>{t.label}</dt>
                   <dd className="num mt-1 text-num text-ink">{t.value === null ? "—" : <>{fig(t.value, t.unit)}{t.unit && <span className="text-num-sm text-muted"> {t.unit}</span>}</>}</dd>
                 </div>
               ))}
@@ -239,7 +239,7 @@ function GridAtPoint({ q, info }: { q: ReturnType<typeof useGridPoint>; info: Gr
 
 const CONTEXT_LABEL: Record<string, string> = {
   aridity_index: "Aridity index",
-  koppen_geiger_1991_2020: "Köppen–Geiger class, 1991–2020",
+  koppen_geiger_1991_2020: "Köppen–Geiger",
   permafrost_probability: "Permafrost probability",
 };
 const contextLabel = (k: string) => CONTEXT_LABEL[k] ?? k.replace(/_/g, " ");
@@ -268,8 +268,8 @@ function ContextAtPoint({ q }: { q: ReturnType<typeof useContextPoint> }) {
                   {l.value === null || l.value === undefined
                     ? <span className="text-muted">— · {l.missing_reason ?? "no value"}</span>
                     : typeof l.value === "number"
-                      ? <><span className="num text-ink">{fig(l.value, unit)}</span><span className="text-muted"> {l.units}</span></>
-                      : <><span className="num text-ink">{l.value}</span>{desc && <span className="text-muted"> · {desc}</span>}</>}
+                      ? <><span className="num text-ink">{fig(l.value, unit)}</span><span className="text-muted"> {unit || l.units.replace(/^1 \((.*)\)$/, "$1")}</span></>
+                      : <><span className="num text-ink">{l.value}</span>{desc && <span className="text-muted"> · {desc}</span>}{k.endsWith("1991_2020") && <span className="text-muted"> · 1991–2020</span>}</>}
                   <span className="text-faint"> · {l.feature_state}</span>
                 </Readout>
               );

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { MarsSite } from "../../types/contracts";
 import {
-  availabilityItems, baselineFromExplanation, CALLOUT_MIN_W, calloutGeometry, clearCallout, graticulePaths, gridMetres, insideRing, introOverlapsPlanet,
-  LEADER_DX, nextActive, orthographic, placeCallout, reachFromGlyph, revealDelta, scalesFromEvidence, segmentMeetsBox, underCover,
+  availabilityItems, baselineFromExplanation, boxesMeet, CALLOUT_MIN_W, calloutGeometry, clearCallout, graticulePaths, gridMetres, insideRing, introOverlapsPlanet,
+  LEADER_DX, nextActive, orthographic, placeCallout, plateSize, reachFromGlyph, revealDelta, scalesFromEvidence, segmentMeetsBox, underCover,
 } from "./readouts";
 import { zoneRing, zonesNear } from "./zones";
 
@@ -239,6 +239,20 @@ describe("callout plates keep clear of zone outlines and other glyphs", () => {
   };
   const clearOf = (b: { x0: number; y0: number; x1: number; y1: number }, r: { x: number; y: number }[]) =>
     r.every((p, i) => !segmentMeetsBox(p, r[(i + 1) % r.length], b));
+
+  it("moves a plate off an instrument box (the phone scale bar, the data-layers panel)", () => {
+    const c0 = clearCallout(glyph, start, desktop, reaches, plate, { rings: [], marks: [] }, { minDy: 38 });
+    const box = plateBox(c0);
+    const c = clearCallout(glyph, start, desktop, reaches, plate, { rings: [], marks: [], boxes: [box] }, { minDy: 38 });
+    expect(c.hits).toBe(0);
+    expect(boxesMeet(plateBox(c), box)).toBe(false);
+  });
+
+  it("places a wrapped plate by the taller of its natural and drawn heights", () => {
+    expect(plateSize({ w: 220, h: 42 }, { w: 130, h: 78 })).toEqual({ w: 220, h: 78 });
+    expect(plateSize({ w: 120, h: 42 }, undefined)).toEqual({ w: 120, h: 42 });
+    expect(boxesMeet({ x0: 0, y0: 0, x1: 10, y1: 10 }, { x0: 10, y0: 0, x1: 20, y1: 10 })).toBe(false);
+  });
 
   it("keeps the placement the bounds chose when nothing is near", () => {
     const c = clearCallout(glyph, start, desktop, reaches, plate, { rings: [], marks: [] }, { minDy: 38 });

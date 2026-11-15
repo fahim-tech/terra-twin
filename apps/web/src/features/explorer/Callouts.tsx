@@ -166,7 +166,8 @@ export function Callouts({ items }: { items: Callout[] }) {
     left: ins.left,
     top: Math.max(ins.top, NAVIGATOR_BOTTOM, panelCeiling),
     right: size.w - Math.max(ins.right, phone ? PHONE_NAV_W : 0),
-    bottom: size.h - ins.bottom,
+    // Phones: the scale bar sits on the bottom-left of the free area; a plate never goes down beside it.
+    bottom: size.h - ins.bottom - (phone ? PHONE_SCALE.bottom + PHONE_SCALE.h : 0),
   };
 
   return (
