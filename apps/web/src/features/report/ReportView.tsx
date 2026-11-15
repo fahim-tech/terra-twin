@@ -15,7 +15,8 @@ import { DISPLAY, DossierSection } from "./parts";
 import { dossierPrintCss } from "./print";
 import { ReliefSnapshotSlot } from "./ReliefSlot";
 import {
-  Differences, Dimensions, Limitations, NoCandidatePlate, Provenance, References, ResearchSummary, ScreenSummary, TerrainComparison, terrainAside,
+  Differences, Dimensions, Limitations, LIMITATIONS_ASIDE, NoCandidatePlate, Provenance, References, ResearchSummary, ScreenSummary, TerrainComparison,
+  terrainAside,
 } from "./sections";
 
 export default function ReportView() {
@@ -160,7 +161,7 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
           <Provenance search={search} />
         </Section>
 
-        <Section of={sections} id="limitations" aside="Required statements, verbatim">
+        <Section of={sections} id="limitations" aside={LIMITATIONS_ASIDE}>
           <Limitations search={search} evidence={evidence.data} />
         </Section>
 

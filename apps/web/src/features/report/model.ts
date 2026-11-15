@@ -118,6 +118,17 @@ export function decisionMemberRows(search: AnalogSearch): MemberRow[] {
   });
 }
 
+/**
+ * The research record's 50 km vs 25 km footprint diagnostic, when it reports a change. It is computed before any
+ * land-cover exclusion and is about the record's ranking, so it never names a leader: the decision shown may be
+ * gated, or a tie with no leader at all.
+ */
+export function footprintRobustness(search: AnalogSearch): { value: string; note: string } | null {
+  const diag = (search.tier2 as { diagnostics?: { footprint_leader_same_50_vs_25km?: boolean } }).diagnostics;
+  if (diag?.footprint_leader_same_50_vs_25km !== false) return null;
+  return { value: "Ranking changes with 25 km windows", note: `Research record, before any land-cover exclusion. ${G5.scale}` };
+}
+
 export function representationLabel(r: "mars_observation_space" | "as_measured"): string {
   return r === "mars_observation_space" ? "Earth as MOLA would observe it" : "Earth as measured";
 }

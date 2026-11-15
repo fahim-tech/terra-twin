@@ -5,13 +5,12 @@
 import type { ReactNode } from "react";
 import { Measure, Tag, Term } from "../../components/primitives";
 import { Button, cx } from "../../components/ui";
-import { G5 } from "../../lib/glossary";
 import { useApp } from "../../store/app";
 import type { AnalogSearch } from "../../types/contracts";
 import { screenCellKm } from "../analogs/candidates";
 import { DIFFERENCES_SOURCE, PLANETARY_DIFFERENCES } from "../comparison/science";
 import {
-  decisionHeadline, decisionLabel, decisionMemberRows, dimensions, type EvidenceRecord, fmtLat, fmtLon, limitations, REFERENCES,
+  decisionHeadline, decisionLabel, decisionMemberRows, dimensions, type EvidenceRecord, fmtLat, fmtLon, footprintRobustness, limitations, REFERENCES,
   representationLabel, type ReportCandidate, terrainRows, windowLabel,
 } from "./model";
 import { DecisionMark, DISPLAY, Numerals, type ReadoutItem, ReadoutGrid, StatusMark, statusWord } from "./parts";
@@ -26,7 +25,6 @@ export function ResearchSummary({ search, c }: { search: AnalogSearch; c: Report
   const t2 = search.tier2;
   const d = t2.decision;
   const pool = t2.candidate_pool as { n_windows?: number; n_random_stratified?: number; n_named_controls?: number; n_ranked?: number; ranked_basis?: string; window_km?: number } | null;
-  const diag = (t2 as { diagnostics?: { footprint_leader_same_50_vs_25km?: boolean } }).diagnostics;
   const op = t2.operator as { status: string; mask?: string };
   const b = t2.as_measured_baseline;
   const members = decisionMemberRows(search);
@@ -57,9 +55,8 @@ export function ResearchSummary({ search, c }: { search: AnalogSearch; c: Report
   if (b) {
     items.push({ key: "baseline", label: "Uncorrected comparator", value: <><Numerals text={windowLabel(b.leader)} /> · S <Measure value={b.S} digits={3} /></>, note: <>{representationLabel("as_measured")}. Not a fallback.</> });
   }
-  if (diag?.footprint_leader_same_50_vs_25km === false) {
-    items.push({ key: "robust", label: "Robustness", value: <>Leader differs with <N>25</N> km windows</>, note: <Numerals text={G5.scale} /> });
-  }
+  const robust = footprintRobustness(search);
+  if (robust) items.push({ key: "robust", label: "Robustness", value: <Numerals text={robust.value} />, note: <Numerals text={robust.note} /> });
 
   return (
     <div className="space-y-6">
@@ -265,13 +262,20 @@ function Row({ k, children }: { k: string; children: ReactNode }) {
 
 // --------------------------------------------------------------------------- limitations, references
 
+/** Aside for the limitations section: only the statements marked verbatim are quoted word for word. */
+export const LIMITATIONS_ASIDE = "Required statements quoted verbatim where marked";
+
 export function Limitations({ search, evidence }: { search: AnalogSearch; evidence: EvidenceRecord | null | undefined }) {
   return (
     <ol className="border-t border-line-strong">
       {limitations(search, evidence).map((l, i) => (
-        <li key={l.code} className="grid grid-cols-[44px_1fr] gap-3 border-b border-line py-3 text-body">
+        <li key={l.code} className="grid grid-cols-[44px_1fr] items-baseline gap-x-3 gap-y-1 border-b border-line py-3 text-body sm:grid-cols-[44px_1fr_auto] sm:gap-x-6">
           <span className="num text-num text-faint">L{indexLabel(i + 1)}</span>
           <Numerals text={l.text} className={l.verbatim ? "text-ink" : "text-muted"} />
+          {/* Words, not ink alone: a verbatim statement says so; the others summarise the record. */}
+          {l.verbatim
+            ? <span className="kicker col-start-2 !text-muted sm:col-start-3">Verbatim</span>
+            : <span className="sr-only">Summary of the record, not verbatim</span>}
         </li>
       ))}
     </ol>

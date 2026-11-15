@@ -4,7 +4,7 @@ import { clock, marsTime } from "../../lib/instruments";
 import type { AnalogSearch } from "../../types/contracts";
 import {
   buildCsv, buildReportJson, candidateRole, CSV_COLUMNS, decisionHeadline, decisionLabel, decisionMemberRows, decisionMembers, dossierSections,
-  generatedStamp, limitations, provenanceSummary, resolveCandidate, terrainRows,
+  footprintRobustness, generatedStamp, limitations, provenanceSummary, resolveCandidate, terrainRows,
 } from "./model";
 
 const t1cand = {
@@ -92,6 +92,27 @@ describe("report model", () => {
     const texts = limitations(makeSearch("named_leader")).map((l) => l.text);
     for (const g of [G5.scope, G5.validation, G5.scale, G5.operator, G5.gate]) expect(texts).toContain(g);
     expect(limitations(makeSearch("tied_set")).map((l) => l.text)).not.toContain(G5.gate);
+  });
+
+  it("marks a limitation verbatim exactly when it is a G5 string, so the dossier's 'Verbatim' mark is true", () => {
+    const g5 = new Set<string>(Object.values(G5));
+    for (const d of ["named_leader", "tied_set", "insufficient_evidence"] as const) {
+      const ls = limitations(makeSearch(d));
+      for (const l of ls) expect(l.verbatim, l.code).toBe(g5.has(l.text));
+      // Some statements summarise the record: the section must not call all of them verbatim.
+      expect(ls.some((l) => !l.verbatim)).toBe(true);
+    }
+  });
+
+  it("reports the 50 km vs 25 km diagnostic as a ranking change, never as a leader (a tie has none)", () => {
+    const tie = makeSearch("tied_set");
+    expect(footprintRobustness(tie)).toBeNull();
+    (tie.tier2 as { diagnostics?: object }).diagnostics = { footprint_leader_same_50_vs_25km: false };
+    const r = footprintRobustness(tie)!;
+    expect(r.value).not.toMatch(/leader/i);
+    expect(r.note).toContain(G5.scale);
+    (tie.tier2 as { diagnostics?: object }).diagnostics = { footprint_leader_same_50_vs_25km: true };
+    expect(footprintRobustness(tie)).toBeNull();
   });
 
   it("labels terrain rows from the screening basis, not the research score", () => {
