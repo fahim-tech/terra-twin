@@ -6,8 +6,15 @@
  *   node scripts/shots.mjs --views mars-selected,compare --sizes 1440x900
  *   node scripts/shots.mjs --sizes 1440x790,1920x970      # realistic browser-window heights
  *
+ * Flags: --base (dev server), --out (folder), --sizes (WxH list), --views (names below), --chrome (binary),
+ * --settle (default per-view settle, ms).
+ *
  * Requires a running dev server (it uses the dev-only `window.__terratwin` hook to drive state)
  * and the API on VITE_API_BASE_URL. Uses the locally installed Google Chrome via playwright-core.
+ *
+ * Waits are condition-based and bounded: the page waits for both globes to report ready (store/globes.ts)
+ * and for the web fonts, long pages are captured screen by screen to the end, the report waits for its
+ * location plates to finish rendering, and "compare-relief" opens the comparison's 3D relief mode.
  */
 import { chromium } from "playwright-core";
 import { mkdirSync } from "node:fs";
@@ -24,10 +31,27 @@ const ONLY = arg("views", "");
 const CHROME = arg("chrome", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
 const SETTLE = Number(arg("settle", "6500"));
 
+/** Upper bounds for the condition waits (ms). */
+const BOOT_TIMEOUT = 30_000;
+const BOOT_SETTLE = 1_200; // after both globes are ready: first imagery tiles
+const PLATES_TIMEOUT = 30_000;
+/** Long pages: capture screens until the end of the scroll container, at most this many. */
+const MAX_PAGES = 40;
+
 const JEZERO = { lat: 17.67557431706733, lon: 77.01274064381283, siteId: "Jezero", label: "Jezero" };
 const OFFSITE = { lat: -60, lon: 10, siteId: null, label: "60.00° S, 10.00° E" };
 
-/** Each view: a function run in the page (receives the hook) + extra settle time. */
+/** Opens the comparison for Jezero's first research candidate (shared by compare views). */
+const openCompare = async (h, p) => {
+  const s = h.useApp.getState(); s.set({ introOpen: false }); s.select(p.jezero);
+  const res = await h.api.findAnalogs({ lat: p.jezero.lat, lon: p.jezero.lon, footprint_km: 25, mission: "landing_site" });
+  s.set({ search: res, candidateId: `t2:${res.tier2.candidates[0].id}`, tier: 2 }); s.go("compare");
+};
+
+/**
+ * Each view: `run` (in the page, receives the hook), optional `after` (Playwright page step; return false
+ * to skip the capture), extra `settle`, and `pages` ("all" = every screen of the scrolling stage).
+ */
 const VIEWS = {
   intro: { run: async () => {}, settle: 2000 },
   "mars-empty": { run: async (h) => { h.useApp.getState().set({ introOpen: false }); }, settle: 3000 },
@@ -66,14 +90,7 @@ const VIEWS = {
       s.set({ search: res, candidateId: null, tier: 2 }); s.go("earth");
     },
   },
-  compare: {
-    run: async (h, p) => {
-      const s = h.useApp.getState(); s.set({ introOpen: false }); s.select(p.jezero);
-      const res = await h.api.findAnalogs({ lat: p.jezero.lat, lon: p.jezero.lon, footprint_km: 25, mission: "landing_site" });
-      s.set({ search: res, candidateId: `t2:${res.tier2.candidates[0].id}`, tier: 2 }); s.go("compare");
-    },
-    settle: 9000,
-  },
+  compare: { run: openCompare, settle: 9000 },
   "compare-why": {
     run: async (h, p) => {
       const s = h.useApp.getState(); s.set({ introOpen: false }); s.select(p.jezero);
@@ -82,17 +99,61 @@ const VIEWS = {
     },
     settle: 9000,
   },
-  evidence: { run: async (h) => { h.useApp.getState().set({ introOpen: false }); h.useApp.getState().go("evidence"); }, settle: 4000, pages: 4 },
+  "compare-relief": {
+    run: openCompare,
+    settle: 6000,
+    // The comparison's mode switch offers "3D relief" only when a relief viewer is wired (modes.ts).
+    after: async (page) => {
+      const mode = page.locator('[role="tab"], [role="radio"]').filter({ hasText: /^\s*3D relief\s*$/i }).first();
+      if (!(await mode.count())) {
+        console.log('  note: no "3D relief" mode in this build — compare-relief skipped');
+        return false;
+      }
+      await mode.click();
+      // Bounded: the relief section appears and its grid finishes loading (or says why it cannot).
+      await page.waitForFunction(() => {
+        const s = document.querySelector('section[aria-label^="Terrain relief"]');
+        return !!s && !s.querySelector('[role="status"]');
+      }, null, { timeout: 20_000 }).catch(() => console.log("  note: relief still loading after 20 s — captured as is"));
+      await page.waitForTimeout(1500);
+      return true;
+    },
+  },
+  evidence: { run: async (h) => { h.useApp.getState().set({ introOpen: false }); h.useApp.getState().go("evidence"); }, settle: 4000, pages: "all" },
   report: {
     run: async (h, p) => {
       const s = h.useApp.getState(); s.set({ introOpen: false }); s.select(p.jezero);
       const res = await h.api.findAnalogs({ lat: p.jezero.lat, lon: p.jezero.lon, footprint_km: 25, mission: "landing_site" });
       s.set({ search: res, candidateId: `t2:${res.tier2.candidates[0].id}`, tier: 2 }); s.go("compare"); s.go("report");
     },
-    settle: 9000, // the Mars plate waits for the globe's camera flight to settle before capturing (~8 s)
-    pages: 4,
+    settle: 1500,
+    // The plates render globe snapshots (camera flight, then capture); wait until every plate image has loaded.
+    after: async (page) => {
+      const ok = await page.waitForFunction(() => {
+        const plates = document.querySelector("#dossier-plates");
+        if (!plates) return false;
+        if (plates.querySelector('figure [role="status"]')) return false; // "Rendering … imagery"
+        const imgs = [...plates.querySelectorAll("figure img")];
+        return imgs.every((i) => i.complete && i.naturalWidth > 0);
+      }, null, { timeout: PLATES_TIMEOUT }).then(() => true, () => false);
+      if (!ok) console.log(`  note: report plates not finished after ${PLATES_TIMEOUT / 1000} s — captured as is`);
+      await page.waitForTimeout(700); // plate reveal fade
+      return true;
+    },
+    pages: "all",
   },
 };
+
+/** Waits for both globes to report ready (bounded), the web fonts, then a short settle for the first tiles. */
+async function waitForBoot(page) {
+  const ready = await page.waitForFunction(() => {
+    const r = window.__terratwin?.useGlobes?.getState().ready;
+    return !!r && r.mars && r.earth;
+  }, null, { timeout: BOOT_TIMEOUT }).then(() => true, () => false);
+  if (!ready) console.log(`  note: globes not ready after ${BOOT_TIMEOUT / 1000} s — continuing`);
+  await page.evaluate(() => document.fonts.ready.then(() => true));
+  await page.waitForTimeout(BOOT_SETTLE);
+}
 
 const names = ONLY ? ONLY.split(",") : Object.keys(VIEWS);
 mkdirSync(OUT, { recursive: true });
@@ -115,17 +176,20 @@ for (const [w, h] of SIZES) {
     try {
       await page.goto(BASE, { waitUntil: "load" });
       await page.waitForFunction(() => !!window.__terratwin, null, { timeout: 20000 });
-      await page.waitForTimeout(2500); // globe boot
+      await waitForBoot(page);
       await page.evaluate(async ({ src, p }) => {
         // eslint-disable-next-line no-new-func
         const fn = new Function("h", "p", `return (${src})(h, p)`);
         await fn(window.__terratwin, p);
       }, { src: view.run.toString(), p: { jezero: JEZERO, offsite: OFFSITE } });
       await page.waitForTimeout(view.settle ?? SETTLE);
+      if (view.after && (await view.after(page)) === false) { await ctx.close(); continue; }
       const file = resolve(OUT, `${w}x${h}-${name}.jpg`);
       await page.screenshot({ path: file, type: "jpeg", quality: 82 });
       // Long pages scroll inside the stage: capture further screens of the first scrollable container.
-      for (let k = 1; k < (view.pages ?? 1); k++) {
+      const pages = view.pages === "all" ? MAX_PAGES : (view.pages ?? 1);
+      let shot = 1;
+      for (let k = 1; k < pages; k++) {
         const moved = await page.evaluate((k) => {
           const el = [...document.querySelectorAll("main *")].find((e) => {
             const cs = getComputedStyle(e);
@@ -139,8 +203,9 @@ for (const [w, h] of SIZES) {
         if (!moved) break;
         await page.waitForTimeout(900);
         await page.screenshot({ path: resolve(OUT, `${w}x${h}-${name}-p${k + 1}.jpg`), type: "jpeg", quality: 82 });
+        shot = k + 1;
       }
-      console.log(`✓ ${w}x${h} ${name}${errors.length ? `  (${errors.length} console errors)` : ""}`);
+      console.log(`✓ ${w}x${h} ${name}${shot > 1 ? ` (${shot} screens)` : ""}${errors.length ? `  (${errors.length} console errors)` : ""}`);
       if (errors.length) failures.push({ view: `${w}x${h} ${name}`, errors: errors.slice(0, 3) });
     } catch (e) {
       console.error(`✗ ${w}x${h} ${name}: ${e.message}`);
