@@ -56,7 +56,11 @@ const PAPER = { width: 1000, height: 500, scale: 2 } as const;
 
 type Stills = { status: "loading" } | { status: "ok"; screen: Snapshot; paper: Snapshot } | { status: "empty" } | { status: "failed" };
 
-function ReliefPlate({ plate, planet, kicker, name, q }: { plate: string; planet: "earth" | "mars"; kicker: string; name: string; q: UseQueryResult<Relief> }) {
+export function ReliefPlate({ plate, planet, kicker, name, q, unit = "research window" }: {
+  plate: string; planet: "earth" | "mars"; kicker: string; name: string; q: UseQueryResult<Relief>;
+  /** What the window is, after its size ("50 km research window"). */
+  unit?: string;
+}) {
   const box = useRef<HTMLDivElement>(null);
   const width = useBucketWidth(box);
   // Wide pages: a 2:1 panorama; phones: 4:3, so the burned-in scale labels keep their size.
@@ -135,7 +139,7 @@ function ReliefPlate({ plate, planet, kicker, name, q }: { plate: string; planet
             <>
               <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
                 <span className="num text-num text-muted">{where}</span>
-                <span className="text-caption text-faint"><span className="num">{relief.window_km}</span> km research window</span>
+                <span className="text-caption text-faint"><span className="num">{relief.window_km}</span> km {unit}</span>
               </div>
               <dl className="mt-2.5 max-w-[86ch] space-y-1 text-caption [&_button]:text-left">
                 <div className="flex gap-3">

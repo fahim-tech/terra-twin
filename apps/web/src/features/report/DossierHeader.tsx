@@ -153,7 +153,7 @@ export function DossierHeader({ search, target, c, mission, generatedAt, stale, 
   );
 }
 
-function Designation({ tone, kicker, name, coord, coordSpoken = false, muted = false }: {
+export function Designation({ tone, kicker, name, coord, coordSpoken = false, muted = false }: {
   tone: "mars" | "earth"; kicker: string; name: string; coord?: string; coordSpoken?: boolean; muted?: boolean;
 }) {
   // "Window 217 · roughness decile 8": the designation in display caps, its qualifier on a quieter line.
@@ -178,7 +178,7 @@ function Designation({ tone, kicker, name, coord, coordSpoken = false, muted = f
   );
 }
 
-function Field({ k, children, className }: { k: string; children: ReactNode; className?: string }) {
+export function Field({ k, children, className }: { k: string; children: ReactNode; className?: string }) {
   return (
     <div className={cx("min-w-0 border-line px-4 py-3.5 md:px-6", className)}>
       <dt className="kicker">{k}</dt>

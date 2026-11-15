@@ -17,12 +17,20 @@ import { DISPLAY, DossierSection } from "./parts";
 import { wholeDiskHeightKm } from "./plateGeometry";
 import { dossierPrintCss } from "./print";
 import { ReliefSnapshotSlot } from "./ReliefSlot";
+import { LiveReport } from "./LiveReport";
+import { useLiveCompare } from "../comparison/useLive";
 import {
   Differences, Dimensions, Limitations, LIMITATIONS_ASIDE, NoCandidatePlate, Provenance, References, ResearchSummary, ScreenSummary, TerrainComparison,
   terrainAside,
 } from "./sections";
 
 export default function ReportView() {
+  const live = useLiveCompare();
+  // A live discovery window when Compare follows one (the Live discovery tab's selection); else the research dossier.
+  return live.state === "off" ? <ResearchReport /> : <LiveReport live={live} />;
+}
+
+function ResearchReport() {
   const search = useApp((s) => s.search);
   const candidateId = useApp((s) => s.candidateId);
   const selection = useApp((s) => s.selection);
