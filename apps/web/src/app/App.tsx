@@ -187,8 +187,12 @@ function ContextSurface({ stage, phone, open, children }: { stage: "mars" | "ear
       {open && (
         <motion.aside key={stage} aria-label={stage === "mars" ? "Selected location" : "Earth analogs"} data-occludes={stage}
           initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} transition={SPRING}
-          className="surface no-print absolute bottom-3 right-3 top-3 z-20 flex w-[min(380px,calc(100%-24px))] flex-col overflow-hidden rounded-surface">
-          {children}
+          className="no-print pointer-events-none absolute bottom-3 right-3 top-3 z-20 flex w-[min(380px,calc(100%-24px))] flex-col">
+          {/* The aside keeps the full-height box (globe framing uses it); the surface itself is sized to
+              its content and capped at the stage, so it appears only as tall as what it has to say. */}
+          <div className="surface pointer-events-auto flex max-h-full min-h-0 flex-col overflow-hidden rounded-surface">
+            {children}
+          </div>
         </motion.aside>
       )}
     </AnimatePresence>

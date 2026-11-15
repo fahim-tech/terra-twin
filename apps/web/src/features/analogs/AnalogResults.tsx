@@ -127,12 +127,13 @@ export function AnalogResults() {
   const activeTier = tier === 1 && t1 ? 1 : 2;
 
   return (
-    <div ref={root} className="flex h-full min-h-0 flex-col" style={fit ? { height: fit } : undefined}>
+    <div ref={root} className={cx("flex min-h-0 flex-col", phone && "h-full")} style={fit ? { height: fit } : undefined}>
       <PanelHeader className="pb-1 max-sm:pt-2">
         {/* Focus lands here after a stage change (screen readers announce it); the heading is not interactive, so no ring. */}
         <h2 data-stage-heading="earth" tabIndex={-1} style={{ outline: "none" }}>
           <span className="mr-2 text-caption text-muted sm:mr-0 sm:block">Results for</span>
-          <span className="toponym mt-0.5 text-toponym-sm text-ink sm:block sm:text-toponym">{targetName(target)}</span>
+          {/* A toponym is a place name: an off-zone point is "Selected point", its coordinates stay in mono below. */}
+          <span className="toponym mt-0.5 text-toponym-sm text-ink sm:block sm:text-toponym">{target.siteId ? zoneName(target.siteId) : "Selected point"}</span>
         </h2>
         <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
           <span className="text-mars">{mission?.label ?? target.mission.replace(/_/g, " ")}</span>

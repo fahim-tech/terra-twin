@@ -1,4 +1,4 @@
-import { ArrowRight, CornerUpLeft } from "lucide-react";
+import { ArrowRight, ChevronDown, CornerUpLeft } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Block, Kicker, PanelBody, PanelFooter, PanelHeader, Term, Toponym } from "../../components/primitives";
 import { Button, cx, Note, Segmented } from "../../components/ui";
@@ -31,7 +31,6 @@ export function MarsInspector() {
   const search = useRunSearch();
   const root = useRef<HTMLDivElement>(null);
   const inSheet = useSheetFit(root, !!selection);
-  useContentSizedSurface(root, !!selection && !inSheet);
 
   // Announce when the measurements for a new selection arrive (or fail).
   const announced = useRef<string | null>(null);
@@ -54,7 +53,7 @@ export function MarsInspector() {
   const fromOrigin = origin && !(origin.lat === selection.lat && origin.lon === selection.lon) ? origin : null;
 
   return (
-    <div ref={root} className={cx("group/insp flex min-h-0 flex-col overflow-clip", inSheet ? "h-full" : "surface pointer-events-auto max-h-full rounded-surface")}>
+    <div ref={root} className={cx("group/insp flex min-h-0 flex-col overflow-clip", inSheet && "h-full")}>
       <PanelHeader onClose={() => select(null)} className={cx("pr-14", inSheet && "pb-2 pt-1!")}>
         <Kicker tone={outside ? undefined : "mars"}>{outside ? "Outside research zones" : "Research zone"}</Kicker>
         <Toponym data-stage-heading="mars" tabIndex={-1} style={{ outline: "none" }} className="mt-1.5">{name}</Toponym>
@@ -71,7 +70,7 @@ export function MarsInspector() {
         </div>
       </PanelHeader>
 
-      <PanelBody className={cx("pb-4", inSheet && "pt-0")}>
+      <PanelBody className={cx("pb-6", inSheet && "pt-0")}>
         {q.isError && (
           <Note tone="critical" className="py-3">
             Measurements could not be loaded: {(q.error as Error).message}{" "}
@@ -162,12 +161,16 @@ function MissionRow() {
     <section className="pb-2.5 pt-1" aria-label="Mission">
       <div className="flex items-center justify-between gap-3">
         <label htmlFor="mars-mission" className="text-label text-ink">Mission</label>
-        <select id="mars-mission" value={mission} onChange={(e) => useApp.getState().set({ mission: e.target.value })}
-          className="hit h-9 min-w-0 max-w-[230px] flex-1 cursor-pointer rounded-control bg-elevated px-2.5 text-label text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)] outline-none">
-          {(missions.data ?? [{ id: mission, label: "Loading…", available: true } as MissionProfile]).map((x) => (
-            <option key={x.id} value={x.id} disabled={!x.available}>{x.label}{x.available ? "" : " — not available yet"}</option>
-          ))}
-        </select>
+        {/* Native select for its accessibility and phone pickers, drawn as an elevated control with our own chevron. */}
+        <span className="relative min-w-0 max-w-[230px] flex-1">
+          <select id="mars-mission" value={mission} onChange={(e) => useApp.getState().set({ mission: e.target.value })}
+            className="hit h-8 w-full cursor-pointer appearance-none rounded-control bg-elevated py-0 pl-2.5 pr-8 text-label text-ink shadow-[inset_0_0_0_1px_rgb(255_255_255/0.10)] transition-colors duration-150 hover:bg-elevated/80 hover:shadow-[inset_0_0_0_1px_var(--color-line-strong)]">
+            {(missions.data ?? [{ id: mission, label: "Loading…", available: true } as MissionProfile]).map((x) => (
+              <option key={x.id} value={x.id} disabled={!x.available}>{x.label}{x.available ? "" : " — not available yet"}</option>
+            ))}
+          </select>
+          <ChevronDown aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+        </span>
       </div>
       <p className="mt-1.5 text-caption text-muted">{missionEffect(m)}</p>
     </section>
@@ -224,25 +227,4 @@ function useSheetFit(root: React.RefObject<HTMLDivElement>, mounted: boolean): b
     };
   }, [root, mounted]);
   return inSheet;
-}
-
-/**
- * Desktop/tablet: the shared context surface is full stage height. The inspector should be sized to
- * its content (spec 17(b)1), so the host keeps its full-height box (globe framing is unchanged) but
- * drops its own surface paint and pointer events, and the inspector draws the surface itself at its
- * content height, capped at the stage. Restored on unmount.
- * (Shared-file request: ContextSurface should size to content with max-height = stage.)
- */
-function useContentSizedSurface(root: React.RefObject<HTMLDivElement>, active: boolean) {
-  useLayoutEffect(() => {
-    const host = active ? root.current?.closest<HTMLElement>("aside[data-occludes]") : null;
-    if (!host) return;
-    const off: Record<string, string> = {
-      background: "transparent", "box-shadow": "none", "backdrop-filter": "none", "-webkit-backdrop-filter": "none",
-      "pointer-events": "none", overflow: "visible",
-    };
-    const prev = Object.keys(off).map((k) => [k, host.style.getPropertyValue(k)] as const);
-    for (const [k, v] of Object.entries(off)) host.style.setProperty(k, v);
-    return () => { for (const [k, v] of prev) { if (v) host.style.setProperty(k, v); else host.style.removeProperty(k); } };
-  }, [root, active]);
 }
