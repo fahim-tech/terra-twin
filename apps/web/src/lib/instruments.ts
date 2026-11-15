@@ -42,3 +42,22 @@ export function nearestSite<T extends SiteLike>(sites: T[] | undefined, lat: num
   }
   return best;
 }
+
+/**
+ * Mars Sol Date and Mars Coordinated Time (Allison & McEwen 2000; NASA GISS Mars24, algorithm AM2000).
+ * `taiMinusUtc` is the leap-second count (37 s since 2017-01-01).
+ */
+export function marsTime(utcMs: number, taiMinusUtc = 37): { msd: number; mtcHours: number } {
+  const jdUt = utcMs / 86_400_000 + 2_440_587.5;
+  const jdTt = jdUt + (taiMinusUtc + 32.184) / 86_400;
+  const msd = (jdTt - 2_451_545.0 - 4.5) / 1.0274912517 + 44_796.0 - 0.0009626;
+  const mtcHours = (((24 * msd) % 24) + 24) % 24;
+  return { msd, mtcHours };
+}
+
+/** hh:mm:ss from fractional hours. */
+export function clock(hours: number): string {
+  const total = Math.floor(hours * 3600 + 1e-6);
+  const h = Math.floor(total / 3600) % 24, m = Math.floor((total % 3600) / 60), s = total % 60;
+  return [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
+}

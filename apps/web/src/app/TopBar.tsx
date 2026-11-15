@@ -1,7 +1,8 @@
-import { ChevronRight, MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { cx } from "../components/ui";
 import { formatLat, formatLon } from "../lib/geodesy";
+import { clock, marsTime } from "../lib/instruments";
 import { useHealth } from "../services/api";
 import { type Stage, useApp } from "../store/app";
 import { useGlobes } from "../store/globes";
@@ -10,12 +11,14 @@ import { searchTarget } from "../store/searchTarget";
 export function Wordmark({ compact }: { compact?: boolean }) {
   return (
     <button type="button" onClick={() => useApp.getState().set({ stage: "mars", introOpen: true, whyOpen: false })}
-      aria-label="TerraTwin — back to the start" className="hit flex shrink-0 items-center justify-center gap-2.5 rounded-control">
-      <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden>
-        <circle cx="12.5" cy="16" r="7.5" fill="none" stroke="var(--color-mars)" strokeWidth="1.6" />
-        <circle cx="19.5" cy="16" r="7.5" fill="none" stroke="var(--color-earth)" strokeWidth="1.6" />
+      aria-label="TerraTwin — back to the start" className="hit flex shrink-0 items-center justify-center gap-3 rounded-control">
+      {/* Two bodies on one axis: the Mars–Earth twin, drawn as instrument linework. */}
+      <svg width="26" height="18" viewBox="0 0 26 18" aria-hidden>
+        <circle cx="7" cy="9" r="5.5" fill="none" stroke="var(--color-mars)" strokeWidth="1.2" />
+        <circle cx="19" cy="9" r="5.5" fill="none" stroke="var(--color-earth)" strokeWidth="1.2" />
+        <path d="M0 9h26" stroke="var(--color-ink)" strokeOpacity=".55" strokeWidth="1" />
       </svg>
-      {!compact && <span className="toponym text-[21px] leading-none tracking-[-0.01em]">TerraTwin</span>}
+      {!compact && <span className="font-[family-name:var(--font-display)] text-[15px] font-semibold uppercase leading-none tracking-[0.28em]">TerraTwin</span>}
     </button>
   );
 }
@@ -47,17 +50,20 @@ function Trail({ compact }: { compact: boolean }) {
         {visible.map((s, i) => {
           const current = stage === s.id;
           const shown = compact ? s.tiny : s.detail;
+          const n = steps.findIndex((x) => x.id === s.id) + 1;
           return (
             <li key={s.id} className="flex min-w-0 items-center gap-1">
-              {i > 0 && <ChevronRight className="h-3.5 w-3.5 shrink-0 text-faint" aria-hidden />}
+              {i > 0 && <span aria-hidden className="mx-1 h-px w-5 shrink-0 bg-line-strong" />}
               <button type="button" onClick={() => !s.locked && go(s.id)} aria-current={current ? "step" : undefined} aria-disabled={!!s.locked}
                 title={s.locked ?? undefined} aria-label={compact && s.detail ? `${s.planet}: ${s.detail}${s.locked ? ` (${s.locked})` : ""}` : undefined}
-                className={cx("hit group flex min-w-0 items-center rounded-control px-2 py-1 text-label transition-colors",
-                  s.locked ? "cursor-default text-faint" : current ? "text-ink" : "text-muted hover:text-ink")}>
-                <span className="flex min-w-0 items-baseline">
-                  <span className={cx("shrink-0", current && s.id === "mars" && "text-mars", current && s.id === "earth" && "text-earth")}>{s.planet}</span>
-                  {shown && <><span aria-hidden className="mx-1.5 shrink-0 text-faint">·</span><span className="truncate text-muted">{shown}</span></>}
+                className={cx("hit group relative flex min-w-0 items-center rounded-control px-2 py-1 transition-colors",
+                  s.locked ? "cursor-default text-faint/70" : current ? "text-ink" : "text-muted hover:text-ink")}>
+                <span className="flex min-w-0 items-baseline gap-2">
+                  <span aria-hidden className={cx("num shrink-0 text-[10.5px]", current ? (s.id === "mars" ? "text-mars" : s.id === "earth" ? "text-earth" : "text-ink") : "text-faint")}>{String(n).padStart(2, "0")}</span>
+                  <span className="label-caps shrink-0">{s.planet}</span>
+                  {shown && <span className="truncate text-caption normal-case tracking-normal text-muted">{shown}</span>}
                 </span>
+                {current && <span aria-hidden className={cx("absolute inset-x-2 -bottom-[9px] h-px", s.id === "mars" ? "bg-mars" : s.id === "earth" ? "bg-earth" : "bg-ink")} />}
                 {s.locked && !compact && <span className="sr-only">({s.locked})</span>}
               </button>
             </li>
@@ -79,7 +85,7 @@ function BackButton({ compact, onClick }: { compact: boolean; onClick: () => voi
   const dest = prev === stage ? "mars" : prev;
   const [full, short] = BACK_LABEL[dest];
   return (
-    <button type="button" onClick={onClick} aria-label={`Back to ${full}`} className="hit shrink-0 whitespace-nowrap rounded-control px-2 py-1 text-label text-muted hover:text-ink">
+    <button type="button" onClick={onClick} aria-label={`Back to ${full}`} className="hit label-caps shrink-0 whitespace-nowrap rounded-control px-2 py-1 text-muted hover:text-ink">
       ← {compact ? short : `Back to ${full}`}
     </button>
   );
@@ -88,8 +94,24 @@ function BackButton({ compact, onClick }: { compact: boolean; onClick: () => voi
 function HoverReadout() {
   const hover = useGlobes((s) => s.hover);
   return (
-    <div className="num hidden w-[200px] justify-end text-num-sm text-muted xl:flex" aria-hidden>
-      {hover && <><span className={cx("mr-2", hover.planet === "mars" ? "text-mars" : "text-earth")}>{hover.planet === "mars" ? "Mars" : "Earth"}</span>{formatLat(hover.lat, 2)} {formatLon(hover.lon, 2)}</>}
+    <div className="num hidden w-[190px] justify-end text-num-sm text-muted 2xl:flex" aria-hidden>
+      {hover && <><span className={cx("mr-2", hover.planet === "mars" ? "text-mars" : "text-earth")}>{hover.planet === "mars" ? "MARS" : "EARTH"}</span>{formatLat(hover.lat, 2)} {formatLon(hover.lon, 2)}</>}
+    </div>
+  );
+}
+
+/** Mission clock: real UTC and Mars Coordinated Time (Mars24). Decorative for assistive tech (it ticks every second). */
+function MissionClock() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
+  const d = new Date(now);
+  const utc = clock(d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600 + 1e-7);
+  const m = marsTime(now);
+  return (
+    <div aria-hidden className="hidden items-center gap-4 border-r border-line pr-4 lg:flex" title="Coordinated Universal Time · Mars Coordinated Time (Mars24)">
+      <span className="flex items-baseline gap-1.5"><span className="kicker">UTC</span><span className="num text-num-sm text-ink">{utc}</span></span>
+      <span className="flex items-baseline gap-1.5"><span className="kicker !text-mars/90">MTC</span><span className="num text-num-sm text-ink">{clock(m.mtcHours)}</span></span>
+      <span className="hidden items-baseline gap-1.5 xl:flex"><span className="kicker">MSD</span><span className="num text-num-sm text-muted">{Math.floor(m.msd).toLocaleString("en-US")}</span></span>
     </div>
   );
 }
@@ -98,19 +120,20 @@ export function TopBar({ compact }: { compact: boolean }) {
   const { stage, go, back, search } = useApp();
   const fullPage = stage === "evidence" || stage === "report";
   return (
-    <header className={cx("no-print relative z-30 flex h-[52px] shrink-0 items-center gap-3 px-3 sm:gap-5 sm:px-5",
+    <header className={cx("no-print relative z-30 flex h-[52px] shrink-0 items-center gap-3 border-b border-white/[0.07] px-3 sm:gap-5 sm:px-5",
       // Full pages scroll text right under the rail: give it a solid backing there (the globe stages keep the scrim).
-      fullPage ? "bg-space" : "bg-gradient-to-b from-space via-space/90 to-space/70")}>
+      fullPage ? "bg-space" : "bg-space/85 backdrop-blur-md")}>
       <Wordmark compact={compact} />
       {fullPage ? (
         <BackButton compact={compact} onClick={back} />
       ) : <Trail compact={compact} />}
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <HoverReadout />
+        {!compact && <MissionClock />}
         <button type="button" onClick={() => go("evidence")} aria-current={stage === "evidence" ? "page" : undefined}
-          className={cx("hit rounded-control px-2.5 py-1 text-label hover:text-ink", stage === "evidence" ? "text-ink" : "text-muted")}>Evidence</button>
+          className={cx("hit label-caps rounded-control px-2.5 py-1 hover:text-ink", stage === "evidence" ? "text-ink" : "text-muted")}>Evidence</button>
         <button type="button" onClick={() => search && go("report")} aria-disabled={!search} title={search ? undefined : "Run Find Earth Analogs to build a report"}
-          className={cx("hit rounded-control px-2.5 py-1 text-label", !search ? "cursor-default text-faint" : stage === "report" ? "text-ink" : "text-muted hover:text-ink")}>Report</button>
+          className={cx("hit label-caps rounded-control px-2.5 py-1", !search ? "cursor-default text-faint/70" : stage === "report" ? "text-ink" : "text-muted hover:text-ink")}>Report</button>
         <MoreMenu />
       </div>
     </header>
@@ -156,20 +179,20 @@ function MoreMenu() {
   };
   const item = (on: boolean, label: string, note: string, act: () => void, role: "menuitemradio" | "menuitemcheckbox" = "menuitemradio") => (
     <button key={label} role={role} aria-checked={on} onClick={act} tabIndex={-1}
-      className="flex w-full items-center justify-between gap-4 rounded-control px-2.5 py-2 text-left hover:bg-space/60 focus-visible:bg-space/60">
-      <span className="flex items-center gap-2 text-label"><span aria-hidden className={cx("h-1.5 w-1.5 rounded-full", on ? "bg-ink" : "ring-1 ring-faint")} />{label}</span>
-      <span className="text-caption text-faint">{note}</span>
+      className="flex w-full items-center justify-between gap-4 rounded-control px-2.5 py-2 text-left hover:bg-white/[0.05] focus-visible:bg-white/[0.05]">
+      <span className="flex items-center gap-2.5 text-label"><span aria-hidden className={cx("h-1.5 w-1.5", on ? "bg-ink" : "ring-1 ring-inset ring-faint")} />{label}</span>
+      <span className="num text-num-sm text-faint">{note}</span>
     </button>
   );
   const apiTone = health.isError ? "API unreachable" : health.data?.research_data ? "API connected · research data verified" : health.data ? "API connected · research data missing" : "Checking API…";
   return (
     <div className="relative">
       <button ref={btn} type="button" aria-label="More: layers, data status, about" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
-        className="hit grid h-9 w-9 place-items-center rounded-control text-muted hover:bg-elevated hover:text-ink">
+        className="hit grid h-9 w-9 place-items-center rounded-control text-muted hover:bg-white/[0.06] hover:text-ink">
         <MoreHorizontal className="h-4 w-4" />
       </button>
       {open && (
-        <div ref={menu} role="menu" aria-label="Layers and status" onKeyDown={onMenuKey} onBlur={onMenuBlur} className="surface-solid absolute right-0 top-11 z-50 w-[320px] rounded-[12px] p-2">
+        <div ref={menu} role="menu" aria-label="Layers and status" onKeyDown={onMenuKey} onBlur={onMenuBlur} className="surface-solid frame absolute right-0 top-11 z-50 w-[320px] rounded-control p-2">
           <div className="kicker px-2.5 pb-1 pt-1.5">Mars imagery</div>
           {MARS_LAYERS.map((l) => item(marsLayer === l.id, l.label, l.note, () => set({ marsLayer: l.id })))}
           <div className="kicker px-2.5 pb-1 pt-3">Earth imagery</div>

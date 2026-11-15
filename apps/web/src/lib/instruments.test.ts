@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAltitude, nearestSite, niceScale } from "./instruments";
+import { clock, formatAltitude, marsTime, nearestSite, niceScale } from "./instruments";
 
 describe("niceScale", () => {
   it("chooses a 1-2-5 length that fits", () => {
@@ -37,5 +37,25 @@ describe("nearestSite", () => {
     expect(n.site.id).toBe("b");
     expect(n.km).toBeGreaterThan(250);
     expect(n.km).toBeLessThan(400);
+  });
+});
+
+describe("marsTime", () => {
+  it("matches the Mars24 worked example (2000-01-06 00:00 UTC → MSD 44795.9998, MTC 23:59:39)", () => {
+    const t = marsTime(Date.UTC(2000, 0, 6, 0, 0, 0), 32);
+    expect(t.msd).toBeCloseTo(44795.9998, 4);
+    expect(clock(t.mtcHours)).toBe("23:59:39");
+  });
+  it("advances one sol per 88,775.244 s", () => {
+    const a = marsTime(Date.UTC(2026, 10, 15, 12));
+    const b = marsTime(Date.UTC(2026, 10, 15, 12) + 88_775_244);
+    expect(b.msd - a.msd).toBeCloseTo(1, 6);
+  });
+});
+
+describe("clock", () => {
+  it("formats fractional hours", () => {
+    expect(clock(0)).toBe("00:00:00");
+    expect(clock(13.5)).toBe("13:30:00");
   });
 });
