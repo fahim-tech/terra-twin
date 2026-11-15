@@ -165,6 +165,8 @@ let viewer: Viewer | null = null;
 let ellipsoid: Ellipsoid;
 let mode: "ion" | "fallback" = "fallback";
 let baseLayer: ImageryLayer | null = null;
+/** The Cesium Mars 3D tileset, when an ion token is set (it then replaces the globe and its imagery). */
+let marsTiles: Cesium3DTileset | null = null;
 let spinning = false;
 /**
  * The presentation light the shell asked for (setLight), independent of the idle spin: the intro's three-quarter
@@ -1249,7 +1251,9 @@ function capturedTiles(signal: AbortSignal): Promise<SettleVerdict | "cancelled"
     if (signal.aborted) { finish("cancelled"); return; }
     signal.addEventListener("abort", () => finish("cancelled"), { once: true });
     remove = scene.postRender.addEventListener(() => {
-      const step = settleStep(state, scene.globe ? scene.globe.tilesLoaded : true, performance.now() - t0);
+      // Imagery tiles on the globe, or the Cesium Mars 3D tiles when an ion token replaced the globe.
+      const loaded = (scene.globe ? scene.globe.tilesLoaded : true) && (marsTiles ? marsTiles.tilesLoaded : true);
+      const step = settleStep(state, loaded, performance.now() - t0);
       state = step.state;
       if (step.verdict !== "wait") finish(step.verdict);
       else scene.requestRender();
@@ -1466,6 +1470,7 @@ async function init(ionToken: string | null) {
     if (useMarsTiles) {
       const tileset = await Cesium3DTileset.fromIonAssetId(3644333); // Cesium Mars
       scene.primitives.add(tileset);
+      marsTiles = tileset;
       mode = "ion";
     } else if (planet === "earth" && ionToken) {
       scene.globe.terrainProvider = await CesiumTerrainProvider.fromIonAssetId(1);
@@ -1593,8 +1598,10 @@ window.addEventListener("message", (ev: MessageEvent) => {
       }
       case "reset": {
         const { durationS } = m;
-        spinning = false;
-        cameraCommand(() => flyTo(HOME.lat, HOME.lon, HOME.heightKm, reducedMotion ? 0 : durationS));
+        cameraCommand(() => {
+          spinning = false;
+          flyTo(HOME.lat, HOME.lon, HOME.heightKm, reducedMotion ? 0 : durationS);
+        });
         break;
       }
       case "setMarkers": setMarkers(m.group, m.markers, m.options); break;
@@ -1615,7 +1622,8 @@ window.addEventListener("message", (ev: MessageEvent) => {
         // Unknown ids (already answered) need no reply; a queued one is answered by the runner, a running one by itself.
         snapshots.cancel(m.requestId);
         break;
-      case "setSpin": spinning = m.on; break;
+      // The spin moves the camera: during a capture it waits too (the capture restores the spin it found).
+      case "setSpin": { const on = m.on; cameraCommand(() => { spinning = on; }); break; }
       case "setLight": lightMode = m.mode === "intro" ? "intro" : "work"; break;
       case "resize": viewer?.resize(); placeCredits(); break;
       case "setTilt": {
