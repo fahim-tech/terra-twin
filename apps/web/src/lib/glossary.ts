@@ -111,11 +111,21 @@ export function keepsTermCase(term: string): boolean {
   return /[Ͱ-Ͽ]/.test(term);
 }
 
-/** Human names for research zone ids ("Deuteronilus1_2" → "Deuteronilus 1–2"). */
+/**
+ * Display names for research zone ids, typeset from the id alone: underscores become spaces, a trailing
+ * pair becomes a range ("Deuteronilus1_2" → "Deuteronilus 1–2"), a number joined to its name is spaced
+ * ("Hellas3" → "Hellas 3"), and a joined compass prefix is split the way the other ids write theirs
+ * ("Coprates_EMelas_Chasm" → "Coprates E Melas Chasm", as in SE_Marineris and NE_Marineris_Crater).
+ * The one spelling fix, "Plantia" → "Planitia", is the spelling the same data uses in Arcadia_Planitia.
+ * Nothing is renamed: neither the API (its `name` is the id with spaces) nor the research data gives
+ * other names, so none are guessed. Idempotent, so a name can be passed through again.
+ */
 export function zoneName(id: string): string {
   return id
     .replace(/(\D)(\d)_(\d)$/, "$1 $2–$3")
     .replace(/_/g, " ")
+    .replace(/([a-z])(\d)/g, "$1 $2")
+    .replace(/\b([NSEW]{1,2})([A-Z][a-z])/g, "$1 $2")
     .replace(/Plantia/, "Planitia")
     .replace(/\s+/g, " ")
     .trim();
