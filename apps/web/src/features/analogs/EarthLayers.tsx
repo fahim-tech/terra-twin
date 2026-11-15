@@ -1,33 +1,89 @@
-import { Ban, Check, ChevronDown } from "lucide-react";
-import { screenCellKm } from "./candidates";
-import type { ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 import { Term } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { useLayout } from "../../app/useLayout";
 import { useEarthPool, useLegend } from "../../services/api";
 import { useApp } from "../../store/app";
 import { searchTarget } from "../../store/searchTarget";
+import type { VisualizationLegend } from "../../types/contracts";
+import { screenCellKm } from "./candidates";
 import { useEarthLocal } from "./earthLocal";
+import { CAPS, StatusMark } from "./instruments";
+import { rampGradient, rampPosition, rampTicks, tickDigits } from "./legend";
 
-/** One chip style for every layer toggle: on/off is shown by fill and glyph only, never by a different shape. */
-function Toggle({ on, onClick, children, swatch, compact, label, unavailable }: {
-  on: boolean; onClick: () => void; children: ReactNode; swatch: ReactNode; compact?: boolean; label: string; unavailable?: string;
+/**
+ * Map-point keys drawn as true circles (data graphics), mirroring the Earth globe's marker styles
+ * (globes/globe-entry.ts STYLE: pool #C9D3DC, reference #D9B07A, control #8E99A6).
+ */
+function PointKey({ color, r, opacity = 1 }: { color: string; r: number; opacity?: number }) {
+  return (
+    <svg aria-hidden width="10" height="10" viewBox="0 0 10 10" className="shrink-0">
+      <circle cx="5" cy="5" r={r} fill={color} fillOpacity={opacity} stroke="#07090C" strokeOpacity={0.7} strokeWidth={0.75} />
+    </svg>
+  );
+}
+
+/** One cell of the layer segmented control: on/off by status mark, ink and fill — never by a different shape. */
+function LayerCell({ on, onClick, label, short, compact, unavailable, className }: {
+  on: boolean; onClick: () => void; label: string; short: string; compact: boolean; unavailable?: string; className?: string;
 }) {
   const shown = on && !unavailable;
   return (
     <button type="button" aria-pressed={shown} aria-disabled={!!unavailable} aria-label={unavailable ? `${label} (${unavailable})` : label}
       title={unavailable} onClick={unavailable ? undefined : onClick}
-      className={cx("hit inline-flex shrink-0 items-center whitespace-nowrap rounded-full py-1.5 text-caption shadow-[inset_0_0_0_1px_rgb(255_255_255/0.10)] transition-[color,background,transform] duration-150",
-        compact ? "gap-1 pl-1.5 pr-2" : "gap-1.5 pl-2 pr-3",
-        unavailable ? "cursor-default text-faint" : shown ? "bg-elevated text-ink active:scale-[0.97]" : "text-muted hover:bg-elevated/50 hover:text-ink active:scale-[0.97]")}>
-      {/* Unavailable reads as off at a glance: a struck-out glyph, never a dimmed colour swatch. */}
-      <span aria-hidden className="grid h-4 w-4 place-items-center">{unavailable ? <Ban className="h-3 w-3 text-faint" strokeWidth={1.75} /> : shown ? <Check className="h-3.5 w-3.5" /> : swatch}</span>
-      <span aria-hidden={compact}>{children}</span>
+      className={cx("hit flex min-w-0 items-center gap-2 whitespace-nowrap text-[11px] font-semibold uppercase leading-none tracking-[0.1em] transition-colors duration-150 active:duration-0",
+        compact ? "flex-auto justify-center px-2 py-2.5" : "px-3 py-2.5",
+        unavailable ? "cursor-default text-faint" : shown ? "bg-white/[0.07] text-ink hover:bg-white/[0.1] active:bg-white/[0.14]" : "text-muted hover:bg-white/[0.04] hover:text-ink active:bg-white/[0.1]",
+        className)}>
+      {/* Unavailable reads as off at a glance: a struck-out mark, never a dimmed colour. */}
+      <StatusMark state={unavailable ? "struck" : shown ? "on" : "off"} />
+      <span className="truncate">{compact ? short : label}</span>
     </button>
   );
 }
 
-/** Earth layer capsule: toggles for the similarity field, research pool, screened land and reference sites, plus legends. */
+/** Viridis ramp with ticks from the legend record; the hatched span is not drawn on the globe at all. */
+function SimilarityLegend({ lg, km }: { lg: VisualizationLegend["tier1_similarity"]; km: number | null }) {
+  const ticks = rampTicks(lg.domain, 5);
+  const digits = tickDigits(ticks, 2);
+  const gradient = rampGradient(lg.stops);
+  const lo = lg.opacity.transparent_below;
+  const hidden = rampPosition(lg.domain, lo);
+  return (
+    <div>
+      <div className="flex items-baseline justify-between gap-3">
+        <span className={cx(CAPS, "!text-ink/85")}><Term k="similarity">Similarity S</Term></span>
+        <span className="text-caption text-faint">{km !== null && <><span className="num text-num-sm">{km}</span> km · </>}as measured</span>
+      </div>
+      <div className="relative mt-2 h-2.5" role="img"
+        aria-label={`${lg.name} colour scale from ${lg.domain[0]} to ${lg.domain[1]}; values below ${lo.toFixed(2)} are not drawn`}>
+        <div className="absolute inset-0" style={gradient ? { background: gradient } : undefined} />
+        {hidden !== null && hidden > 0 && (
+          <div className="absolute inset-y-0 left-0 border-r border-ink/80"
+            style={{ width: `${hidden * 100}%`, backgroundImage: "repeating-linear-gradient(135deg, rgb(2 3 4 / 0.62) 0 1.5px, transparent 1.5px 4px)" }} />
+        )}
+      </div>
+      <div aria-hidden className="relative h-[5px]">
+        {ticks.map((t) => (
+          <span key={t.at} className="absolute top-0 h-full w-px bg-ink/60" style={{ left: t.at === 1 ? "calc(100% - 1px)" : `${t.at * 100}%` }} />
+        ))}
+      </div>
+      <div aria-hidden className="relative mt-1 h-3">
+        {ticks.map((t) => (
+          <span key={t.at} className="num absolute top-0 text-num-sm leading-none text-muted"
+            style={{ left: `${t.at * 100}%`, transform: t.at === 0 ? undefined : t.at === 1 ? "translateX(-100%)" : "translateX(-50%)" }}>
+            {t.value.toFixed(digits)}
+          </span>
+        ))}
+      </div>
+      <p className="mt-2 text-caption text-faint">
+        Not a probability. Hatched: not drawn below <span className="num">{lo.toFixed(2)}</span>; display opacity is not an analysis threshold.
+      </p>
+    </div>
+  );
+}
+
+/** Earth layer panel: a segmented set of layer switches (similarity field, research pool, screened land, reference sites) and their legend. */
 export function EarthLayers() {
   const overlays = useApp((s) => s.earthOverlays);
   const search = useApp((s) => s.search);
@@ -49,60 +105,82 @@ export function EarthLayers() {
   const gate = search?.tier2.landcover_gate;
   const target = searchTarget(search);
   const showLegend = !phone || legendOpen;
-  const anyLegend = (overlays.similarity && hasT1) || overlays.pool || overlays.coverage || reference;
+  const anyLegend = (overlays.similarity && hasSearch) || overlays.pool || overlays.coverage || reference;
+  const noScreen = hasSearch && !hasT1 ? "not available: the global screen did not run for this target" : undefined;
+
+  const cells = [
+    { key: "similarity", label: "Similarity field", short: "Similarity", on: overlays.similarity, onClick: () => toggle("similarity"), unavailable: noScreen },
+    { key: "pool", label: "Research pool", short: "Pool", on: overlays.pool, onClick: () => toggle("pool") },
+    { key: "coverage", label: "Screened land", short: "Land", on: overlays.coverage, onClick: () => toggle("coverage") },
+    { key: "reference", label: "Reference sites", short: "Sites", on: reference, onClick: () => useEarthLocal.setState({ referenceSites: !reference }) },
+  ];
 
   return (
-    <div className={cx("surface rounded-surface", phone ? "p-1" : "p-2")} data-occludes="earth" role="group" aria-label="Earth layers">
-      <div className="flex items-center">
-      <div className={cx(phone ? "flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none]" : "grid flex-1 grid-cols-2 gap-1")}>
-        <Toggle compact={phone} label="Similarity field" on={overlays.similarity} onClick={() => toggle("similarity")}
-          unavailable={hasSearch && !hasT1 ? "not available: the global screen did not run for this target" : undefined}
-          swatch={<span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: lg ? `linear-gradient(135deg, ${lg.stops[0][1]}, ${lg.stops[lg.stops.length - 1][1]})` : undefined }} />}>
-          {phone ? "Similarity" : "Similarity field"}
-        </Toggle>
-        <Toggle compact={phone} label="Research pool" on={overlays.pool} onClick={() => toggle("pool")} swatch={<span className="h-1.5 w-1.5 rounded-full bg-muted" />}>{phone ? "Pool" : "Research pool"}</Toggle>
-        <Toggle compact={phone} label="Screened land" on={overlays.coverage} onClick={() => toggle("coverage")} swatch={<span className="h-2.5 w-2.5 rounded-[3px] ring-1 ring-inset ring-muted" />}>{phone ? "Land" : "Screened land"}</Toggle>
-        <Toggle compact={phone} label="Reference sites" on={reference} onClick={() => useEarthLocal.setState({ referenceSites: !reference })} swatch={<span className="h-2 w-2 rotate-45 ring-1 ring-inset ring-muted" />}>{phone ? "Sites" : "Reference sites"}</Toggle>
-      </div>
+    <div className="surface frame rounded-surface" data-occludes="earth" role="group" aria-label="Earth layers">
+      {!phone && (
+        <div className="flex items-center justify-between gap-3 px-3 pb-2 pt-2.5">
+          <span className="kicker flex items-center gap-2 !text-ink/85"><StatusMark state="on" tone="earth" />Earth layers</span>
+        </div>
+      )}
+      <div className={cx("flex", !phone && "border-t border-line")}>
+        <div className={cx(phone ? "flex min-w-0 flex-1" : "grid flex-1 grid-cols-2")}>
+          {cells.map((c, i) => (
+            <LayerCell key={c.key} compact={phone} label={c.label} short={c.short} on={c.on} onClick={c.onClick} unavailable={c.unavailable}
+              className={cx(phone ? i > 0 && "border-l border-line" : cx(i % 2 === 1 && "border-l border-line", i >= 2 && "border-t border-line"))} />
+          ))}
+        </div>
         {phone && anyLegend && (
           <button type="button" aria-expanded={legendOpen} aria-label={legendOpen ? "Hide legend" : "Show legend"} onClick={() => useEarthLocal.setState({ legendOpen: !legendOpen })}
-            className="hit ml-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted hover:text-ink">
-            <ChevronDown className={cx("h-4 w-4 transition-transform", legendOpen && "rotate-180")} aria-hidden />
+            className="hit grid w-10 shrink-0 place-items-center border-l border-line text-muted transition-colors hover:bg-white/[0.05] hover:text-ink active:bg-white/[0.1] active:duration-0">
+            <ChevronDown className={cx("h-4 w-4 transition-transform duration-200", legendOpen && "rotate-180")} aria-hidden />
           </button>
         )}
       </div>
 
       {showLegend && anyLegend && (
-        <div className="space-y-2.5 px-2 pb-1.5 pt-2.5">
-          {overlays.similarity && hasT1 && lg && (
-            <div>
-              <div className="flex items-baseline justify-between text-caption">
-                <span className="text-ink"><Term k="similarity">Similarity S</Term></span>
-                <span className="text-muted">global screen{screenCellKm(search) !== null ? ` · ${screenCellKm(search)} km` : ""} · as measured</span>
-              </div>
-              <div className="mt-1.5 h-2 w-full rounded-full" role="img" aria-label={`Viridis colour scale from ${lg.domain[0]} to ${lg.domain[1]}`}
-                style={{ background: `linear-gradient(to right, ${lg.stops.map(([v, c]) => `${c} ${v * 100}%`).join(", ")})` }} />
-              <div className="num mt-1 flex justify-between text-num-sm text-muted">
-                <span>{lg.domain[0].toFixed(1)}</span><span>{((lg.domain[0] + lg.domain[1]) / 2).toFixed(1)}</span><span>{lg.domain[1].toFixed(1)}</span>
-              </div>
-              <p className="mt-0.5 text-caption text-faint">Not a probability. Faint below {lg.opacity.transparent_below.toFixed(2)}.</p>
-            </div>
+        <div className="space-y-3 border-t border-line px-3 pb-3 pt-2.5">
+          {overlays.similarity && hasT1 && lg && <SimilarityLegend lg={lg} km={screenCellKm(search)} />}
+          {overlays.similarity && noScreen && (
+            <p className="flex items-baseline gap-2 text-caption text-faint"><StatusMark state="struck" className="translate-y-[1px]" />No similarity field: the global screen did not run for this target.</p>
           )}
-          {overlays.similarity && hasSearch && !hasT1 && <p className="text-caption text-faint">No similarity field: the global screen did not run for this target.</p>}
           {overlays.pool && (
-            <div className="flex items-start gap-2 text-caption text-muted"><span aria-hidden className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-muted" />
-              <p>
-                <span className="num text-num-sm text-ink">{nPool ?? "—"}</span> research-pool windows{poolKm ? `, ${poolKm} km each` : ""}
-                {nRandom !== undefined && nPool !== undefined && <> (<span className="num text-num-sm">{nRandom}</span> sampled at random, <span className="num text-num-sm">{nPool - nRandom}</span> named)</>}.
-                {t2pool && target && <> Ranked for {target.label}: <span className="num text-num-sm text-ink">{t2pool.n_ranked ?? t2pool.n_windows}</span>
-                  {gate?.mode === "exclude" ? " that pass the land-cover filter" : ""}.</>}
-              </p>
+            <div className="grid grid-cols-[10px_minmax(0,1fr)] gap-x-2.5">
+              <span className="pt-[3px]"><PointKey color="#C9D3DC" r={2.5} opacity={0.6} /></span>
+              <div className="min-w-0">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className={cx(CAPS, "!text-ink/85")}>Research pool</span>
+                  <span className="whitespace-nowrap text-caption text-muted">
+                    <span className="num text-num-sm text-ink">{nPool ?? "—"}</span> windows{poolKm ? <> · <span className="num text-num-sm">{poolKm}</span> km</> : ""}
+                  </span>
+                </div>
+                <p className="mt-1 text-caption text-muted">
+                  {nRandom !== undefined && nPool !== undefined && <><span className="num text-num-sm">{nRandom}</span> sampled at random, <span className="num text-num-sm">{nPool - nRandom}</span> named.</>}
+                  {t2pool && target && <> Ranked for {target.label}: <span className="num text-num-sm text-ink">{t2pool.n_ranked ?? t2pool.n_windows}</span>
+                    {gate?.mode === "exclude" ? " that pass the land-cover filter" : ""}.</>}
+                </p>
+              </div>
             </div>
           )}
           {overlays.coverage && cov && (
-            <p className="flex items-center gap-2 text-caption text-muted"><span aria-hidden className="h-2.5 w-2.5 rounded-[3px]" style={{ background: `rgba(${cov.rgba.slice(0, 3).join(",")},${Math.max(0.5, (cov.rgba[3] ?? 255) / 255)})` }} />{cov.label}</p>
+            <div className="grid grid-cols-[10px_minmax(0,1fr)] gap-x-2.5">
+              <span aria-hidden className="mt-[3px] h-2.5 w-2.5 ring-1 ring-inset ring-white/25" style={{ background: `rgba(${cov.rgba.slice(0, 3).join(",")},${Math.max(0.5, (cov.rgba[3] ?? 255) / 255)})` }} />
+              <div className="min-w-0">
+                <span className={cx(CAPS, "!text-ink/85")}>Screened land</span>
+                <p className="mt-1 text-caption text-muted">{cov.label}</p>
+              </div>
+            </div>
           )}
-          {reference && <p className="flex items-center gap-2 text-caption text-muted"><span aria-hidden className="h-2 w-2 rotate-45 ring-1 ring-inset ring-muted" />Named reference and control windows</p>}
+          {reference && (
+            <div className="grid grid-cols-[10px_minmax(0,1fr)] gap-x-2.5">
+              <span className="pt-[3px]"><PointKey color="#D9B07A" r={3} /></span>
+              <div className="min-w-0">
+                <span className={cx(CAPS, "!text-ink/85")}>Reference sites</span>
+                <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-caption text-muted">
+                  Named reference windows <span aria-hidden>·</span> <PointKey color="#8E99A6" r={2.5} opacity={0.6} /> controls
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
