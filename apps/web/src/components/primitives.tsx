@@ -136,7 +136,7 @@ export function Term({ k, children, className }: { k: GlossaryKey; children?: Re
       <AnimatePresence>
         {open && (
           <motion.span id={id} role="tooltip" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.14 }} style={{ left: shift }}
-            className="surface-solid frame absolute bottom-[calc(100%+8px)] left-0 z-50 block w-[min(320px,80vw)] rounded-control p-3 text-left font-sans text-caption font-normal normal-case tracking-normal text-muted">
+            className="surface-solid frame absolute bottom-[calc(100%+8px)] left-0 z-50 block w-[min(320px,80vw)] whitespace-normal rounded-control p-3 text-left font-sans text-caption font-normal normal-case tracking-normal text-muted">
             {/* Caps like every label, except terms with Greek symbols, which stay as written (ρ, κ). */}
             <span className={cx("mb-1.5 block text-ink", keepsTermCase(g.term) ? "text-label font-semibold" : "label-caps")}>{g.term}</span>
             {g.definition}
