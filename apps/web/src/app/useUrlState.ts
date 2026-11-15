@@ -3,6 +3,7 @@ import { formatLat, formatLon, normLon } from "../lib/geodesy";
 import { api } from "../services/api";
 import { type Stage, useApp } from "../store/app";
 import { searchTarget } from "../store/searchTarget";
+import { stableLeaderId } from "../features/analogs/candidates";
 
 const STAGES: Stage[] = ["mars", "earth", "compare", "evidence", "report"];
 
@@ -66,10 +67,12 @@ export function useUrlState() {
         if (u.stage === "earth" || u.stage === "compare" || u.stage === "report") {
           const res = await api.findAnalogs({ lat, lon, footprint_km: app.footprintKm, mission: u.mission ?? app.mission }).catch(() => null);
           if (res) {
-            const leader = res.tier2.decision.type === "named_leader" ? res.tier2.candidates[0]?.id : undefined;
+            const leader = stableLeaderId(res.tier2);
             app.set({ search: res, candidateId: u.cand ?? (leader ? `t2:${leader}` : null), tier: res.tier2.candidates.length || !res.tier1 ? 2 : 1 });
             app.go(u.stage === "compare" && !(u.cand ?? leader) ? "earth" : u.stage);
           }
+        } else if (u.stage === "evidence") {
+          app.go("evidence");
         }
       } else if (u.stage === "evidence") {
         app.set({ introOpen: false });
