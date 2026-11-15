@@ -1,8 +1,10 @@
 import { motion } from "motion/react";
 import { cx } from "../components/ui";
 import { formatLat, formatLon } from "../lib/geodesy";
-import { useApiReachable, useDatasets, useEarthPool, useEvidence, useHealth, useResearchSummary, useSites } from "../services/api";
-import { useGisStatus } from "../services/gis";
+import { useApiReachable, useDatasets, useEarthPool, useEvidence, useHealth, useMissions, useResearchSummary, useSites } from "../services/api";
+import { useDiscoveryRun, useDiscoveryRuns, useGisStatus } from "../services/gis";
+import { pickCachedRun } from "../features/analogs/discoveryModel";
+import { placeNear } from "../lib/places";
 import { useGlobes } from "../store/globes";
 import { gisSummary } from "./gisStatus";
 import { useImageryCredit } from "./globeSources";
@@ -47,11 +49,25 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
     const rows = (evidence.data as { synthetic_benchmark?: { mrr_ci?: { method: string; MRR: number }[] } } | undefined)?.synthetic_benchmark?.mrr_ci;
     return rows?.find((r) => r.method === m)?.MRR ?? null;
   };
+  const top1 = (m: string) => (evidence.data as { synthetic_benchmark?: { twin?: Record<string, { top1?: number }> } } | undefined)?.synthetic_benchmark?.twin?.[m]?.top1 ?? null;
+  // Newest cached whole-Earth discovery run for Jezero under the default mission (no new server run).
+  const runs = useDiscoveryRuns();
+  const missions = useMissions();
+  const landing = missions.data?.find((m) => m.id === "landing_site")?.research_key ?? null;
+  const cached = jezero && runs.data ? pickCachedRun(runs.data, { lat: jezero.lat, lon: jezero.lon, siteId: "Jezero", centre: jezero }, landing) : null;
+  const liveRun = useDiscoveryRun(cached?.run_id ?? null);
   const story = storyLines({
     jezeroObserved: jezero?.observed_fraction ?? null,
     cells: firstInt(ds("earth_global_screen")?.coverage, /([\d,]+)\s+land cells/),
     finding: summary.data?.find((s) => s.site === "Jezero")?.exclude ?? null,
     mrr: { baseline: mrr("M0_baseline"), oom: mrr("M2_OOM") },
+    top1: { baseline: top1("M0_baseline"), oom: top1("M2_OOM") },
+    nTwins: (evidence.data as { synthetic_benchmark?: { mrr_ci?: { n_targets?: number }[] } } | undefined)?.synthetic_benchmark?.mrr_ci?.[0]?.n_targets ?? null,
+    discovery: liveRun.data?.refinement ? {
+      type: liveRun.data.refinement.decision.type, refined: liveRun.data.refinement.number_of_windows_refined,
+      members: liveRun.data.refinement.candidates.filter((c) => liveRun.data!.refinement!.decision.members.includes(c.id))
+        .map((c) => ({ lat: c.lat, lon: c.lon, S: c.S, place: placeNear(c.lat, c.lon)?.text ?? null })),
+    } : null,
   });
   const rise = (i: number) => ({ initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const, delay: 0.08 + i * 0.06 } });
 
@@ -103,10 +119,10 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
         </motion.p>
         {/* Problem → method → finding, every figure read from the API. */}
         <motion.dl {...rise(3)} aria-label="What TerraTwin does" className="mt-5 max-w-[540px] space-y-2 landscape:md:mt-6 short:hidden">
-          {([["Problem", story.problem], ["Method", story.method], ["Finding", story.finding]] as const).map(([k, v]) => v && (
+          {([["Problem", story.problem], ["Method", story.method], ["Finding", story.discovery ?? story.finding], ["Pool", story.discovery ? story.finding : null]] as const).map(([k, v]) => v && (
             <div key={k} className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3">
               <dt className={cx("kicker pt-[3px] text-[10px]", k === "Finding" ? "text-mars" : "text-faint")}>{k}</dt>
-              <dd className={cx("text-caption leading-[1.5]", k === "Finding" ? "text-ink" : "text-muted")}>
+              <dd className={cx("leading-[1.5]", k === "Finding" ? "text-[13.5px] text-ink" : "text-caption text-muted")}>
                 {v}
                 {k === "Finding" && jezero && (
                   <button type="button" onClick={onJezero} className="ml-1.5 underline decoration-faint/60 underline-offset-[3px] hover:text-mars">Open it →</button>

@@ -40,7 +40,12 @@ describe("storyLines", () => {
     expect(s.problem).toContain("69 % at Jezero");
     expect(s.method).toContain("all 249,165 Earth land cell");
     expect(s.finding).toBe("Jezero (landing site): Atacama Yungay, S 0.614, stable under all four orientations — research record over the fixed 230-window pool.");
-    expect(s.caveat).toBe("Method benefit is shown on synthetic twins only (twin recovery MRR 0.30 → 0.97); real rankings are not field-validated.");
+    expect(s.caveat).toBe("Established on the twin benchmark: twin recovery MRR 0.30 → 0.97. Not yet: field validation — the benchmark is synthetic, and similarity is terrain geometry only.");
+    expect(storyLines({ ...base, top1: { baseline: 0.178, oom: 0.948 }, nTwins: 213 }).caveat).toContain("Established on 213 synthetic twins: the true twin is found first 95 % of the time, against 18 % uncorrected");
+    expect(s.discovery).toBeNull();
+    const d = storyLines({ ...base, discovery: { type: "tied_set", refined: 40, members: [
+      { lat: 37.2874, lon: 97.5069, S: 0.693, place: "Qaidam" }, { lat: 37.0624, lon: 86.2069, S: 0.781, place: null }] } }).discovery!;
+    expect(d).toBe("Searching the whole Earth for Jezero (40 windows refined) returns a tie of 2 windows: 37.06° N 86.21° E, S 0.781; 37.29° N 97.51° E (≈ Qaidam), S 0.693. Each scores above Atacama Yungay (S 0.614), the classic analog that leads the fixed pool.");
   });
   it("leaves out what the API has not given and never invents a finding", () => {
     const s = storyLines({ jezeroObserved: null, cells: null, finding: null, mrr: { baseline: null, oom: null } });

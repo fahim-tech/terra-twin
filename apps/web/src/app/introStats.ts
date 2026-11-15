@@ -54,8 +54,12 @@ export interface StoryInput {
   cells: number | null;                   // /api/datasets: earth_global_screen land cells
   finding: { type: string; members: string[]; leader_S: number | null } | null; // /api/research/summary: Jezero, gated
   mrr: { baseline: number | null; oom: number | null };                           // /api/evidence: synthetic twins
+  top1?: { baseline: number | null; oom: number | null };                        // /api/evidence: synthetic twins, top-1
+  nTwins?: number | null;                                                         // /api/evidence: mrr_ci[].n_targets
+  /** Newest cached whole-Earth discovery run for Jezero (/api/gis/runs/{id}): decision members with S. */
+  discovery?: { type: string; refined: number; members: { lat: number; lon: number; S: number | null; place: string | null }[] } | null;
 }
-export interface StoryLines { problem: string; method: string; finding: string | null; caveat: string }
+export interface StoryLines { problem: string; method: string; finding: string | null; discovery: string | null; caveat: string }
 
 export function storyLines(s: StoryInput): StoryLines {
   const interp = s.jezeroObserved === null ? null : Math.round((1 - s.jezeroObserved) * 100);
@@ -73,8 +77,23 @@ export function storyLines(s: StoryInput): StoryLines {
   } else if (f && f.type === "tied_set") {
     finding = `Jezero (landing site): a tie of ${f.members.length} windows — no single analog is named.`;
   }
-  const caveat = s.mrr.baseline !== null && s.mrr.oom !== null
-    ? `Method benefit is shown on synthetic twins only (twin recovery MRR ${s.mrr.baseline.toFixed(2)} → ${s.mrr.oom.toFixed(2)}); real rankings are not field-validated.`
-    : "Method benefit is shown on synthetic twins only; real rankings are not field-validated.";
-  return { problem, method, finding, caveat };
+  // What is established first, then what is not: both from the benchmark payload.
+  const t = s.top1;
+  const established = t && t.baseline !== null && t.oom !== null
+    ? `Established on ${s.nTwins ?? "the"} synthetic twins: the true twin is found first ${Math.round(t.oom * 100)} % of the time, against ${Math.round(t.baseline * 100)} % uncorrected`
+    : s.mrr.baseline !== null && s.mrr.oom !== null
+      ? `Established on the twin benchmark: twin recovery MRR ${s.mrr.baseline.toFixed(2)} → ${s.mrr.oom.toFixed(2)}`
+      : null;
+  const caveat = `${established ? `${established}. ` : ""}Not yet: field validation — the benchmark is synthetic, and similarity is terrain geometry only.`;
+  let discovery: string | null = null;
+  const d = s.discovery;
+  if (d && d.members.length > 0 && d.members.every((m) => m.S !== null)) {
+    const ms = [...d.members].sort((a, b) => a.lon - b.lon); // a tie is unordered: west to east
+    const one = (m: (typeof ms)[number]) => `${Math.abs(m.lat).toFixed(2)}° ${m.lat >= 0 ? "N" : "S"} ${Math.abs(m.lon).toFixed(2)}° ${m.lon >= 0 ? "E" : "W"}${m.place ? ` (≈ ${m.place})` : ""}, S ${m.S!.toFixed(3)}`;
+    const lead = d.type === "tied_set" ? `a tie of ${ms.length} windows` : d.type === "named_leader" ? "a stable leader" : null;
+    const pool = f && f.leader_S !== null && ms.every((m) => m.S! > f.leader_S!) && f.members[0]
+      ? ` Each scores above ${f.members[0]} (S ${f.leader_S.toFixed(3)}), the classic analog that leads the fixed pool.` : "";
+    if (lead) discovery = `Searching the whole Earth for Jezero (${d.refined} windows refined) returns ${lead}: ${ms.map(one).join("; ")}.${pool}`;
+  }
+  return { problem, method, finding, discovery, caveat };
 }
