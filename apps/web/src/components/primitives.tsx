@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown, X } from "lucide-react";
-import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { GLOSSARY, type GlossaryKey } from "../lib/glossary";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { GLOSSARY, keepsTermCase, type GlossaryEntry, type GlossaryKey } from "../lib/glossary";
 import { cx } from "./ui";
 
 export const SPRING = { type: "spring" as const, bounce: 0, duration: 0.35 };
@@ -94,12 +94,31 @@ export function radioGroupKeys<T>(values: readonly T[], current: T, select: (v: 
   };
 }
 
+/** Popover width (px) at a given viewport width: 320 px, at most 80 % of the viewport. */
+export function termPopoverWidth(viewport: number): number {
+  return Math.min(320, viewport * 0.8);
+}
+
+/**
+ * Horizontal offset (≤ 0, px) that keeps a term popover anchored at `left` inside the viewport with a
+ * `gutter` on the right; 0 when it already fits.
+ */
+export function termPopoverShift(left: number, viewport: number, gutter = 16): number {
+  return Math.min(0, viewport - gutter - (left + termPopoverWidth(viewport)));
+}
+
 export function Term({ k, children, className }: { k: GlossaryKey; children?: ReactNode; className?: string }) {
-  const g = GLOSSARY[k];
+  const g: GlossaryEntry = GLOSSARY[k];
   const [open, setOpen] = useState(false);
   const triggers = useTermTriggers(setOpen);
   const id = useId();
   const ref = useRef<HTMLSpanElement>(null);
+  // Keep the popover inside the viewport: shift it left when the term sits near the right edge.
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    if (!open || !ref.current) return;
+    setShift(termPopoverShift(ref.current.getBoundingClientRect().left, document.documentElement.clientWidth));
+  }, [open]);
   useEffect(() => {
     if (!open) return;
     const close = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
@@ -116,11 +135,12 @@ export function Term({ k, children, className }: { k: GlossaryKey; children?: Re
       </button>
       <AnimatePresence>
         {open && (
-          <motion.span id={id} role="tooltip" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.14 }}
-            className="surface-solid frame absolute bottom-[calc(100%+8px)] left-0 z-50 block w-[min(320px,80vw)] rounded-control p-3 text-left text-caption font-normal normal-case tracking-normal text-muted">
-            <span className="label-caps mb-1.5 block text-ink">{g.term}</span>
+          <motion.span id={id} role="tooltip" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.14 }} style={{ left: shift }}
+            className="surface-solid frame absolute bottom-[calc(100%+8px)] left-0 z-50 block w-[min(320px,80vw)] rounded-control p-3 text-left font-sans text-caption font-normal normal-case tracking-normal text-muted">
+            {/* Caps like every label, except terms with Greek symbols, which stay as written (ρ, κ). */}
+            <span className={cx("mb-1.5 block text-ink", keepsTermCase(g.term) ? "text-label font-semibold" : "label-caps")}>{g.term}</span>
             {g.definition}
-            {"source" in g && g.source ? <span className="mt-1.5 block font-mono text-[11px] text-faint">{g.source}</span> : null}
+            {g.source ? <span className="mt-1.5 block font-mono text-[11px] text-faint">{g.source}</span> : null}
           </motion.span>
         )}
       </AnimatePresence>

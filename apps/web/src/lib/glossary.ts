@@ -67,9 +67,49 @@ export const GLOSSARY = {
   synthetic: { label: "synthetic twins only", term: "Validation status", definition: G5.validation },
   scope: { label: "Terrain geometry only", term: "Scope", definition: G5.scope },
   scale: { label: "50 km windows", term: "Analysis window", definition: G5.scale },
+
+  // Method-evidence chart terms. Definitions follow the research code (vendor/terratwin) and the dataset
+  // records, never invented.
+  mrr: {
+    label: "MRR",
+    term: "Mean reciprocal rank",
+    definition: "The average of 1 / rank of the true twin across all synthetic twins. 1 means the twin is always ranked first; 0.5 is what a steady second place would give.",
+    source: "oom_analysis.py · MRR = mean(1 / rank)",
+  },
+  megdr: {
+    label: "MEGDR",
+    term: "MOLA Mission Experiment Gridded Data Record",
+    definition: "The gridded MOLA elevation product (128 pixels per degree, about 463 m). Its counts layer records how many laser shots fell in each bin; bins with none are interpolated.",
+    source: "MEGDR 128 ppd counts mask",
+  },
+  aeqd: {
+    label: "AEQD",
+    term: "Azimuthal equidistant projection",
+    definition: "A map projection centred on the site, in which distances from the centre are true. Mars and Earth windows are both resampled onto it, so they share one grid.",
+  },
+  rho: {
+    label: "ρ",
+    term: "ρ (rho_ns) — along-track roughness ratio",
+    definition: "RMS of north–south one-bin differences between two unobserved bins, divided by the same between two observed bins. Observed bins lie along north–south ground tracks; nearest-neighbour filling keeps ρ near 1.",
+    source: "obsop.py · fidelity_stats",
+  },
+  kappa: {
+    label: "κ",
+    term: "κ (kap_ew) — cross-track curvature ratio",
+    definition: "RMS of east–west second differences centred on unobserved bins, divided by the same centred on observed bins. Piecewise-linear filling drives κ towards 0.",
+    source: "obsop.py · fidelity_stats",
+  },
 } satisfies Record<string, GlossaryEntry>;
 
 export type GlossaryKey = keyof typeof GLOSSARY;
+
+/**
+ * Whether a term must be shown exactly as written instead of in caps: upper-casing Greek symbols turns
+ * ρ and κ into look-alike Latin capitals (Ρ, Κ) and would also change the code names beside them.
+ */
+export function keepsTermCase(term: string): boolean {
+  return /[Ͱ-Ͽ]/.test(term);
+}
 
 /** Human names for research zone ids ("Deuteronilus1_2" → "Deuteronilus 1–2"). */
 export function zoneName(id: string): string {
