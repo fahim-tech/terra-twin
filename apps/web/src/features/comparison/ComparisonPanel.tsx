@@ -285,7 +285,8 @@ function Summary({ c, basis, targets, verdict, mode, setMode, onTabKeys, phone, 
       {/* Score, basis, scope */}
       <div className="min-w-0 pt-1">
         <div className="flex items-baseline gap-3">
-          <span className="text-caption text-muted"><Term k="similarity" /></span>
+          {/* One convention for the figure everywhere (spec): "S 0.614". */}
+          <span className="text-caption text-muted"><Term k="similarity">S</Term></span>
           {figure}
         </div>
         <p className="mt-1 text-caption text-ink/90">{basis}</p>
