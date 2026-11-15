@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  availabilityItems, baselineFromExplanation, calloutGeometry, graticulePaths, gridMetres, LEADER_DX, nextActive, orthographic, revealDelta,
-  scalesFromEvidence,
+  availabilityItems, baselineFromExplanation, CALLOUT_MIN_W, calloutGeometry, graticulePaths, gridMetres, LEADER_DX, nextActive, orthographic,
+  placeCallout, revealDelta, scalesFromEvidence,
 } from "./readouts";
 
 describe("orthographic", () => {
@@ -135,5 +135,52 @@ describe("calloutGeometry", () => {
     expect(Math.hypot(g.start.x, g.start.y)).toBeCloseTo(12);
     expect(g.start.x).toBeGreaterThan(0);
     expect(g.start.y).toBeGreaterThan(0);
+  });
+  it("starts on the edge of a footprint square drawn around the point", () => {
+    const g = calloutGeometry({ x: 0, y: 0 }, "ne", 60, { square: 30 });
+    expect(Math.max(Math.abs(g.start.x), Math.abs(g.start.y))).toBeCloseTo(30);
+  });
+  it("never starts past the elbow, however large the mark", () => {
+    const g = calloutGeometry({ x: 0, y: 0 }, "ne", 38, { square: 80 });
+    expect(Math.abs(g.start.y)).toBeLessThan(Math.abs(g.elbow.y));
+    expect(Math.abs(g.start.x)).toBeLessThan(Math.abs(g.elbow.x));
+  });
+});
+
+describe("placeCallout", () => {
+  const desktop = { left: 0, top: 56, right: 1036, bottom: 848 }; // 1440 frame less a 404 px inspector
+  const dy = { n: 38, s: 38 };
+  it("keeps the preferred side when the label has room there", () => {
+    const p = placeCallout({ x: 524, y: 474 }, "ne", desktop, dy);
+    expect(p.side).toBe("ne");
+    expect(p.maxW).toBe(1036 - 8 - (524 + LEADER_DX + 2));
+  });
+  it("moves a label away from the inspector instead of sliding under it", () => {
+    expect(placeCallout({ x: 1000, y: 474 }, "ne", desktop, dy).side).toBe("nw");
+    expect(placeCallout({ x: 900, y: 474 }, "ne", desktop, dy).side).toBe("nw");
+  });
+  it("on a phone takes the wider side and caps the width to the room left, so long names wrap", () => {
+    const phone = { left: 0, top: 56, right: 330, bottom: 380 }; // 390 frame less the nav column and sheet
+    const p = placeCallout({ x: 195, y: 272 }, "ne", phone, { n: 60, s: 60 });
+    expect(p.side).toBe("nw");
+    expect(p.maxW).toBe(195 - LEADER_DX - 2 - 8);
+  });
+  it("never makes a label narrower than its coordinate line", () => {
+    expect(placeCallout({ x: 60, y: 474 }, "nw", { ...desktop, right: 140 }, dy).maxW).toBe(CALLOUT_MIN_W);
+  });
+  it("flips north/south only when the preferred shelf leaves the bounds and the other side leaves them less", () => {
+    expect(placeCallout({ x: 524, y: 100 }, "ne", desktop, dy)).toMatchObject({ side: "se", dy: 38 });
+    expect(placeCallout({ x: 524, y: 820 }, "sw", desktop, dy).side).toBe("nw");
+    expect(placeCallout({ x: 524, y: 474 }, "ne", desktop, dy)).toMatchObject({ side: "ne", dy: 38 });
+  });
+  it("shortens the reach to stay inside when neither shelf fits, but never below the minimum", () => {
+    // Phone: the zone outline needs 131 px either way; north overflows by 5 px, south by more.
+    const phone = { left: 0, top: 56, right: 330, bottom: 380 };
+    const p = placeCallout({ x: 195, y: 220 }, "ne", phone, { n: 131, s: 131 });
+    expect(p.side).toBe("nw");
+    expect(p.dy).toBe(131 - 5);
+    expect(placeCallout({ x: 195, y: 120 }, "ne", phone, { n: 131, s: 400 }, { minDy: 50 })).toMatchObject({ side: "nw", dy: 50 });
+    // …and takes the other shelf when that one overflows less.
+    expect(placeCallout({ x: 195, y: 120 }, "ne", phone, { n: 131, s: 300 })).toMatchObject({ side: "sw", dy: 300 - 78 });
   });
 });

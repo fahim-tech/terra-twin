@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-import { leaderDy } from "../../components/map/Annotations";
 import { cx } from "../../components/ui";
 import { zoneName } from "../../lib/glossary";
 import { R_MARS_M } from "../../lib/geodesy";
@@ -11,13 +10,16 @@ import { useExplorer } from "./explorerStore";
 import { KmFigure, Mark } from "./parts";
 import { formatCoord, readZone } from "./zones";
 
-/** Callout label: a dark plate with corner brackets, condensed caps name over a mono coordinate. */
+/**
+ * Callout label: a dark plate with corner brackets, condensed caps name over a mono coordinate. The name
+ * wraps (balanced) when the callout caps the plate's width; the coordinate stays on one line.
+ */
 function Plate({ title, coord, tone, align = "left" }: { title: string; coord: string; tone: "mars" | "neutral"; align?: "left" | "right" }) {
   const frame = { "--frame-l": "6px", "--frame-c": tone === "mars" ? "rgb(236 127 83 / 0.95)" : "rgb(242 244 245 / 0.7)" } as CSSProperties;
   return (
-    <div style={frame} className={cx("frame on-imagery whitespace-nowrap bg-[rgb(2_3_4/0.8)] px-2.5 pb-[5px] pt-[3px]", align === "right" && "text-right")}>
-      <div className="toponym text-[16px] leading-[1.2] tracking-[0.06em] text-ink">{title}</div>
-      <div className="num text-[11px] leading-[1.3] text-ink/80">{coord}</div>
+    <div style={frame} className={cx("frame on-imagery bg-[rgb(2_3_4/0.8)] px-2.5 pb-[5px] pt-[3px]", align === "right" && "text-right")}>
+      <div className="toponym text-balance text-[16px] leading-[1.2] tracking-[0.06em] text-ink">{title}</div>
+      <div className="num whitespace-nowrap text-[11px] leading-[1.3] text-ink/80">{coord}</div>
     </div>
   );
 }
@@ -30,7 +32,6 @@ function Plate({ title, coord, tone, align = "left" }: { title: string; coord: s
 export function MarsOverlay() {
   const selection = useApp((s) => s.selection);
   const origin = useExplorer((s) => s.origin);
-  const anchors = useGlobes((s) => s.anchors.mars);
   const mpp = useGlobes((s) => s.camera.mars?.metersPerPixel ?? null);
   const footprintKm = useApp((s) => s.footprintKm);
   const sites = useSites();
@@ -46,29 +47,21 @@ export function MarsOverlay() {
       ? (ns === "n" ? zone.bbox.lat_max - selection.lat : selection.lat - zone.bbox.lat_min) * pxPerDegLat : 0;
     return Math.min(260, Math.max(aoiHalfPx, zonePx));
   };
-  // Keep labels on screen: flip the leader line away from the right and top edges.
-  const sideFor = (id: string, fallback: Callout["side"], clearPx = 0): Callout["side"] => {
-    const a = anchors[id];
-    if (!a) return fallback;
-    const ew = a.x > window.innerWidth - 230 ? "w" : a.x < 230 ? "e" : fallback.slice(1);
-    const ns = a.y < leaderDy(clearPx) + 72 ? "s" : fallback[0];
-    return `${ns}${ew}` as Callout["side"];
-  };
+  // Preferred sides only: the callout layer moves a label that would leave the free part of the frame.
   const items: Callout[] = [];
-  const selSide = sideFor("selection", "ne", clearFor("n"));
   if (selection) {
     items.push({
-      // The globe marks the selection itself (a round marker of up to ~11 px radius), so the callout
-      // only leaves from its edge.
-      id: "selection", lat: selection.lat, lon: selection.lon, tone: "mars", side: selSide, clearPx: clearFor(selSide[0] as "n" | "s"), markerR: 11,
+      // The globe marks the selection itself (a round marker of up to ~11 px radius) and draws the AOI
+      // square around it, so the leader leaves from the outside of whichever is larger.
+      id: "selection", lat: selection.lat, lon: selection.lon, tone: "mars", side: "ne",
+      clear: { n: clearFor("n"), s: clearFor("s") }, markerR: 11, boxPx: aoiHalfPx,
       content: <Plate tone="mars" title={selection.siteId ? zoneName(selection.siteId) : "Selected point"} coord={formatCoord(selection.lat, selection.lon)} />,
     });
   }
   if (origin && selection && (origin.lat !== selection.lat || origin.lon !== selection.lon)) {
-    const side = sideFor("origin", "sw");
     items.push({
-      id: "origin", lat: origin.lat, lon: origin.lon, tone: "neutral", side,
-      content: <Plate tone="neutral" title="Your point" coord={formatCoord(origin.lat, origin.lon)} align={side.endsWith("w") ? "right" : "left"} />,
+      id: "origin", lat: origin.lat, lon: origin.lon, tone: "neutral", side: "sw",
+      content: (side) => <Plate tone="neutral" title="Your point" coord={formatCoord(origin.lat, origin.lon)} align={side.endsWith("w") ? "right" : "left"} />,
     });
   }
   return (

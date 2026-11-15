@@ -112,7 +112,7 @@ export type CalloutStart = { square: number } | { circle: number };
 /**
  * A callout's leader: a dogleg from the point to a short shelf that carries the label. `dy` is the
  * vertical reach (the shared `leaderDy`). The leader starts on the edge of whatever marks the point, so
- * it never crosses the mark.
+ * it never crosses the mark (and never past the elbow, however large that mark is).
  */
 export function calloutGeometry(a: Pt, side: CalloutSide, dy: number, from: CalloutStart = { square: 4.5 }) {
   const sx = side.endsWith("e") ? 1 : -1;
@@ -120,11 +120,54 @@ export function calloutGeometry(a: Pt, side: CalloutSide, dy: number, from: Call
   const elbow = { x: a.x + sx * LEADER_DX * 0.55, y: a.y + sy * dy };
   const end = { x: a.x + sx * LEADER_DX, y: elbow.y };
   const vx = elbow.x - a.x, vy = elbow.y - a.y;
-  const t = "circle" in from
+  const t = Math.min(0.85, "circle" in from
     ? from.circle / Math.max(Math.hypot(vx, vy), 1e-9)
-    : from.square / Math.max(Math.abs(vx), Math.abs(vy), 1e-9);
+    : from.square / Math.max(Math.abs(vx), Math.abs(vy), 1e-9));
   const start = { x: a.x + vx * t, y: a.y + vy * t };
   return { sx, sy, start, elbow, end };
+}
+
+/** The part of the globe frame a callout label may use (the frame less the UI covering it), px. */
+export interface Bounds { left: number; top: number; right: number; bottom: number }
+
+/** Clearance between a callout label and the edge of its bounds, px. */
+export const CALLOUT_EDGE = 8;
+/** The narrowest a label is ever made: its mono coordinate line needs about this much, px. */
+export const CALLOUT_MIN_W = 120;
+/** Gap between the shelf's end mark and the label (half the end mark), px. */
+const LABEL_GAP = 2;
+
+/**
+ * Where a callout's label goes, how far its leader reaches and how wide the label may grow. The preferred
+ * side is kept while the label has `minRoom` px there inside `bounds`; otherwise it takes the side with
+ * more room, so a label never slides under the inspector, the phone sheet or the nav column, or off the
+ * frame. North/south: `dy` is the reach each side needs to clear what surrounds the point; the label flips
+ * when its preferred shelf (half label height `halfH`) would leave the bounds and the other side leaves
+ * them less. When even that side does not fit, the reach is shortened (never below `minDy`) so the label
+ * stays inside. `maxW` is the room on the chosen side: a longer name wraps instead of being clipped.
+ */
+export function placeCallout(a: Pt, preferred: CalloutSide, bounds: Bounds, dy: { n: number; s: number },
+  opts: { halfH?: number; minRoom?: number; minDy?: number } = {}): { side: CalloutSide; maxW: number; dy: number } {
+  const halfH = opts.halfH ?? 30;
+  const minRoom = opts.minRoom ?? 160;
+  const minDy = opts.minDy ?? 38;
+  const room = {
+    e: bounds.right - CALLOUT_EDGE - (a.x + LEADER_DX + LABEL_GAP),
+    w: a.x - LEADER_DX - LABEL_GAP - (bounds.left + CALLOUT_EDGE),
+  };
+  const want = preferred[1] as "e" | "w";
+  const other = want === "e" ? "w" : "e";
+  const ew = room[want] >= minRoom || room[want] >= room[other] ? want : other;
+  // How far each shelf's label would run past the top or bottom bound (≤ 0 when it fits).
+  const over = {
+    n: bounds.top + CALLOUT_EDGE - (a.y - dy.n - halfH),
+    s: a.y + dy.s + halfH - (bounds.bottom - CALLOUT_EDGE),
+  };
+  const wantNS = preferred[0] as "n" | "s";
+  const flipNS = wantNS === "n" ? "s" : "n";
+  const ns = over[wantNS] > 0 && over[flipNS] < over[wantNS] ? flipNS : wantNS;
+  const reach = over[ns] > 0 ? Math.max(minDy, dy[ns] - over[ns]) : dy[ns];
+  return { side: `${ns}${ew}` as CalloutSide, maxW: Math.max(CALLOUT_MIN_W, Math.floor(room[ew])), dy: reach };
 }
 
 const D2R = Math.PI / 180;
