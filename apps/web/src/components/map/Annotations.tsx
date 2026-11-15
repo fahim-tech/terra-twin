@@ -12,6 +12,13 @@ export interface Annotation {
   tone?: "mars" | "earth" | "neutral";
   /** Leader-line direction from the point to the label. */
   side?: "ne" | "nw" | "se" | "sw";
+  /** Half-size in px of a box drawn around the point (e.g. the AOI) that the label must sit outside. */
+  clearPx?: number;
+}
+
+/** Vertical leader reach: the default, or far enough that a ~40 px label clears the box around the point. */
+export function leaderDy(clearPx = 0) {
+  return Math.max(DY, clearPx > 0 ? clearPx + 32 : 0);
 }
 
 const DX = 44, DY = 38;
@@ -38,7 +45,7 @@ export function AnnotationLayer({ planet, items, className }: { planet: Planet; 
         const side = it.side ?? "ne";
         const sx = side.includes("e") ? 1 : -1;
         const sy = side.includes("n") ? -1 : 1;
-        const lx = a.x + sx * DX, ly = a.y + sy * DY;
+        const lx = a.x + sx * DX, ly = a.y + sy * leaderDy(it.clearPx);
         const stroke = it.tone === "earth" ? "var(--color-earth)" : it.tone === "neutral" ? "var(--color-ink)" : "var(--color-mars)";
         return (
           <div key={it.id}>
