@@ -168,8 +168,10 @@ export function ResearchStage({ search, candidateId, relief: Relief = ReliefSlot
         )}
         {gate && (
           <Readout label={<Term k="landCover">Land cover</Term>}>
-            {gate.mode === "exclude" ? "Applied before ranking" : "Reported only, never excludes"} · bare ≥ <span className="num">{gate.bare_min.toFixed(2)}</span>
-            {" "}· vegetated ≤ <span className="num">{gate.veg_max.toFixed(2)}</span> · working hypotheses
+            {/* Each threshold stays on one line with its sign: "bare ≥ 0.50", never "bare ≥ / 0.50". */}
+            {gate.mode === "exclude" ? "Applied before ranking" : "Reported only, never excludes"} ·{" "}
+            <span className="whitespace-nowrap">bare ≥ <span className="num">{gate.bare_min.toFixed(2)}</span></span> ·{" "}
+            <span className="whitespace-nowrap">vegetated ≤ <span className="num">{gate.veg_max.toFixed(2)}</span></span> · working hypotheses
           </Readout>
         )}
         <Readout label="Scope"><Term k="scope" /></Readout>

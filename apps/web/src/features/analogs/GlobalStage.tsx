@@ -166,9 +166,10 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
               : <><span className="num text-num-sm text-ink">{t1.summary.n_within_0p05_of_leader}</span>{near.length < t1.summary.n_within_0p05_of_leader && <> (<span className="num text-num-sm">{near.length}</span> loaded)</>} cells</>}
             {" "}within {NEAR_TOL.toFixed(2)} of the top — not ranked against each other, listed west to east.
           </p>
-          <div className="mt-2 border-b border-line">
+          {/* A group (unranked set) around a real list, so screen readers still hear the item count. */}
+          <div role="group" aria-label="Cells within 0.05 of the top, not ranked against each other, listed west to east" className="mt-2 border-b border-line">
             <CellTableHead ranked={false} />
-            <ul role="group" aria-label="Cells within 0.05 of the top, not ranked against each other" className="divide-y divide-line">
+            <ul className="divide-y divide-line">
               {near.map((c) => <CellRow key={c.id} c={c} on={candidateId === c.id} approx />)}
             </ul>
           </div>
@@ -176,7 +177,7 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
       )}
       {rest.length > 0 && (
         <div className="mt-5 max-md:mt-4">
-          <SectionHead index={near.length > 0 ? "02" : "01"} aside={view ? "in view" : <>{contiguous.toLocaleString("en-US")} / {t1.total.toLocaleString("en-US")}</>}>By global rank</SectionHead>
+          <SectionHead index={near.length > 0 ? "02" : "01"} aside={view ? "in view" : <>{contiguous.toLocaleString("en-US")} of {t1.total.toLocaleString("en-US")} loaded</>}>By global rank</SectionHead>
           <div className="mt-2 border-b border-line">
             <CellTableHead ranked />
             <ul aria-label="Further cells by global rank" className="divide-y divide-line">

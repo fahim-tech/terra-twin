@@ -157,7 +157,7 @@ export function EarthLayers() {
                 </div>
                 <p className="mt-1 text-caption text-muted">
                   {nRandom !== undefined && nPool !== undefined && <><span className="num text-num-sm">{nRandom}</span> sampled at random, <span className="num text-num-sm">{nPool - nRandom}</span> named.</>}
-                  {t2pool && target && <> Ranked for {target.label}: <span className="num text-num-sm text-ink">{t2pool.n_ranked ?? t2pool.n_windows}</span>
+                  {t2pool && target && <> Ranked for <span className="whitespace-nowrap">{target.label}:&nbsp;<span className="num text-num-sm text-ink">{t2pool.n_ranked ?? t2pool.n_windows}</span></span>
                     {gate?.mode === "exclude" ? " that pass the land-cover filter" : ""}.</>}
                 </p>
               </div>
