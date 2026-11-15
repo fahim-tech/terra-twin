@@ -38,10 +38,15 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
       <div className={cx("pointer-events-auto relative isolate w-full shrink-0 px-6 pb-8 pt-10 sm:px-10 sm:pb-12 landscape:mt-auto",
         "landscape:md:my-auto landscape:md:max-w-[min(560px,calc(47.8vw_-_32px))] landscape:md:pl-14 landscape:md:pr-0 landscape:md:py-10",
         "landscape:xl:max-w-[min(560px,calc(43.8vw_-_32px))] landscape:2xl:ml-[5vw] landscape:2xl:max-w-[min(560px,calc(38.8vw_-_32px))]")}>
-        {/* Portrait and phones: the planet stands above the copy. This fall-off starts just above the kicker, so
+        {/* Portrait tablets: the planet stands above the copy. This fall-off starts just above the kicker, so
             the limb behind the title dims and the paragraph, figures and actions sit on solid space. */}
-        <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-10 bottom-0 -z-10 landscape:md:hidden"
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-10 bottom-0 -z-10 hidden md:block landscape:md:hidden"
           style={{ backgroundImage: "linear-gradient(to bottom, rgb(2 3 4 / 0) 0, rgb(2 3 4 / 0.55) 110px, rgb(2 3 4 / 0.86) 210px, rgb(2 3 4 / 0.97) 300px, rgb(2 3 4) 360px)" }} />
+        {/* Phones: the copy is taller than the room under the planet, so it rises over the planet's southern
+            half. The fall-off starts well above the kicker and is mostly dark by the kicker line, so the
+            research-zone markers on the globe never show through the kicker, title or figures. */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 -top-16 bottom-0 -z-10 md:hidden"
+          style={{ backgroundImage: "linear-gradient(to bottom, rgb(2 3 4 / 0) 0, rgb(2 3 4 / 0.5) 56px, rgb(2 3 4 / 0.78) 104px, rgb(2 3 4 / 0.88) 160px, rgb(2 3 4 / 0.95) 240px, rgb(2 3 4) 330px)" }} />
         {/* Kicker and subtitle carry a halo: on phones they can sit over the planet's dimmed limb. */}
         <motion.div {...rise(0)} className="flex items-center gap-3">
           <span aria-hidden className="h-1.5 w-1.5 bg-mars" />
