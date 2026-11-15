@@ -1,167 +1,199 @@
-import { ArrowRight, ChevronDown } from "lucide-react";
-import { useState } from "react";
-import { Bar, Button, Chip, cx, Flags, fmt, Note, pct, Section, Spinner } from "../../components/ui";
+import { ArrowRight, CornerUpLeft } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { Block, Kicker, PanelBody, PanelFooter, PanelHeader, Term, Toponym } from "../../components/primitives";
+import { Button, cx, Note, Segmented } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
-import { useFindAnalogs, useMarsAnalysis, useMissions } from "../../services/api";
+import { zoneName } from "../../lib/glossary";
+import { useMarsAnalysis, useMissions } from "../../services/api";
 import { useApp } from "../../store/app";
-import type { FeatureValue } from "../../types/contracts";
+import type { MissionProfile } from "../../types/contracts";
+import { Availability } from "./Availability";
+import { useExplorer } from "./explorerStore";
+import { OutsideActions, OutsideBody } from "./OutsideZone";
+import { Terrain, TerrainSkeleton } from "./Terrain";
+import { useRunSearch } from "./useRunSearch";
+import { formatCoord, FOOTPRINTS } from "./zones";
 
-const STATE_TONE: Record<FeatureValue["state"], "ok" | "earth" | "warn" | "neutral" | "bad"> = {
-  measured: "ok", derived: "earth", modelled: "warn", proxy: "warn", unavailable: "neutral", insufficient_resolution: "bad",
-};
+/**
+ * Inspector for the selected Mars point. Order: place → mission → terrain → footprint → evidence →
+ * Find Earth Analogs. Outside the research zones it says so in one sentence and offers the nearest
+ * zone instead of an analysis it cannot run.
+ */
+export function MarsInspector() {
+  const selection = useApp((s) => s.selection);
+  const footprintKm = useApp((s) => s.footprintKm);
+  const mission = useApp((s) => s.mission);
+  const select = useApp((s) => s.select);
+  const origin = useExplorer((s) => s.origin);
+  const params = selection ? { lat: selection.lat, lon: selection.lon, footprint_km: footprintKm, mission } : null;
+  const q = useMarsAnalysis(params);
+  const a = q.data;
+  const search = useRunSearch();
+  const root = useRef<HTMLDivElement>(null);
+  const footerHost = useSheetFooterHost(root);
 
-export function FeatureRow({ f }: { f: FeatureValue }) {
-  const [open, setOpen] = useState(false);
+  // Announce when the measurements for a new selection arrive (or fail).
+  const announced = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selection || !a) return;
+    const k = `${selection.lat}:${selection.lon}`;
+    if (announced.current === k) return;
+    announced.current = k;
+    useApp.getState().announce(a.status === "available"
+      ? `${selection.label}: terrain measures loaded.`
+      : `${formatCoord(selection.lat, selection.lon)} is outside the research zones. Terrain measurements are not available here.`);
+  }, [a, selection]);
+  useEffect(() => { if (q.isError) useApp.getState().announce(`Measurements failed to load: ${(q.error as Error).message}`, true); }, [q.isError, q.error]);
+
+  if (!selection) return null;
+  const outside = a ? a.status === "unavailable" : !selection.siteId;
+  const name = a?.site ? zoneName(a.site) : selection.siteId ? zoneName(selection.siteId) : "Selected point";
+  const centred = !!selection.siteId && a?.site_centre ? Math.abs((a.site_centre as { lat: number }).lat - selection.lat) < 1e-6 : true;
+  const fromOrigin = origin && !(origin.lat === selection.lat && origin.lon === selection.lon) ? origin : null;
+
+  const footer = (
+    <PanelFooter className={cx(footerHost && "pointer-events-auto absolute inset-x-0 bottom-0 z-30 bg-surface shadow-[0_-12px_24px_-12px_rgb(0_0_0/0.6),inset_0_1px_0_rgb(255_255_255/0.06)]")}>
+      {outside ? <OutsideActions selection={selection} /> : <ZoneActions a={!!a} pending={search.pending} error={search.error} onRun={() => search.run(selection)} />}
+    </PanelFooter>
+  );
+
   return (
-    <div className="border-b border-line/40 last:border-b-0">
-      <button onClick={() => setOpen((o) => !o)} aria-expanded={open}
-        className="flex w-full items-baseline justify-between gap-3 py-2 text-left">
-        <span className={cx("text-[12.5px]", f.value === null ? "text-faint" : "text-ink/90")}>{f.label}</span>
-        <span className="flex items-baseline gap-2">
-          <span className={cx("num text-[13px]", f.value === null ? "text-faint" : "text-ink")}>{f.value === null ? "Unavailable" : fmt(f.value, f.unit)}</span>
-        </span>
-      </button>
-      {open && (
-        <div className="space-y-1.5 pb-3 text-[11.5px] leading-relaxed text-muted">
-          <div className="flex flex-wrap gap-1.5">
-            <Chip tone={STATE_TONE[f.state]}>{f.state.replace("_", " ")}</Chip>
-            {f.native_resolution_m ? <Chip>grid {fmt(f.native_resolution_m, "m", 0)}</Chip> : null}
-            {f.baseline_m ? <Chip>baseline {fmt(f.baseline_m, "m", 0)}</Chip> : null}
-          </div>
-          {f.explanation && <p>{f.explanation}</p>}
-          {f.footprint && <p><span className="text-faint">Support:</span> {f.footprint}</p>}
-          {f.source_id && <p><span className="text-faint">Source:</span> {f.source_id}</p>}
-          {f.method && <p><span className="text-faint">Method:</span> <span className="font-mono text-[10.5px]">{f.method}</span></p>}
-          {f.reason && <p className="text-warn/90">{f.reason}</p>}
-        </div>
-      )}
+    <div ref={root} className="flex h-full min-h-0 flex-col">
+      <PanelHeader onClose={() => select(null)} className="pr-14">
+        <Kicker tone={outside ? undefined : "mars"}>{outside ? "Outside research zones" : "Research zone"}</Kicker>
+        <Toponym data-stage-heading="mars" tabIndex={-1} className="mt-1.5 focus-visible:outline-none">{name}</Toponym>
+        <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
+          <span className="num text-num">{formatLat(selection.lat, 3)} {formatLon(selection.lon, 3)}</span>
+          {!outside && !centred && <span>picked point · zone measures describe the whole zone</span>}
+        </p>
+        {fromOrigin && (
+          <button type="button" onClick={() => { useExplorer.getState().set({ origin: null }); select(fromOrigin); }}
+            className="hit -mx-1 mt-1.5 inline-flex items-center gap-1.5 rounded-control px-1 py-0.5 text-caption text-muted hover:text-ink">
+            <CornerUpLeft className="h-3.5 w-3.5" aria-hidden /> Back to your point <span className="num text-num-sm">{formatCoord(fromOrigin.lat, fromOrigin.lon)}</span>
+          </button>
+        )}
+      </PanelHeader>
+
+      <PanelBody className="pb-4">
+        {q.isError && (
+          <Note tone="critical" className="py-3">
+            Measurements could not be loaded: {(q.error as Error).message}{" "}
+            <button type="button" className="underline hover:text-ink" onClick={() => q.refetch()}>Retry</button>
+          </Note>
+        )}
+        {outside ? <OutsideBody a={a} /> : (
+          <>
+            <MissionRow />
+            <Block title="Terrain" className="pt-2">
+              <div aria-busy={q.isLoading}>
+                {a ? <Terrain tier1={a.tier1_features} zone={a.ez_features} flags={a.quality_flags} /> : q.isLoading ? <TerrainSkeleton /> : null}
+              </div>
+            </Block>
+            <Block title="Footprint">
+              <Segmented ariaLabel="Requested footprint" accent="mars" value={footprintKm}
+                onChange={(v) => useApp.getState().set({ footprintKm: v })}
+                options={FOOTPRINTS.map((k) => ({ value: k, label: <span className="num">{k} km</span> }))} />
+              <p className="mt-2 text-caption text-faint">
+                Analyses run on 25 km cells and <Term k="scale">50 km windows</Term>, whatever footprint you draw.
+              </p>
+            </Block>
+            <Block title="Evidence availability">
+              {a ? <Availability a={a} /> : <div aria-hidden className="h-4 w-56 animate-pulse rounded-control bg-elevated motion-reduce:animate-none" />}
+            </Block>
+          </>
+        )}
+        {footerHost && <div aria-hidden style={{ height: outside ? 176 : 132 }} />}
+      </PanelBody>
+
+      {footerHost ? (footerHost.visible ? createPortal(footer, footerHost.el) : null) : footer}
     </div>
   );
 }
 
-export function MarsInspector() {
-  const { selection, footprintKm, mission, set, go } = useApp();
+function ZoneActions({ a, pending, error, onRun }: { a: boolean; pending: boolean; error: Error | null; onRun: () => void }) {
+  const mission = useApp((s) => s.mission);
   const missions = useMissions();
-  const params = selection ? { lat: selection.lat, lon: selection.lon, footprint_km: footprintKm, mission } : null;
-  const q = useMarsAnalysis(params);
-  const find = useFindAnalogs();
-  const [showEz, setShowEz] = useState(false);
   const m = missions.data?.find((x) => x.id === mission);
-
-  if (!selection) {
-    return (
-      <div className="flex h-full flex-col justify-center px-6 py-10 text-center">
-        <div className="mx-auto mb-4 h-10 w-10 rounded-full ring-1 ring-mars/40" />
-        <p className="text-[14px] text-ink">Select a location on Mars</p>
-        <p className="mt-2 text-[12.5px] leading-relaxed text-muted">
-          Click the globe, enter coordinates or choose one of the 39 Exploration Zones to see its measured terrain
-          characteristics and observation support.
-        </p>
-      </div>
-    );
-  }
-
-  const a = q.data;
-  const run = () => {
-    find.mutate({ lat: selection.lat, lon: selection.lon, footprint_km: footprintKm, mission }, {
-      onError: (e) => useApp.getState().announce(`Search failed: ${(e as Error).message}`, true),
-      onSuccess: (res) => {
-        // Only a stable named leader is pre-selected. A tied set is never reduced to one member
-        // on the user's behalf; tier-1 cells are a screening list, so nothing is pre-selected there either.
-        const leader = res.tier2.decision.type === "named_leader" ? res.tier2.candidates[0]?.id : undefined;
-        const first = leader ? `t2:${leader}` : null;
-        const d = res.tier2.decision;
-        useApp.getState().announce(res.status === "available"
-          ? `Earth analog search complete. ${res.tier1?.candidate_pool.n_cells_searched.toLocaleString() ?? 0} land cells screened. Research comparison: ${d.type.replace("_", " ")}${d.members.length ? ` (${d.members.join(", ")})` : ""}.`
-          : "No Earth comparison for this point: research terrain data is not available here.");
-        set({ search: res, candidateId: first, tier: res.tier2.candidates.length || !res.tier1 ? 2 : 1 });
-        go("earth");
-      },
-    });
-  };
-
+  const blocked = m && !m.available;
   return (
-    <div className="flex h-full flex-col">
-      <div className="px-5 pb-4 pt-5">
-        <div className="flex items-center gap-2">
-          <Chip tone="mars">Mars target</Chip>
-          {a?.status === "available" ? <Chip tone="ok">Research EZ</Chip> : a?.status === "unavailable" ? <Chip>Arbitrary point</Chip> : null}
-        </div>
-        <h2 className="mt-2.5 text-[19px] font-semibold tracking-[-0.015em]">{selection.label}</h2>
-        <p className="num mt-1 font-mono text-[11.5px] text-muted">
-          {formatLat(selection.lat)} · {formatLon(selection.lon)} · {footprintKm} km footprint
-        </p>
-      </div>
-
-      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-        {q.isLoading && <div className="px-5 py-4"><Spinner label="Retrieving scientific measurements" /></div>}
-        {q.isError && <div className="px-5 py-4"><Note tone="critical">{(q.error as Error).message}</Note></div>}
-
-        {a && (
-          <>
-            <Section title="Data availability">
-              {a.status === "available" ? (
-                <Note>Inside the <span className="text-ink">{a.site_name}</span> Exploration Zone footprint. Values describe the research EZ, derived from the 463 m MOLA grid.</Note>
-              ) : (
-                <div className="space-y-2.5">
-                  <Note tone="warning">{a.unavailable?.reason}</Note>
-                  <div className="flex flex-wrap gap-1.5">
-                    {a.unavailable?.missing_inputs.map((x) => <Chip key={x} className="whitespace-normal text-left">{x}</Chip>)}
-                  </div>
-                </div>
-              )}
-              <div className="mt-3"><Flags flags={a.quality_flags} /></div>
-            </Section>
-
-            {a.observation_support && (
-              <Section title="MOLA observation support">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[12.5px] text-ink/90">Bins with ≥ 1 laser return</span>
-                  <span className="num text-[15px] font-medium">{pct(a.observation_support.observed_fraction, 1)}</span>
-                </div>
-                <Bar value={a.observation_support.observed_fraction} tone="mars" className="mt-2" />
-                <div className="num mt-3 grid grid-cols-3 gap-2 text-[11px] text-muted">
-                  <div><div className="text-faint">Interpolated</div>{pct(a.observation_support.interpolation_dependence, 0)}</div>
-                  <div><div className="text-faint">Mean shots/bin</div>{fmt(a.observation_support.mean_counts, undefined, 2)}</div>
-                  <div><div className="text-faint">50 km window</div>{pct(a.observation_support.observed_fraction_native_50km, 1)}</div>
-                </div>
-                <p className="mt-3 text-[11px] leading-relaxed text-faint">{a.observation_support.note}</p>
-              </Section>
-            )}
-
-            {a.tier1_features.length > 0 && (
-              <Section title="Terrain · tier-1 descriptors" aside={<span className="text-[10.5px] text-faint">25 km cells, median</span>}>
-                {a.tier1_features.map((f) => <FeatureRow key={f.key} f={f} />)}
-              </Section>
-            )}
-
-            {a.ez_features.length > 0 && (
-              <Section title="Terrain · full EZ AOI" aside={
-                <button onClick={() => setShowEz((s) => !s)} className="inline-flex items-center gap-1 text-[11px] text-muted hover:text-ink">
-                  {showEz ? "Hide" : "Show"} <ChevronDown className={cx("h-3 w-3 transition-transform", showEz && "rotate-180")} />
-                </button>}>
-                {showEz ? a.ez_features.map((f) => <FeatureRow key={f.key} f={f} />) :
-                  <p className="text-[11.5px] text-faint">Multiscale descriptors over the 200 × 200 km EZ area (8 values).</p>}
-              </Section>
-            )}
-
-            <Section title="Other factors">
-              {a.unavailable_factors.map((f) => <FeatureRow key={f.key} f={f} />)}
-            </Section>
-          </>
-        )}
-      </div>
-
-      <div className="border-t border-line/70 p-4">
-        {m && !m.available && <Note tone="warning" className="mb-3">{m.label}: {m.reason_unavailable}</Note>}
-        {find.isError && <Note tone="critical" className="mb-3">{(find.error as Error).message}</Note>}
-        <Button variant="primary-mars" className="w-full py-2.5" onClick={run} disabled={!a || find.isPending || (m && !m.available)}>
-          {find.isPending ? "Searching Earth…" : <>Find Earth Analogs <ArrowRight className="h-4 w-4" /></>}
-        </Button>
-        <p className="mt-2 text-center text-[10.5px] text-faint">
-          {a?.status === "available" ? `${m?.label ?? mission} · tier-1 over 249,165 Earth cells, then OOM tier-2` : "Runs the request; reports what is unavailable rather than guessing"}
-        </p>
-      </div>
-    </div>
+    <>
+      {blocked && <Note tone="warning" className="mb-2.5">{m.label}: {m.reason_unavailable ?? "not available yet"}</Note>}
+      {error && <Note tone="critical" className="mb-2.5">Search failed: {error.message}</Note>}
+      <Button variant="primary-mars" className="w-full py-2.5" onClick={onRun} disabled={!a || pending || !!blocked}>
+        {pending ? <span role="status">Searching Earth…</span> : <>Find Earth Analogs <ArrowRight className="h-4 w-4" aria-hidden /></>}
+      </Button>
+      <p className="mt-2 text-center text-caption text-faint">
+        <Term k="globalScreen" /> + <Term k="researchComparison">research comparison</Term>
+      </p>
+    </>
   );
+}
+
+/** One sentence on what the chosen mission changes. Built from the API's own mission profile. */
+export function missionEffect(m: MissionProfile | undefined): ReactNode {
+  if (!m) return null;
+  if (!m.available) return m.reason_unavailable ?? "Not available yet.";
+  const desc = m.description.trim();
+  if (m.gate_mode === "report") {
+    const rest = desc.split(/(?<=\.)\s+/).slice(1).join(" ");
+    return rest || "Land cover is reported, never used to exclude.";
+  }
+  const weights = desc.includes(":") ? desc.slice(desc.indexOf(":") + 1).trim().replace(/\.$/, "") : null;
+  return (
+    <>
+      {weights ? `${weights[0].toUpperCase()}${weights.slice(1)}; ` : ""}
+      <Term k="landCover">{weights ? "vegetated ground" : "Vegetated ground"}</Term> is removed before ranking.
+    </>
+  );
+}
+
+function MissionRow() {
+  const mission = useApp((s) => s.mission);
+  const missions = useMissions();
+  const m = missions.data?.find((x) => x.id === mission);
+  return (
+    <section className="pb-2.5 pt-1" aria-label="Mission">
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor="mars-mission" className="text-label text-ink">Mission</label>
+        <select id="mars-mission" value={mission} onChange={(e) => useApp.getState().set({ mission: e.target.value })}
+          className="hit h-9 min-w-0 max-w-[230px] flex-1 cursor-pointer rounded-control bg-elevated px-2.5 text-label text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)] outline-none">
+          {(missions.data ?? [{ id: mission, label: "Loading…", available: true } as MissionProfile]).map((x) => (
+            <option key={x.id} value={x.id} disabled={!x.available}>{x.label}{x.available ? "" : " — not available yet"}</option>
+          ))}
+        </select>
+      </div>
+      <p className="mt-1.5 text-caption text-muted">{missionEffect(m)}</p>
+    </section>
+  );
+}
+
+/**
+ * Workaround for the phone sheet: its content is laid out at full height and slid down, so a footer at
+ * the foot of the column sits off-screen at the half detent. When this inspector is inside the sheet,
+ * the footer is portalled to the sheet's host and pinned to the bottom of the visible stage; it hides
+ * at the peek detent, where it would cover the header. (Shared-file request: Sheet should expose a
+ * footer slot.)
+ */
+function useSheetFooterHost(root: React.RefObject<HTMLDivElement>): { el: HTMLElement; visible: boolean } | null {
+  const [host, setHost] = useState<{ el: HTMLElement; visible: boolean } | null>(null);
+  useLayoutEffect(() => {
+    const sheet = root.current?.closest<HTMLElement>("section[aria-label]");
+    const el = sheet?.parentElement;
+    if (!sheet || !el || el.tagName === "MAIN") { setHost(null); return; }
+    let visible = true;
+    const measure = () => {
+      const top = sheet.getBoundingClientRect().top;
+      const bottom = el.getBoundingClientRect().bottom;
+      const v = bottom - top > 260;
+      if (v !== visible) { visible = v; setHost({ el, visible: v }); }
+    };
+    setHost({ el, visible: true });
+    measure();
+    const mo = new MutationObserver(measure);
+    mo.observe(sheet, { attributes: true, attributeFilter: ["style"] });
+    window.addEventListener("resize", measure);
+    return () => { mo.disconnect(); window.removeEventListener("resize", measure); };
+  }, [root]);
+  return host;
 }
