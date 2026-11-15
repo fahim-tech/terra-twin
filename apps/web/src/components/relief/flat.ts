@@ -22,7 +22,7 @@ export interface FlatOptions {
 
 /** Plot square (CSS px) inside the canvas, leaving room for the scale labels. */
 export function flatLayout(width: number, height: number) {
-  const m = { left: 52, right: 24, top: 34, bottom: 34 };
+  const m = { left: 64, right: 28, top: 34, bottom: 34 }; // left: room for "50 km N"
   const side = Math.max(40, Math.min(width - m.left - m.right, height - m.top - m.bottom));
   const left = m.left + Math.max(0, (width - m.left - m.right - side) / 2);
   const top = m.top + Math.max(0, (height - m.top - m.bottom - side) / 2);
@@ -112,7 +112,7 @@ export function drawFlat(ctx: CanvasRenderingContext2D, model: Model, grid: Grid
     ctx.moveTo(left, y);
     ctx.lineTo(left - 5, y);
     ctx.stroke();
-    ctx.fillText(i === a.length - 1 ? `${fmtNum(km)} N` : fmtNum(km), left - 8, y);
+    ctx.fillText(i === a.length - 1 ? `${fmtNum(km)} km N` : fmtNum(km), left - 8, y);
   });
 
   // North arrow above the top edge (row 0 is north).

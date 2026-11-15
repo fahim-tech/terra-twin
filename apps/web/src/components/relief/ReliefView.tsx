@@ -20,8 +20,8 @@ import { drawFlat } from "./flat";
 import { Orbit } from "./orbit";
 import { ReliefRenderer, reliefContext } from "./reliefGl";
 import {
-  ariaSummary, axisPlacement, buildModel, camera, fmtNum, fmtPitch, homePose, labelAnchors, layoutLabels, pickCell, project, rampColor, representationNote, SUN,
-  TINT, toGrid,
+  ariaSummary, axisPlacement, buildModel, camera, fmtNum, fmtPitch, homePose, labelAnchors, layoutLabels, pickCell, project, rampColor,
+  representationNote, SUN, TINT, toGrid,
   type Grid, type Model,
 } from "./reliefMath";
 
@@ -55,18 +55,21 @@ export function ReliefView({ planet, id, title, defaultExaggeration = 4, header 
   const sites = useSites();
   const site = planet === "mars" ? sites.data?.find((s) => s.id === id) ?? null : null;
   const name = title ?? site?.name ?? id ?? null;
-  const where = relief ? { lat: relief.lat, lon: relief.lon, kind: relief.kind } : site ? { lat: site.lat, lon: site.lon, kind: "NASA Exploration Zone" } : null;
+  const siteKind = site ? (site.category === "nasa_exploration_zone" ? "NASA Exploration Zone" : site.category.replace(/_/g, " ")) : null;
+  const where = relief ? { lat: relief.lat, lon: relief.lon, kind: relief.kind } : site && siteKind ? { lat: site.lat, lon: site.lon, kind: siteKind } : null;
   let body: ReactNode;
   if (!id) body = <Message title="No window selected" planet={planet}>Choose a research window to see its terrain in 3D.</Message>;
   else if (q.isPending) body = <div className="grid h-full place-items-center"><Spinner label="Loading relief grid" /></div>;
   else if (q.isError) body = <Unavailable planet={planet} error={q.error} />;
   return (
     <section aria-label={`Terrain relief${name ? `, ${name}` : ""}`} data-occludes={occludes}
-      className={cx("surface frame relative flex min-h-0 flex-col overflow-hidden rounded-surface", className)}>
+      className={cx("surface relative flex min-h-0 flex-col overflow-hidden rounded-surface", className)}>
       {header && <Header planet={planet} name={name} relief={relief} where={where} />}
       {relief
         ? <ReliefScene key={relief.id} relief={relief} planet={planet} defaultExaggeration={defaultExaggeration} renderer={renderer} name={name ?? relief.id} />
         : <div className="relative min-h-[240px] flex-1 border-t border-line bg-[#030405]">{body}</div>}
+      {/* Corner registration brackets above the content, so the scene's own background never covers them. */}
+      <span aria-hidden className="frame pointer-events-none absolute inset-0 z-20" />
     </section>
   );
 }
@@ -93,11 +96,12 @@ function Header({ planet, name, relief, where }: {
             {where && <span className="font-sans text-[10.5px] font-semibold uppercase tracking-[0.12em] text-faint">{where.kind}</span>}
           </p>
         </div>
-        <dl className="grid grid-cols-2 border-l border-t border-line sm:flex sm:border-t-0">
+        {/* Phones: one full-width strip of three (the grid size is in the legend below). */}
+        <dl className="grid w-full grid-cols-3 border-l border-t border-line sm:flex sm:w-auto sm:border-t-0">
           <Readout label="Min elev"><Measure value={relief?.z_min} unit="m" digits={1} /></Readout>
           <Readout label="Max elev"><Measure value={relief?.z_max} unit="m" digits={1} /></Readout>
           <Readout label="Relief"><Measure value={range} unit="m" digits={1} /></Readout>
-          <Readout label="Grid">
+          <Readout label="Grid" className="hidden sm:block">
             {relief ? <span className="num whitespace-nowrap">{relief.rows} × {relief.cols}<span className="ml-1.5 text-muted">@ {relief.cell_m.toFixed(2)}</span><span className="ml-[0.18em] font-sans text-[11px] text-muted">m</span></span> : <span className="num text-faint">—</span>}
           </Readout>
         </dl>
@@ -106,9 +110,9 @@ function Header({ planet, name, relief, where }: {
   );
 }
 
-function Readout({ label, children }: { label: string; children: ReactNode }) {
+function Readout({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
-    <div className="border-b border-r border-line px-3 py-1.5 sm:border-b-0 sm:last:border-r-0">
+    <div className={cx("min-w-0 border-b border-r border-line px-3 py-1.5 sm:border-b-0 sm:last:border-r-0", className)}>
       <dt className="kicker !text-[10px]">{label}</dt>
       <dd className="mt-0.5 text-num text-ink">{children}</dd>
     </div>
@@ -118,7 +122,7 @@ function Readout({ label, children }: { label: string; children: ReactNode }) {
 function Message({ title, planet, children }: { title: string; planet: "earth" | "mars"; children: ReactNode }) {
   return (
     <div className="grid h-full place-items-center p-6">
-      <div className="frame max-w-[420px] border border-dashed border-line-strong px-5 py-4 [--frame-l:8px]">
+      <div className="frame max-w-[420px] border border-line px-5 py-4 [--frame-l:8px]">
         <div className="flex items-center gap-2">
           <span aria-hidden className={cx("h-1.5 w-1.5 ring-1 ring-inset", planet === "mars" ? "ring-mars" : "ring-earth")} />
           <span className="label-caps text-ink">{title}</span>
@@ -173,8 +177,9 @@ function ReliefScene({ relief, planet, defaultExaggeration, renderer, name }: {
   useEffect(() => { orbit.setVE(ve); refs.kick.current(); }, [orbit, ve]); // refs are stable
 
   const choose = (v: Exaggeration) => { setVe(v); setStatus(`Vertical exaggeration ×${v}`); };
-  const act = (f: (o: Orbit) => void, say?: string) => { f(orbit); refs.kick.current(); if (say) setStatus(say); };
+  const act: Act = (f, say) => { f(orbit); refs.kick.current(); if (say) setStatus(say); };
   const label = ariaSummary(relief, ve, planet, mode);
+  const float = mode === "3d"; // 3D: controls float in the scene's lower corners from sm up; 2D: always a deck below the map
 
   return (
     <>
@@ -187,17 +192,12 @@ function ReliefScene({ relief, planet, defaultExaggeration, renderer, name }: {
           ) : (
             <ViewportFlat model={model} grid={grid} planet={planet} ve={ve} label={label} />
           )}
-          {mode === "2d" && model && (
-            <p className="on-imagery absolute right-3 top-3 z-10 max-w-[240px] text-right text-caption text-muted">
-              <span className="label-caps block text-ink">2D hillshade</span>
-              North up, lit from the north-west.{failed ? ` ${failed}` : ""}
-            </p>
-          )}
         </div>
         {model && (
-          // Phones: a deck under the scene. Larger screens: the same controls float in the scene's lower corners.
-          <div className="relative z-10 flex items-end justify-between gap-3 border-t border-line px-3 py-2.5 sm:pointer-events-none sm:absolute sm:inset-x-4 sm:bottom-4 sm:border-0 sm:p-0">
-            <div className="flex flex-col gap-1.5 sm:pointer-events-auto">
+          // Phones (and the 2D map at every size): a deck under the scene, so nothing covers the map.
+          <div className={cx("relative z-10 flex flex-wrap items-end justify-between gap-x-6 gap-y-2.5 border-t border-line px-3 py-2.5 sm:px-4",
+            float && "sm:pointer-events-none sm:absolute sm:inset-x-4 sm:bottom-4 sm:flex-nowrap sm:border-0 sm:p-0")}>
+            <div className={cx("flex flex-col gap-1.5", float && "sm:pointer-events-auto")}>
               <span id={veLabel} className="label-caps on-imagery text-ink">
                 Vertical exaggeration <span className="num tracking-normal">×{ve}</span>
                 {mode === "2d" && <span className="ml-1.5 text-faint">(shading)</span>}
@@ -214,7 +214,12 @@ function ReliefScene({ relief, planet, defaultExaggeration, renderer, name }: {
                 ))}
               </div>
             </div>
-            {mode === "3d" && <NavStack act={act} needle={refs.needle} />}
+            {mode === "3d" ? <NavStack act={act} needle={refs.needle} /> : (
+              <p className="max-w-[300px] text-caption text-muted sm:text-right">
+                <span className="label-caps block text-ink">2D hillshade</span>
+                North up, lit from the north-west.{failed ? ` ${failed}` : ""}
+              </p>
+            )}
           </div>
         )}
         <p aria-live="polite" className="sr-only">{status}</p>
@@ -224,10 +229,13 @@ function ReliefScene({ relief, planet, defaultExaggeration, renderer, name }: {
   );
 }
 
+/** Apply a camera step, redraw, and announce it. */
+type Act = (f: (o: Orbit) => void, say?: string) => void;
+
 const navBtn = "hit grid h-9 w-9 place-items-center bg-[#05070a] text-muted transition-colors duration-150 hover:bg-[#101317] hover:text-ink active:bg-[#1a1e23] active:duration-0";
 
 /** Zoom, face north and reset: 2 × 2 in the phone deck, a vertical stack in the scene's corner elsewhere. */
-function NavStack({ act, needle }: { act: (f: (o: Orbit) => void, say?: string) => void; needle: MutableRefObject<SVGSVGElement | null> }) {
+function NavStack({ act, needle }: { act: Act; needle: MutableRefObject<SVGSVGElement | null> }) {
   return (
     <div role="group" aria-label="Relief view" className="grid grid-cols-2 gap-px border border-line-strong bg-line sm:pointer-events-auto sm:flex sm:flex-col">
       <button type="button" className={navBtn} aria-label="Zoom in" title="Zoom in (+)" onClick={() => act((o) => o.nudge("zoom", -ZOOM_STEP))}><Plus className="h-4 w-4" strokeWidth={1.6} /></button>
@@ -243,8 +251,7 @@ function NavStack({ act, needle }: { act: (f: (o: Orbit) => void, say?: string) 
 // ---------------------------------------------------------------- 3D viewport
 
 function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
-  model: Model; grid: Grid; planet: "earth" | "mars"; label: string; name: string; refs: ViewRefs;
-  act: (f: (o: Orbit) => void, say?: string) => void; onFail: (why: string) => void;
+  model: Model; grid: Grid; planet: "earth" | "mars"; label: string; name: string; refs: ViewRefs; act: Act; onFail: (why: string) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
