@@ -114,6 +114,18 @@ export function pairLink(a: readonly (ScreenPoint | null | undefined)[], b: read
   return { line: [p0.x, p0.y, p1.x, p1.y], seam: at(ts) };
 }
 
+/**
+ * How much optional detail a corner plate can show without reaching the compared square: `boxes` are the
+ * plate's size at each level of detail (most first), all anchored at `origin` (its top-left). Returns the
+ * first level whose box keeps `clearance` px from the square's top-left corner region, else the last
+ * (barest) level; level 0 while the square is not on screen.
+ */
+export function plateLevel(square: { left: number; top: number } | null, origin: { x: number; y: number }, boxes: readonly { w: number; h: number }[], clearance: number): number {
+  if (!square || !boxes.length) return 0;
+  const i = boxes.findIndex((b) => !(square.left < origin.x + b.w + clearance && square.top < origin.y + b.h + clearance));
+  return i < 0 ? boxes.length - 1 : i;
+}
+
 /** Footprint size for the label: the record's kilometres, at most one decimal, never padded. */
 export function kmLabel(km: number): string {
   return `${km.toLocaleString("en-US", { maximumFractionDigits: 1 })} km`;

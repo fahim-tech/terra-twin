@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { footprintDimension, kmLabel, pairLink } from "./gauge";
+import { footprintDimension, kmLabel, pairLink, plateLevel } from "./gauge";
+
+describe("plate clearance", () => {
+  const origin = { x: 12, y: 12 };
+  const boxes = [{ w: 280, h: 160 }, { w: 280, h: 120 }, { w: 170, h: 96 }];
+
+  it("shows everything while the square sits clear of the plate", () => {
+    expect(plateLevel({ left: 400, top: 100 }, origin, boxes, 8)).toBe(0);
+    expect(plateLevel({ left: 100, top: 300 }, origin, boxes, 8)).toBe(0);
+  });
+
+  it("drops the note first, then the footprint line, when the plate would reach the square", () => {
+    expect(plateLevel({ left: 200, top: 150 }, origin, boxes, 8)).toBe(1);
+    // A tier-1 Mars plate at a tablet size: its two-line footprint line reached the square's corner.
+    expect(plateLevel({ left: 196, top: 120 }, origin, boxes, 8)).toBe(2);
+  });
+
+  it("keeps the barest plate when nothing clears, and everything while the square is off screen", () => {
+    expect(plateLevel({ left: 50, top: 50 }, origin, boxes, 8)).toBe(2);
+    expect(plateLevel(null, origin, boxes, 8)).toBe(0);
+  });
+});
 
 const pt = (x: number, y: number, visible = true) => ({ x, y, visible });
 

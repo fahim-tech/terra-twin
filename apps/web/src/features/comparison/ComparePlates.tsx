@@ -6,6 +6,7 @@ import { formatLat, formatLon } from "../../lib/geodesy";
 import { useGlobes } from "../../store/globes";
 import { CompareNav } from "./CompareNav";
 import { CORNERS, FootprintGauge } from "./FootprintGauge";
+import { plateLevel } from "./gauge";
 import { PlanetLabel } from "./marks";
 import type { CompareTargets } from "./model";
 
@@ -42,59 +43,92 @@ export function ComparePlates({ targets, planets, whyOpen = false, compact = fal
 
 /** Gap kept between a plate and the compared square, px. */
 const CLEARANCE = 8;
+/** Extra room needed before a plate shows detail it dropped, px. */
+const HYSTERESIS = 6;
 
 function Plate({ planet, targets, compact }: { planet: Planet; targets: CompareTargets; compact: boolean }) {
   const t = planet === "mars" ? targets.mars : targets.earth;
   const sub = planet === "earth" ? targets.earth.sub : null;
-  const noteClear = useNoteClearance(planet, !!sub && !compact);
+  const clear = usePlateClearance(planet, { footprint: !compact, note: !!sub && !compact });
+  const showFootprint = !compact && clear.level < 2;
+  const showNote = !!sub && !compact && clear.level < 1;
+  // What gave way stays one hover away (and is in the strip and the Why brief).
+  const hidden = [!compact && !showFootprint ? t.footprint : null, sub && !compact && !showNote ? sub : null].filter(Boolean).join(" · ");
   return (
     // A dark glass plate (not a scrim), so the labels stay legible over bright terrain and cloud. A labelled
     // group, not a landmark region: the strip below is the comparison's one region.
-    <div ref={noteClear.plate} role="group" aria-label={`${planet === "mars" ? "Mars" : "Earth"} location`} title={sub && !noteClear.show ? sub : undefined}
+    <div ref={clear.plate} role="group" aria-label={`${planet === "mars" ? "Mars" : "Earth"} location`} title={hidden || undefined}
       className="surface frame absolute left-3 top-3 w-max max-w-[min(280px,calc(100%-24px))] rounded-surface px-3.5 pb-3 pt-2.5 [--frame-l:8px]">
-      <PlanetLabel planet={planet} role={planet === "mars" ? "Target" : "Candidate"} />
-      <div className="toponym mt-2 text-[20px] leading-[1.02] tracking-[0.04em] text-ink">{t.name}</div>
-      <div className="num mt-1.5 text-num-sm text-ink/90">{formatLat(t.lat, 3)}&ensp;{formatLon(t.lon, 3)}</div>
-      {!compact && (
-        <div className="mt-1.5 flex items-baseline gap-2 text-caption text-muted">
+      <div ref={clear.core} className="w-max max-w-full">
+        <PlanetLabel planet={planet} role={planet === "mars" ? "Target" : "Candidate"} />
+        <div className="toponym mt-2 text-[20px] leading-[1.02] tracking-[0.04em] text-ink">{t.name}</div>
+        <div className="num mt-1.5 text-num-sm text-ink/90">{formatLat(t.lat, 3)}&ensp;{formatLon(t.lon, 3)}</div>
+      </div>
+      {showFootprint && (
+        <div ref={clear.footprint} className="mt-1.5 flex items-baseline gap-2 text-caption text-muted">
           {/* The same square the globe draws, as a legend key. */}
           <span aria-hidden className="inline-block h-2.5 w-2.5 shrink-0 translate-y-[1px] border border-ink" />
           <span>{t.footprint}</span>
         </div>
       )}
-      {/* The pool note makes the plate taller; narrow halves keep its first line, and it gives way entirely
-          when it would reach the compared square (in full on hover and in the Why brief). */}
-      {sub && !compact && noteClear.show && (
-        <div ref={noteClear.note} className="mt-1.5 line-clamp-1 border-t border-line pt-1.5 text-caption text-faint @min-[680px]:line-clamp-3" title={sub}>{sub}</div>
+      {/* The pool note makes the plate taller; narrow halves keep its first line. When the plate would reach
+          the compared square, the note gives way first, then the footprint line. */}
+      {showNote && (
+        <div ref={clear.note} className="mt-1.5 line-clamp-1 border-t border-line pt-1.5 text-caption text-faint @min-[680px]:line-clamp-3" title={sub ?? undefined}>{sub}</div>
       )}
     </div>
   );
 }
 
 /**
- * Whether the plate's note fits above the compared square as projected (the footprint gauge's anchors),
- * so a plate never covers the footprint. The decision uses the plate's size *with* the note (its height
- * remembered from the last time it showed), so hiding the note cannot flip the answer back.
+ * How much of a plate's optional detail fits above and left of the compared square as projected (the
+ * footprint gauge's anchors), so a plate never covers the footprint: level 0 shows everything, 1 drops the
+ * pool note, 2 also drops the footprint line. Each level is judged with the heights the pieces had when
+ * they last showed (and the plate's full width), so hiding a piece cannot flip the answer back.
  */
-function useNoteClearance(planet: Planet, wanted: boolean) {
+function usePlateClearance(planet: Planet, has: { footprint: boolean; note: boolean }) {
   const plate = useRef<HTMLDivElement>(null);
+  const core = useRef<HTMLDivElement>(null);
+  const footprint = useRef<HTMLDivElement>(null);
   const note = useRef<HTMLDivElement>(null);
+  const footprintH = useRef(22);
   const noteH = useRef(34);
-  const [show, setShow] = useState(true);
+  const fullW = useRef(0);
+  const decidedFor = useRef<{ anchors: unknown; footprint: boolean; note: boolean } | null>(null);
+  const [level, setLevel] = useState(0);
   const anchors = useGlobes((s) => s.anchors[planet]);
   useLayoutEffect(() => {
     const el = plate.current;
-    if (!wanted || !el) return;
+    if (!el || !core.current) return;
+    if (footprint.current) footprintH.current = footprint.current.offsetHeight + 6;
     if (note.current) noteH.current = note.current.offsetHeight + 6;
+    const maxW = Math.min(280, (el.parentElement?.clientWidth ?? 0) - 24);
+    if (level === 0 && has.footprint) fullW.current = el.offsetWidth;
     const pts = CORNERS.map((id) => anchors[id]);
-    if (pts.some((p) => !p || !p.visible)) { setShow(true); return; }
-    const top = Math.min(...pts.map((p) => p!.y));
-    const left = Math.min(...pts.map((p) => p!.x));
-    const bottom = el.offsetTop + el.offsetHeight + (note.current ? 0 : noteH.current);
-    const right = el.offsetLeft + (note.current ? el.offsetWidth : Math.min(280, (el.parentElement?.clientWidth ?? 0) - 24));
-    setShow(!(left < right + CLEARANCE && top < bottom + CLEARANCE));
+    const square = pts.some((p) => !p || !p.visible) ? null : { left: Math.min(...pts.map((p) => p!.x)), top: Math.min(...pts.map((p) => p!.y)) };
+    const base = el.offsetHeight - (footprint.current ? footprintH.current : 0) - (note.current ? noteH.current : 0);
+    const wide = fullW.current || maxW;
+    const bare = Math.min(maxW, core.current.offsetWidth + 28); // + the plate's 14 px side padding
+    const fp = has.footprint ? footprintH.current : 0;
+    const origin = { x: el.offsetLeft, y: el.offsetTop };
+    const boxes = [
+      { w: wide, h: base + fp + (has.note ? noteH.current : 0) },
+      { w: has.footprint ? wide : bare, h: base + fp },
+      { w: bare, h: base },
+    ];
+    let next = plateLevel(square, origin, boxes, CLEARANCE);
+    // Detail comes back only with room to spare, so whole-pixel rounding of the measured sizes can never
+    // flip a plate back and forth at the boundary; and a plate changes level at most once per camera
+    // position (anchor update), so a layout pass always settles.
+    if (next < level) next = Math.min(level, plateLevel(square, origin, boxes, CLEARANCE + HYSTERESIS));
+    const last = decidedFor.current;
+    const sameInputs = !!last && last.anchors === anchors && last.footprint === has.footprint && last.note === has.note;
+    if (next !== level && !sameInputs) {
+      decidedFor.current = { anchors, footprint: has.footprint, note: has.note };
+      setLevel(next);
+    }
   });
-  return { plate, note, show };
+  return { plate, core, footprint, note, level };
 }
 
 /** Live scale and altitude for one half, bottom-left of its free area and clear of the imagery credit. */
