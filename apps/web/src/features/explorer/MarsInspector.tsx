@@ -10,14 +10,18 @@ import type { MarsAnalysis, MissionProfile } from "../../types/contracts";
 import { Availability } from "./Availability";
 import { useExplorer } from "./explorerStore";
 import { OutsideActions, OutsideBody } from "./OutsideZone";
+import { Mark, Readout, SectionTitle } from "./parts";
+import type { Scales } from "./readouts";
 import { Terrain, TerrainSkeleton } from "./Terrain";
 import { useRunSearch } from "./useRunSearch";
+import { useScales } from "./useScales";
 import { formatCoord, FOOTPRINTS } from "./zones";
 
 /**
- * Inspector for the selected Mars point. Order: place → mission → terrain → footprint → evidence →
- * Find Earth Analogs. Outside the research zones it says so in one sentence and offers the nearest
- * zone instead of an analysis it cannot run.
+ * Inspector for the selected Mars point, laid out like a telemetry panel: the target (name and
+ * coordinates), then numbered sections — mission, terrain, footprint, evidence — and the docked
+ * Find Earth Analogs command. Outside the research zones it says so in one sentence and offers the
+ * nearest zone instead of an analysis it cannot run.
  */
 export function MarsInspector() {
   const selection = useApp((s) => s.selection);
@@ -29,6 +33,7 @@ export function MarsInspector() {
   const q = useMarsAnalysis(params);
   const a = q.data;
   const search = useRunSearch();
+  const scales = useScales();
   const root = useRef<HTMLDivElement>(null);
   const inSheet = useSheetFit(root, !!selection);
 
@@ -55,19 +60,27 @@ export function MarsInspector() {
   return (
     <div ref={root} className={cx("group/insp flex min-h-0 flex-col overflow-clip", inSheet && "h-full")}>
       <PanelHeader onClose={() => select(null)} className={cx("pr-14", inSheet && "pb-2 pt-1!")}>
-        <Kicker tone={outside ? undefined : "mars"}>{outside ? "Outside research zones" : "Research zone"}</Kicker>
-        <Toponym data-stage-heading="mars" tabIndex={-1} style={{ outline: "none" }} className="mt-1.5">{name}</Toponym>
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-caption text-muted">
-          <span className="num text-num">{formatLat(selection.lat, 3)} {formatLon(selection.lon, 3)}</span>
-          {!outside && !centred && <span>picked point · zone measures describe the whole zone</span>}
-          {fromOrigin && (
-            <button type="button" onClick={() => { useExplorer.getState().set({ origin: null }); select(fromOrigin); }}
-              aria-label={`Back to your point, ${formatCoord(fromOrigin.lat, fromOrigin.lon)}`}
-              className="hit -mx-1 inline-flex items-center gap-1.5 rounded-control px-1 py-0.5 text-caption text-muted hover:text-ink [@media(pointer:coarse)]:-my-3">
-              <CornerUpLeft className="h-3.5 w-3.5" aria-hidden /> Back to your point
-            </button>
-          )}
+        <div className="flex items-center gap-2">
+          <Mark on={!outside} tone={outside ? "faint" : "mars"} />
+          <Kicker tone={outside ? undefined : "mars"}>{outside ? "Outside research zones" : "Research zone"}</Kicker>
         </div>
+        <Toponym data-stage-heading="mars" tabIndex={-1} style={{ outline: "none" }} className="mt-2">{name}</Toponym>
+        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <Readout label="Lat">{formatLat(selection.lat, 3)}</Readout>
+          <Readout label="Lon">{formatLon(selection.lon, 3)}</Readout>
+        </div>
+        {((!outside && !centred) || fromOrigin) && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-caption text-muted">
+            {!outside && !centred && <span>Picked point · zone measures describe the whole zone</span>}
+            {fromOrigin && (
+              <button type="button" onClick={() => { useExplorer.getState().set({ origin: null }); select(fromOrigin); }}
+                aria-label={`Back to your point, ${formatCoord(fromOrigin.lat, fromOrigin.lon)}`}
+                className="hit -mx-1 inline-flex items-center gap-1.5 rounded-control px-1 py-0.5 text-caption text-muted hover:text-ink [@media(pointer:coarse)]:-my-3">
+                <CornerUpLeft className="h-3.5 w-3.5" aria-hidden /> Back to your point
+              </button>
+            )}
+          </div>
+        )}
       </PanelHeader>
 
       <PanelBody className={cx("pb-6", inSheet && "pt-0")}>
@@ -79,30 +92,30 @@ export function MarsInspector() {
         )}
         {outside ? <OutsideBody a={a} /> : (
           <>
-            <MissionRow />
-            <Block title="Terrain" className="pt-2">
+            <MissionRow compact={inSheet} />
+            <Block title={<SectionTitle n={2}>Terrain</SectionTitle>} className={inSheet ? "py-2.5!" : undefined}>
               <div aria-busy={q.isLoading}>
-                {a ? <Terrain tier1={a.tier1_features} zone={a.ez_features} flags={a.quality_flags} /> : q.isLoading ? <TerrainSkeleton /> : <p className="text-caption text-faint">Not loaded.</p>}
+                {a ? <Terrain tier1={a.tier1_features} zone={a.ez_features} flags={a.quality_flags} cellKm={scales.cellKm} />
+                  : q.isLoading ? <TerrainSkeleton /> : <p className="text-caption text-faint">Not loaded.</p>}
               </div>
             </Block>
-            <Block title="Footprint">
+            <Block title={<SectionTitle n={3}>Footprint</SectionTitle>}>
               <Segmented ariaLabel="Requested footprint" accent="mars" value={footprintKm}
                 onChange={(v) => useApp.getState().set({ footprintKm: v })}
                 options={FOOTPRINTS.map((k) => ({ value: k, label: <span className="num">{k} km</span> }))} />
-              <p className="mt-2 text-caption text-faint">
-                Analyses run on 25 km cells and <Term k="scale">50 km windows</Term>, whatever footprint you draw.
-              </p>
+              <p className="mt-2.5 text-caption text-faint"><FootprintNote scales={scales} /></p>
             </Block>
-            <Block title="Evidence availability">
+            <Block title={<SectionTitle n={4}>Evidence availability</SectionTitle>}>
               {a ? <Availability a={a} /> : q.isLoading ? <div aria-hidden className="h-4 w-56 animate-pulse rounded-control bg-elevated motion-reduce:animate-none" /> : <p className="text-caption text-faint">Not loaded.</p>}
             </Block>
           </>
         )}
       </PanelBody>
 
-      {/* In the phone sheet the footer is hidden at the peek detent, where it would cover the header. */}
-      <PanelFooter className={cx(inSheet && "pt-2 group-data-[peek=true]/insp:hidden")}>
-        {outside ? <OutsideActions selection={selection} /> : <ZoneActions a={!!a} pending={search.pending} error={search.error} onRun={() => search.run(selection)} />}
+      {/* Docked command. In the phone sheet it is hidden at the peek detent, where it would cover the header. */}
+      <PanelFooter className={cx("border-t border-line", inSheet ? "pt-2.5! group-data-[peek=true]/insp:hidden" : "pt-4!")}>
+        {outside ? <OutsideActions selection={selection} />
+          : <ZoneActions a={!!a} pending={search.pending} error={search.error} onRun={() => search.run(selection)} compact={inSheet} />}
       </PanelFooter>
     </div>
   );
@@ -116,7 +129,22 @@ function siteCentre(a: MarsAnalysis): { lat: number; lon: number } | null {
   return typeof lat === "number" && typeof lon === "number" ? { lat, lon } : null;
 }
 
-function ZoneActions({ a, pending, error, onRun }: { a: boolean; pending: boolean; error: Error | null; onRun: () => void }) {
+/** "Analyses run on 25 km cells and 50 km windows…" — both sizes from the API, never assumed. */
+function FootprintNote({ scales }: { scales: Scales }) {
+  const { cellKm, windowKm } = scales;
+  return (
+    <>
+      Analyses run on {cellKm !== null ? <><span className="num">{cellKm}</span> km cells</> : "fixed screening cells"} and{" "}
+      <Term k="scale">{windowKm !== null ? `${windowKm} km windows` : "research windows"}</Term>, whatever footprint you draw.
+    </>
+  );
+}
+
+/**
+ * The docked command. In the phone sheet (`compact`) the caption under it is left out, so the first row of
+ * terrain figures still shows at the half detent.
+ */
+function ZoneActions({ a, pending, error, onRun, compact }: { a: boolean; pending: boolean; error: Error | null; onRun: () => void; compact?: boolean }) {
   const mission = useApp((s) => s.mission);
   const missions = useMissions();
   const m = missions.data?.find((x) => x.id === mission);
@@ -125,12 +153,19 @@ function ZoneActions({ a, pending, error, onRun }: { a: boolean; pending: boolea
     <>
       {blocked && <Note tone="warning" className="mb-2.5">{m.label}: {m.reason_unavailable ?? "not available yet"}</Note>}
       {error && <Note tone="critical" className="mb-2.5">Search failed: {error.message}</Note>}
-      <Button variant="primary-mars" className="w-full py-2.5" onClick={onRun} disabled={!a || pending || !!blocked}>
-        {pending ? <span role="status">Searching Earth…</span> : <>Find Earth Analogs <ArrowRight className="h-4 w-4" aria-hidden /></>}
+      <Button variant="primary-mars" className="h-11 w-full justify-start! py-0" onClick={onRun} disabled={!a || pending || !!blocked}>
+        {pending ? (
+          <span role="status" className="flex flex-1 items-center justify-between">
+            Searching Earth…
+            <span aria-hidden className="relative h-2.5 w-2.5 border border-space/45"><span className="absolute inset-[2px] animate-pulse bg-space/80 motion-reduce:animate-none" /></span>
+          </span>
+        ) : <>Find Earth Analogs <ArrowRight className="ml-auto h-4 w-4" aria-hidden /></>}
       </Button>
-      <p className="mt-2 text-center text-caption text-faint">
-        <Term k="globalScreen" /> + <Term k="researchComparison">research comparison</Term>
-      </p>
+      {!compact && (
+        <p className="mt-2.5 text-caption text-faint">
+          <Term k="globalScreen" /> + <Term k="researchComparison">research comparison</Term>
+        </p>
+      )}
     </>
   );
 }
@@ -153,26 +188,29 @@ function missionEffect(m: MissionProfile | undefined): ReactNode {
   );
 }
 
-function MissionRow() {
+/** Mission as a parameter row — "01  MISSION  [LANDING SITE ⌄]" — with one sentence on what it changes. */
+function MissionRow({ compact }: { compact?: boolean }) {
   const mission = useApp((s) => s.mission);
   const missions = useMissions();
   const m = missions.data?.find((x) => x.id === mission);
   return (
-    <section className="pb-2.5 pt-1" aria-label="Mission">
-      <div className="flex items-center justify-between gap-3">
-        <label htmlFor="mars-mission" className="text-label text-ink">Mission</label>
-        {/* Native select for its accessibility and phone pickers, drawn as an elevated control with our own chevron. */}
-        <span className="relative min-w-0 max-w-[230px] flex-1">
+    <section aria-labelledby="mars-mission-title" className={compact ? "pb-2.5 pt-1" : "pb-3.5 pt-2"}>
+      <div className="flex items-center gap-4">
+        <h3 id="mars-mission-title" className="kicker shrink-0 !text-ink/80">
+          <SectionTitle n={1}><label htmlFor="mars-mission" className="cursor-pointer">Mission</label></SectionTitle>
+        </h3>
+        {/* Native select for its accessibility and phone pickers, drawn as a square instrument field with our own chevron. */}
+        <span className="relative min-w-0 flex-1">
           <select id="mars-mission" value={mission} onChange={(e) => useApp.getState().set({ mission: e.target.value })}
-            className="hit h-8 w-full cursor-pointer appearance-none rounded-control bg-elevated py-0 pl-2.5 pr-8 text-label text-ink shadow-[inset_0_0_0_1px_rgb(255_255_255/0.10)] transition-colors duration-150 hover:bg-elevated/80 hover:shadow-[inset_0_0_0_1px_var(--color-line-strong)]">
+            className="hit h-9 w-full cursor-pointer appearance-none truncate rounded-control bg-white/[0.025] py-0 pl-3 pr-9 font-[family-name:var(--font-display)] text-[14px] font-semibold uppercase tracking-[0.08em] text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)] transition-[box-shadow,background-color] duration-150 hover:bg-white/[0.05] hover:shadow-[inset_0_0_0_1px_rgb(242_244_245/0.4)]">
             {(missions.data ?? [{ id: mission, label: "Loading…", available: true } as MissionProfile]).map((x) => (
               <option key={x.id} value={x.id} disabled={!x.available}>{x.label}{x.available ? "" : " — not available yet"}</option>
             ))}
           </select>
-          <ChevronDown aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+          <ChevronDown aria-hidden className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
         </span>
       </div>
-      <p className="mt-1.5 text-caption text-muted">{missionEffect(m)}</p>
+      <p className="mt-2 text-caption text-muted">{missionEffect(m)}</p>
     </section>
   );
 }

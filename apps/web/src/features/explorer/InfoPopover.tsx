@@ -68,8 +68,8 @@ export function InfoPopover({ trigger, children, label, className }: { trigger: 
             <motion.span ref={pop} id={id} role="tooltip"
               initial={{ opacity: 0, y: pos?.above ? 4 : -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }}
               onAnimationStart={place}
-              style={{ position: "fixed", left: pos?.left ?? -9999, top: pos?.top ?? -9999, width: `min(${W}px, calc(100vw - 24px))` }}
-              className="surface-solid pointer-events-none z-[60] block rounded-[10px] p-3 text-left text-caption text-muted">
+              style={{ position: "fixed", left: pos?.left ?? -9999, top: pos?.top ?? -9999, width: `min(${W}px, calc(100vw - 24px))`, ["--frame-l" as string]: "8px" }}
+              className="surface-solid frame pointer-events-none z-[60] block rounded-control p-3.5 text-left text-caption font-normal normal-case tracking-normal text-muted">
               {children}
             </motion.span>
           )}
