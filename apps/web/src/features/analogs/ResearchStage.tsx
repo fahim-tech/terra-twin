@@ -18,14 +18,14 @@ import { decisionLabel, DecisionHead, OperatorStatus } from "./Verdict";
  * 11.5 px mono). Names wrap instead of truncating: a tie member is often a named analog ("Holuhraun lava
  * field"), and its name must never be cut.
  * Phones drop the label row (the whole tied set should fit at half height) and print "S" in the cell instead.
- * Below 380 px the name column would squeeze "Window 233" onto two lines, so there the position moves under
- * the name instead and the name keeps the full width beside its figure.
+ * Below the xs breakpoint (380 px) the name column would squeeze "Window 233" onto two lines, so there each
+ * row is one line, name and figure; the coordinates stay in the row's accessible name and on the globe.
  */
 const WINDOW_ROW = cx(
   "grid grid-cols-[minmax(0,1fr)_8rem_5.5rem] items-baseline gap-x-2.5 pl-3 pr-3",
-  // Disjoint ranges: Tailwind emits arbitrary breakpoints before named ones, so overlapping max-* rules would lose.
-  "max-md:min-[380px]:grid-cols-[minmax(0,1fr)_7.75rem_6.25rem] max-md:min-[380px]:gap-x-2",
-  "max-[379px]:grid-cols-[minmax(0,1fr)_auto] max-[379px]:gap-x-3 max-[379px]:gap-y-0.5",
+  // Named breakpoints only (foundation-api.md): xs ≤ width < md is the phone grid, below xs one line.
+  "xs:max-md:grid-cols-[minmax(0,1fr)_7.75rem_6.25rem] xs:max-md:gap-x-2",
+  "max-xs:grid-cols-[minmax(0,1fr)_auto] max-xs:gap-x-3",
 );
 
 function windowName(c: Tier2Candidate): { name: string; sub: string | null } {
@@ -33,13 +33,26 @@ function windowName(c: Tier2Candidate): { name: string; sub: string | null } {
   return w ? { name: shortWindow(c.id), sub: `Research pool · roughness decile ${w.decile}` } : { name: c.id, sub: c.kind && c.kind !== "random" ? c.kind : null };
 }
 
-/** Column labels (visual only: every row button carries its full accessible name). The figure label end-aligns with the figures. */
-function WindowTableHead() {
+/**
+ * Column labels (visual only: every row button carries its full accessible name). The figure label end-aligns
+ * with the figures. Over a tied set the location column says the listing order and the figure column says it
+ * is no rank, so the eye never reads the rows as places 1-2-3; `basis` names the orientation of S.
+ */
+function WindowTableHead({ tie = false, basis }: { tie?: boolean; basis?: string | null }) {
   return (
     <div aria-hidden className={cx(WINDOW_ROW, "kicker border-b border-line py-1.5 max-md:hidden")}>
-      <span>Window</span><span>Position</span><span className="justify-self-end whitespace-nowrap">S · Meas.</span>
+      <span>Window</span>
+      <span className="whitespace-nowrap">{tie ? "Location · west → east" : "Location"}</span>
+      <span className="justify-self-end whitespace-nowrap">{tie ? (basis ? `S at ${basis} · meas.` : "S · not a rank") : "S · Meas."}</span>
     </div>
   );
+}
+
+/** The orientation S was computed at ("0°"), from the record's S_basis ("rotation 0°, equal weights"), else null. */
+function sBasisAngle(c: Tier2Candidate | undefined): string | null {
+  const b = (c as { S_basis?: unknown } | undefined)?.S_basis;
+  const m = typeof b === "string" ? /rotation\s+(-?\d+(?:\.\d+)?°)/.exec(b) : null;
+  return m ? m[1] : null;
 }
 
 function WindowRow({ c, on, onPick }: { c: Tier2Candidate; on: boolean; onPick: () => void }) {
@@ -48,11 +61,11 @@ function WindowRow({ c, on, onPick }: { c: Tier2Candidate; on: boolean; onPick: 
     <li>
       <button type="button" onClick={onPick} aria-pressed={on}
         aria-label={`${name}, ${coord(c.lat, c.lon)}, similarity ${sSpoken(c.S)}, ${measuresOf(c.coverage, T2_MEASURES) ?? "unknown"} of ${T2_MEASURES} measures`}
-        className={rowClass(on, cx(WINDOW_ROW, "py-2.5 max-[379px]:py-2"))}>
+        className={rowClass(on, cx(WINDOW_ROW, "py-2.5 max-xs:py-2"))}>
         {on && <SelectionBar layoutId="t2-selection" />}
         <span className={cx("min-w-0 break-words text-label", on ? "text-earth" : "text-ink")}>{name}</span>
-        <span className="num whitespace-nowrap text-num-sm text-muted max-[379px]:col-start-1 max-[379px]:row-start-2">{coord(c.lat, c.lon)}</span>
-        <span className="num whitespace-nowrap text-right max-[379px]:col-start-2 max-[379px]:row-start-1">
+        <span className="num whitespace-nowrap text-num-sm text-muted max-xs:hidden">{coord(c.lat, c.lon)}</span>
+        <span className="num whitespace-nowrap text-right">
           <span aria-hidden className="text-num text-faint md:hidden">S </span><span className="text-num text-ink">{sText(c.S)}</span>
           <span className="text-num-sm text-faint"> · {measuresText(c.coverage, T2_MEASURES)}</span>
         </span>
@@ -112,9 +125,14 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
   // The relief is keyed on the research-pool window id: exactly the record's id, and only when the pool lists it.
   const earthPool = useEarthPool();
   const reliefId = selected ? reliefWindowId({ tier: 2, t2: selected }, earthPool.data) : null;
+  // While the research pool is still loading, a selected window keeps its relief section (and its index) in
+  // place with a loading line, so the sections below never renumber or jump when the pool arrives.
+  const reliefPending = !!selected && earthPool.isLoading;
   let n = 0;
   const next = () => String(++n).padStart(2, "0");
-  const index = { decision: next(), relief: reliefId ? next() : "", basis: next(), others: others.length ? next() : "" };
+  const index = { decision: next(), relief: reliefId || reliefPending ? next() : "", basis: next(), others: others.length ? next() : "" };
+  const basis = sBasisAngle(members[0]);
+  const rotations = d.rotations_checked;
 
   return (
     <section aria-labelledby="stage-research" className="pb-2">
@@ -133,7 +151,7 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
 
         {d.type === "tied_set" && (
           <div role="group" aria-label={`${members.length} tied research windows, not ranked against each other, listed west to east`} className="border-t border-line">
-            <WindowTableHead />
+            <WindowTableHead tie basis={basis} />
             <ul className="divide-y divide-line">
               {unorderedMembers(members).map((c) => <WindowRow key={c.id} c={c} on={isOn(c)} onPick={() => pick(c)} />)}
             </ul>
@@ -153,7 +171,8 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
           {d.type === "tied_set" && (
             <p>
               Listed west to east. Equivalent at this resolution — none is preferred, so none is pre-selected.
-              Scores use <Term k="measures">{T2_MEASURES} measures</Term>; validated on <Term k="synthetic">synthetic twins only</Term>.
+              Scores {basis ? <>at one orientation ({basis})</> : "at one orientation"}{rotations ? <>; the leader changes across the <span className="num">{rotations}</span> checked</> : ""}.
+              They use <Term k="measures">{T2_MEASURES} measures</Term>; validated on <Term k="synthetic">synthetic twins only</Term>.
             </p>
           )}
           {leader && <p>Validated on <Term k="synthetic">synthetic twins only</Term>.</p>}
@@ -161,6 +180,14 @@ export function ResearchStage({ search, candidateId }: { search: AnalogSearch; c
       </div>
 
       {selected && reliefId && <ReliefSlot candidate={selected} windowId={reliefId} index={index.relief} />}
+      {reliefPending && !reliefId && (
+        <section aria-busy className="mt-6">
+          <SectionHead index={index.relief}>Terrain relief</SectionHead>
+          <p role="status" className="mt-2.5 flex h-9 items-center gap-2 text-caption text-faint md:h-[220px] md:items-start">
+            <span aria-hidden className="h-2 w-2 animate-pulse bg-faint motion-reduce:animate-none" />Loading the research pool…
+          </p>
+        </section>
+      )}
 
       <SectionHead index={index.basis} className="mt-6">Basis</SectionHead>
       <Readouts className="mt-2.5" label="Basis of the research comparison">

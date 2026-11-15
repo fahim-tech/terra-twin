@@ -67,7 +67,9 @@ export function DecisionHead({ t2, id, as: As = "h4" }: { t2: Tier2Result; id?: 
           {d.type === "tied_set" && <span className="text-muted"> · {d.members.length} equivalent windows</span>}
         </span>
       </As>
-      <RotationGlyph t2={t2} compact />
+      {/* Phones drop the column heads, so a tie says its listing order here, always above its members. */}
+      {d.type === "tied_set" && <span className="kicker shrink-0 !text-ink/80 md:hidden">Unordered · W → E</span>}
+      <RotationGlyph t2={t2} compact className={d.type === "tied_set" ? "max-md:hidden" : undefined} />
     </div>
   );
 }
