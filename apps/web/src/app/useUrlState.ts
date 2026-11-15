@@ -34,6 +34,72 @@ export function buildHash(s: UrlState): string {
   return `#/${s.stage}${qs ? `?${qs}` : ""}`;
 }
 
+const RESULT_STAGES: Stage[] = ["earth", "compare", "report"];
+
+/**
+ * Where the in-app Back button should lead from a stage reached through browser history or a link,
+ * where the real previous stage is unknown: the stage's logical parent in the journey. Evidence is
+ * opened from anywhere, so it returns to the stage the user was on.
+ */
+export function parentStage(stage: Stage, hasCandidate: boolean, from: Stage): Stage {
+  if (stage === "earth") return "mars";
+  if (stage === "compare") return "earth";
+  if (stage === "report") return hasCandidate ? "compare" : "earth";
+  if (stage === "evidence") return from !== "evidence" ? from : "mars";
+  return "mars";
+}
+
+/** True when the URL's Mars target and mission are the ones the app currently shows for that stage. */
+function sameTarget(u: UrlState): boolean {
+  const app = useApp.getState();
+  const near = (a: number | null, b: number) => a !== null && Math.abs(normLon(a) - normLon(b)) < 1e-3;
+  const matches = (p: { siteId: string | null; lat: number; lon: number } | null) =>
+    !!p && (u.site ? p.siteId === u.site : !p.siteId && u.lat !== null && Math.abs(u.lat - p.lat) < 1e-3 && near(u.lon, p.lon));
+  if (RESULT_STAGES.includes(u.stage)) {
+    const t = searchTarget(app.search);
+    return !!t && matches(t) && (!u.mission || u.mission === t.mission);
+  }
+  if (u.stage === "mars") return (u.site === null && u.lat === null) || matches(app.selection);
+  return true; // Evidence does not depend on a target.
+}
+
+/**
+ * Applies a URL to the app by re-running the same real search the link describes — used on load and
+ * when the hash changes to a different target in an open tab. Nothing is cached or invented.
+ */
+async function applyUrl(u: UrlState) {
+  const app = useApp.getState();
+  const from = app.stage;
+  const goTo = (stage: Stage) => {
+    const s = useApp.getState();
+    s.set({ stage, previousStage: parentStage(stage, !!s.candidateId, from), whyOpen: false });
+  };
+  if (u.mission) app.set({ mission: u.mission });
+  let lat = u.lat, lon = u.lon, siteId: string | null = null, label = "";
+  if (u.site) {
+    const site = (await api.sites().catch(() => [])).find((x) => x.id === u.site);
+    if (site) { lat = site.lat; lon = site.lon; siteId = site.id; label = site.name; }
+  }
+  if (lat !== null && lon !== null) {
+    lon = normLon(lon);
+    app.set({ introOpen: false });
+    app.select({ lat, lon, siteId, label: label || `${formatLat(lat, 2)}, ${formatLon(lon, 2)}` });
+    if (RESULT_STAGES.includes(u.stage)) {
+      const res = await api.findAnalogs({ lat, lon, footprint_km: app.footprintKm, mission: u.mission ?? app.mission }).catch(() => null);
+      if (res) {
+        const leader = stableLeaderId(res.tier2);
+        const cand = u.cand ?? (leader ? `t2:${leader}` : null);
+        app.set({ search: res, candidateId: cand, tier: res.tier2.candidates.length || !res.tier1 ? 2 : 1 });
+        // Compare always needs a candidate; without one the link opens the results instead.
+        goTo(u.stage === "compare" && !cand ? "earth" : u.stage);
+      } else goTo("mars");
+    } else goTo(u.stage);
+  } else if (u.stage === "evidence") {
+    app.set({ introOpen: false });
+    goTo("evidence");
+  } else goTo("mars");
+}
+
 /**
  * Mirrors the investigation (stage, Mars target, mission, Earth candidate) into the URL hash so
  * views can be shared and the browser Back button walks between stages. On load, a shared link is
@@ -52,35 +118,10 @@ export function useUrlState() {
   useEffect(() => {
     const u = parseHash(location.hash);
     if (!u) { restoring.current = false; return; }
-    (async () => {
-      const app = useApp.getState();
-      if (u.mission) app.set({ mission: u.mission });
-      let lat = u.lat, lon = u.lon, siteId: string | null = null, label = "";
-      if (u.site) {
-        const site = (await api.sites().catch(() => [])).find((x) => x.id === u.site);
-        if (site) { lat = site.lat; lon = site.lon; siteId = site.id; label = site.name; }
-      }
-      if (lat !== null && lon !== null) {
-        lon = normLon(lon);
-        app.set({ introOpen: false });
-        app.select({ lat, lon, siteId, label: label || `${formatLat(lat, 2)}, ${formatLon(lon, 2)}` });
-        if (u.stage === "earth" || u.stage === "compare" || u.stage === "report") {
-          const res = await api.findAnalogs({ lat, lon, footprint_km: app.footprintKm, mission: u.mission ?? app.mission }).catch(() => null);
-          if (res) {
-            const leader = stableLeaderId(res.tier2);
-            app.set({ search: res, candidateId: u.cand ?? (leader ? `t2:${leader}` : null), tier: res.tier2.candidates.length || !res.tier1 ? 2 : 1 });
-            app.go(u.stage === "compare" && !(u.cand ?? leader) ? "earth" : u.stage);
-          }
-        } else if (u.stage === "evidence") {
-          app.go("evidence");
-        }
-      } else if (u.stage === "evidence") {
-        app.set({ introOpen: false });
-        app.go("evidence");
-      }
+    applyUrl(u).finally(() => {
       lastStage.current = useApp.getState().stage;
       restoring.current = false;
-    })();
+    });
   }, []);
 
   // Write state → URL. Stage changes push history entries; everything else replaces.
@@ -100,16 +141,35 @@ export function useUrlState() {
     lastStage.current = stage;
   }, [stage, selection, mission, candidateId, search]);
 
-  // Back / Forward between stages (only to stages that are reachable with the current results).
+  // Back / Forward, and hash edits or pasted links in an open tab. A URL for the target already on
+  // screen only switches stage (and candidate); a different target re-runs the restore path.
   useEffect(() => {
     const onPop = () => {
       const u = parseHash(location.hash);
       const app = useApp.getState();
-      if (!u) { app.set({ stage: "mars" }); return; }
-      const needsSearch = u.stage === "earth" || u.stage === "compare" || u.stage === "report";
-      if (needsSearch && !app.search) return;
-      lastStage.current = u.stage;
-      app.set({ stage: u.stage, whyOpen: false });
+      if (!u) { app.set({ stage: "mars", previousStage: "mars", whyOpen: false }); return; }
+      if (!sameTarget(u) || (RESULT_STAGES.includes(u.stage) && !app.search)) {
+        restoring.current = true;
+        applyUrl(u).finally(() => {
+          lastStage.current = useApp.getState().stage;
+          restoring.current = false;
+          // The restored state may describe the link more fully (e.g. a resolved candidate); record it.
+          const s = useApp.getState();
+          const t = s.stage !== "mars" && s.stage !== "evidence" ? searchTarget(s.search) : null;
+          const place = t ?? (s.selection ? { siteId: s.selection.siteId, lat: s.selection.lat, lon: s.selection.lon, mission: s.mission } : null);
+          history.replaceState(null, "", buildHash({
+            stage: s.stage, site: place?.siteId ?? null,
+            lat: place && !place.siteId ? place.lat : null, lon: place && !place.siteId ? place.lon : null,
+            mission: t ? t.mission : s.mission, cand: s.stage === "mars" ? null : s.candidateId,
+          }));
+        });
+        return;
+      }
+      if (u.mission && u.stage === "mars" && u.mission !== app.mission) app.set({ mission: u.mission });
+      const cand = u.stage === "mars" ? app.candidateId : u.cand ?? app.candidateId;
+      const target: Stage = u.stage === "compare" && !cand ? "earth" : u.stage;
+      lastStage.current = target;
+      app.set({ stage: target, candidateId: cand, previousStage: parentStage(target, !!cand, app.stage), whyOpen: false });
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);

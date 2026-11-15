@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildHash, parseHash } from "./useUrlState";
+import { buildHash, parentStage, parseHash } from "./useUrlState";
 
 describe("URL state", () => {
   it("round-trips a research site investigation", () => {
@@ -15,5 +15,13 @@ describe("URL state", () => {
   it("rejects unknown stages", () => {
     expect(parseHash("#/admin")).toBeNull();
     expect(parseHash("")).toBeNull();
+  });
+  it("gives each stage reached by history a parent that is not itself", () => {
+    expect(parentStage("report", true, "evidence")).toBe("compare");
+    expect(parentStage("report", false, "evidence")).toBe("earth");
+    expect(parentStage("compare", true, "report")).toBe("earth");
+    expect(parentStage("earth", true, "compare")).toBe("mars");
+    expect(parentStage("evidence", true, "report")).toBe("report");
+    expect(parentStage("evidence", true, "evidence")).toBe("mars");
   });
 });

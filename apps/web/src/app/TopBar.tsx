@@ -68,9 +68,16 @@ function Trail({ compact }: { compact: boolean }) {
   );
 }
 
+const BACK_LABEL: Record<Stage, [string, string]> = {
+  mars: ["Mars", "Mars"], earth: ["Earth", "Earth"], compare: ["comparison", "Compare"], report: ["report", "Report"], evidence: ["Evidence", "Evidence"],
+};
+
 function BackButton({ compact, onClick }: { compact: boolean; onClick: () => void }) {
   const prev = useApp((s) => s.previousStage);
-  const [full, short] = prev === "mars" ? ["Mars", "Mars"] : prev === "compare" ? ["comparison", "Compare"] : ["Earth", "Earth"];
+  const stage = useApp((s) => s.stage);
+  // Must name where back() actually goes (it falls back to Mars when there is no distinct previous stage).
+  const dest = prev === stage ? "mars" : prev;
+  const [full, short] = BACK_LABEL[dest];
   return (
     <button type="button" onClick={onClick} aria-label={`Back to ${full}`} className="hit shrink-0 whitespace-nowrap rounded-control px-2 py-1 text-label text-muted hover:text-ink">
       ← {compact ? short : `Back to ${full}`}
