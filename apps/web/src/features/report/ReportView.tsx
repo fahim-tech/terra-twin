@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Term } from "../../components/primitives";
 import { Button, cx } from "../../components/ui";
-import { useEvidence, useMissions } from "../../services/api";
+import { reliefWindowId } from "../../components/relief";
+import { useEarthPool, useEvidence, useMissions } from "../../services/api";
 import { useApp } from "../../store/app";
 import { resultsAreStale, searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
@@ -75,6 +76,8 @@ function Section({ of, id, aside, children }: { of: Sec[]; id: SectionId; aside?
 function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch; target: SearchTarget; c: ReportCandidate | null; stale: boolean; liveLabel: string | null }) {
   const missions = useMissions();
   const evidence = useEvidence();
+  // Plate C (terrain relief) exists only for a candidate that is a research-pool window.
+  const hasRelief = !!reliefWindowId(c, useEarthPool().data);
   const mission = missions.data?.find((m) => m.id === target.mission) ?? null;
   // Generation time from the real clock: when this dossier (search + candidate) was put together.
   const generatedAt = useMemo(() => new Date().toISOString(), [search.id, c?.key]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -130,7 +133,7 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
       <article className="min-w-0">
         <DossierHeader search={search} target={target} c={c} mission={mission} generatedAt={generatedAt} stale={stale} liveLabel={liveLabel} onProvenance={() => jump("provenance")} />
 
-        <Section of={sections} id="plates" aside="NASA imagery · visualization only">
+        <Section of={sections} id="plates" aside={hasRelief ? "NASA imagery · terrain relief · visualization only" : "NASA imagery · visualization only"}>
           <div className="grid gap-8 md:grid-cols-2 md:gap-7 print:grid-cols-2 print:gap-5">
             <LocationPlate planet="mars" plate="A" lat={marsLat} lon={marsLon} frame={marsFrame}
               kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"} name={target.siteId ? target.label : "Search target"}
@@ -145,14 +148,14 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
               <NoCandidatePlate hasCandidates={search.tier2.candidates.some((x) => x.lat !== null && x.lon !== null) || (search.tier1?.candidates.length ?? 0) > 0} screenRan={!!search.tier1} decision={t2.decision.type} />
             )}
           </div>
-          {/* ── SLOT: 3D relief snapshot (Plate C). Renders nothing until the relief view supplies a real still. ── */}
-          <ReliefSnapshotSlot search={search} candidate={c} />
           <p className="mt-5 max-w-[86ch] text-caption text-faint">
-            Rendered from the planet globes at <span className="num">{PLATE_HEIGHT_KM}</span> km, nadir, north up. Frames and scale bars use the scale at the plate
+            {c && earthFrame ? "Plates A and B are rendered" : "Plate A is rendered"} from the planet globes at <span className="num">{PLATE_HEIGHT_KM}</span> km, nadir, north up. Frames and scale bars use the scale at the plate
             centre and are approximate; neatline ticks mark where parallels and meridians cross the plate edge (planetocentric on Mars, geodetic WGS84 on Earth).
             {" "}<LocatorNote mars={marsDisk.status !== "failed" ? diskKm.mars : null} earth={c && earthFrame && earthDisk.status !== "failed" ? diskKm.earth : null} />
             {" "}Lighting is set for legibility, not the Sun&apos;s position. Imagery is never used in any measurement.
           </p>
+          {/* Plate C: the research window's terrain relief, a still rendered from its own elevation grid (none for a screening cell). */}
+          <ReliefSnapshotSlot search={search} candidate={c} />
         </Section>
 
         <Section of={sections} id="figures" aside="Decision · similarity · measures · validation">
