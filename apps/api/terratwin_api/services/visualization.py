@@ -150,6 +150,11 @@ def research_summary() -> list[dict]:
     return out
 
 
+# Nominal side of every research-pool window (108 cells x 463.09 m = 50.01 km), as published by
+# /api/earth/pool and repeated by the relief grids.
+POOL_WINDOW_KM = 50
+
+
 @lru_cache(maxsize=1)
 def pool_windows() -> list[dict]:
     meta = RS.pool_meta()

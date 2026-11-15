@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from ..config import API_VERSION, CONTRACT_VERSION, OOM_METHOD_VERSION, RESEARCH_ENGINE_VERSION, TIER1_METHOD_VERSION
 from ..schemas.common import EARTH_CONVENTION, MARS_CONVENTION
 from ..schemas.requests import AnalogSearchRequest, CompareRequest, MarsAnalysisRequest, assert_score_contract
-from ..services import analysis_store, evidence, mars, research_store as RS, tier1, tier2, visualization as VIS
+from ..services import analysis_store, evidence, mars, relief, research_store as RS, tier1, tier2, visualization as VIS
 from ..services.catalog import DATASETS, MISSION_BY_ID, MISSIONS
 
 router = APIRouter()
@@ -196,8 +196,31 @@ def research_summary():
 @router.get("/api/earth/pool")
 def earth_pool():
     """The 230 Earth windows that tier-2 OOM refinement actually examined."""
-    return {"windows": _data_or_503(VIS.pool_windows), "window_km": 50,
+    return {"windows": _data_or_503(VIS.pool_windows), "window_km": VIS.POOL_WINDOW_KM,
             "note": "Fixed stratified research sample (213 random + 17 named controls). Not a global high-resolution search."}
+
+
+@router.get("/api/earth/pool/{window_id}/relief")
+def earth_pool_relief(window_id: str):
+    """Elevation grid of one 50 km research-pool window (Earth as measured), for 3D relief views.
+
+    Row-major, north-up (row 0 = north edge, column 0 = west edge), metres, 0.1 m precision,
+    ``null`` where the cell has no elevation (water-masked). Cell size and window size come from
+    the research engine and the pool record.
+    """
+    r = _data_or_503(relief.pool_relief, window_id, VIS.POOL_WINDOW_KM)
+    if r is None:
+        raise HTTPException(404, detail=f"unknown research-pool window {window_id!r}")
+    return r
+
+
+@router.get("/api/mars/relief")
+def mars_relief(site: str):
+    """Mars elevation grid for an Exploration Zone. Needs the USGS MOLA 463 m mosaic (GIS workstream);
+    until a reader for it is connected this answers 503 with the reason, never a substitute grid."""
+    if site not in _data_or_503(RS.mars_footprints).index:
+        raise HTTPException(404, detail=f"unknown site {site!r}")
+    raise HTTPException(503, detail={**relief.mars_relief_status(), "site": site})
 
 
 @router.get("/api/visualization/legend")
