@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Kicker, Measure, Term } from "../../components/primitives";
 import { Button, cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
-import { useMissions } from "../../services/api";
+import { useEvidence, useMissions } from "../../services/api";
 import { useApp } from "../../store/app";
 import { resultsAreStale, searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
@@ -55,6 +55,7 @@ function NoReport() {
 
 function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch; target: SearchTarget; c: ReportCandidate | null; stale: boolean; liveLabel: string | null }) {
   const missions = useMissions();
+  const evidence = useEvidence();
   const mission = missions.data?.find((m) => m.id === target.mission) ?? null;
   const generatedAt = useMemo(() => new Date().toISOString(), [search.id, c?.key]); // eslint-disable-line react-hooks/exhaustive-deps
   const t2 = search.tier2;
@@ -195,7 +196,7 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
 
         <Section title="Limitations" aside="Required statements, verbatim">
           <ol className="space-y-2.5">
-            {limitations(search).map((l, i) => (
+            {limitations(search, evidence.data).map((l, i) => (
               <li key={l.code} className="grid grid-cols-[24px_1fr] gap-2 text-body">
                 <span className="num text-num text-faint">{String(i + 1).padStart(2, "0")}</span>
                 <span className={l.verbatim ? "text-ink" : "text-muted"}>{l.text}</span>
@@ -493,10 +494,11 @@ function Prov({ k, children }: { k: string; children: ReactNode }) {
 
 function Exports({ search, c, mission, generatedAt }: { search: AnalogSearch; c: ReportCandidate | null; mission: Parameters<typeof buildReportJson>[2]; generatedAt: string }) {
   const announce = useApp((s) => s.announce);
+  const evidence = useEvidence().data;
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(timer.current), []);
-  const json = () => JSON.stringify(buildReportJson(search, c, mission, generatedAt), null, 2);
+  const json = () => JSON.stringify(buildReportJson(search, c, mission, generatedAt, evidence), null, 2);
   const base = exportBaseName(search);
   return (
     <div role="group" aria-label="Export report" className="no-print -my-1 flex flex-wrap items-center gap-1">
@@ -512,7 +514,7 @@ function Exports({ search, c, mission, generatedAt }: { search: AnalogSearch; c:
       <Button variant="ghost" onClick={() => { download(`${base}.json`, json(), "application/json"); announce("Report JSON downloaded"); }}>
         <Download className="h-3.5 w-3.5" aria-hidden /><span><span className="max-sm:sr-only">Download </span>JSON</span>
       </Button>
-      <Button variant="ghost" onClick={() => { download(`${base}.csv`, buildCsv(search, c), "text/csv"); announce("Report CSV downloaded"); }}>
+      <Button variant="ghost" onClick={() => { download(`${base}.csv`, buildCsv(search, c, evidence), "text/csv"); announce("Report CSV downloaded"); }}>
         <Download className="h-3.5 w-3.5" aria-hidden /><span><span className="max-sm:sr-only">Download </span>CSV</span>
       </Button>
       <Button variant="outline" onClick={() => window.print()}>

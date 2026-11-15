@@ -151,8 +151,11 @@ export function dimensions(c: ReportCandidate): { name: string; status: Dimensio
 
 export interface Limitation { code: string; text: string; verbatim: boolean }
 
+/** The slice of /api/evidence the report quotes. */
+export interface EvidenceRecord { limitations?: { code: string; text: string }[] }
+
 /** Structured limitations: every tier-2 disclaimer code mapped to its text (G5 verbatim where one exists). */
-export function limitations(search: AnalogSearch): Limitation[] {
+export function limitations(search: AnalogSearch, evidence?: EvidenceRecord | null): Limitation[] {
   const t2 = search.tier2;
   const pool = t2.candidate_pool as { n_windows?: number; window_km?: number; note?: string } | null;
   const map: Record<string, Limitation> = {
@@ -167,7 +170,9 @@ export function limitations(search: AnalogSearch): Limitation[] {
   // G5 strings that must always be reachable, even if the API omits the code.
   for (const k of ["terrain_only", "synthetic_validation_only", "footprint_dependent"]) if (!have.has(k)) out.push(map[k]);
   out.push({ code: "operator_model", text: G5.operator, verbatim: true });
-  out.push({ code: "operator_misspecification", text: "Observation-space matching fails if the true MOLA operator differs from the assumed one: if the true chain were cubic, recovery would drop below the uncorrected baseline (MRR 0.54 vs 0.65, synthetic).", verbatim: false });
+  // The figures come from the evidence record (/api/evidence); without it the statement carries none.
+  const surrogate = evidence?.limitations?.find((l) => l.code === "operator_is_surrogate")?.text;
+  out.push({ code: "operator_misspecification", text: surrogate ?? "Observation-space matching fails if the true MOLA operator differs from the assumed one; the evidence record quantifies this on synthetic twins.", verbatim: false });
   if (t2.landcover_gate?.mode === "exclude") out.push({ code: "landcover_gate", text: G5.gate, verbatim: true });
   return out;
 }
@@ -186,7 +191,7 @@ export const REFERENCES = [
 
 // ---------------------------------------------------------------------------------------- exports
 
-export function buildReportJson(search: AnalogSearch, c: ReportCandidate | null, mission: MissionProfile | null, generatedAt: string) {
+export function buildReportJson(search: AnalogSearch, c: ReportCandidate | null, mission: MissionProfile | null, generatedAt: string, evidence?: EvidenceRecord | null) {
   const target = searchTarget(search) as SearchTarget;
   const t2 = search.tier2;
   const role = c ? candidateRole(search, c) : null;
@@ -235,7 +240,7 @@ export function buildReportJson(search: AnalogSearch, c: ReportCandidate | null,
     },
     validation_status: t2.validation_status,
     disclaimers: t2.disclaimers,
-    limitations: limitations(search).map(({ code, text, verbatim }) => ({ code, text, verbatim_g5: verbatim })),
+    limitations: limitations(search, evidence).map(({ code, text, verbatim }) => ({ code, text, verbatim_g5: verbatim })),
     planetary_differences: PLANETARY_DIFFERENCES,
     imagery: "Location plates: NASA Mars Trek / NASA GIBS imagery — visualization only; not used in any measurement.",
   };
@@ -254,7 +259,7 @@ export function csvEscape(v: unknown): string {
  * not a tier-specific result say "n/a" and why). Tier scores never share a column meaning silently:
  * score_name names each.
  */
-export function buildCsv(search: AnalogSearch, c: ReportCandidate | null): string {
+export function buildCsv(search: AnalogSearch, c: ReportCandidate | null, evidence?: EvidenceRecord | null): string {
   const target = searchTarget(search) as SearchTarget;
   const t2 = search.tier2;
   const rows: CsvRow[] = [];
@@ -282,7 +287,7 @@ export function buildCsv(search: AnalogSearch, c: ReportCandidate | null): strin
   for (const x of search.tier1?.candidates ?? []) {
     rows.push({ section: "global_screen", tier: 1, representation: "as_measured", id: x.region_id, label: cellLabel(x), lat: x.lat, lon: x.lon, score: x.similarity, score_name: "screen_similarity", unit: "index 0-1", coverage: x.coverage, decision: "screen_rank_not_a_decision", note: `rank ${x.rank}` });
   }
-  for (const l of limitations(search)) rows.push({ section: "limitation", tier: "n/a", representation: "n/a", decision: "n/a_statement", key: l.code, note: l.text });
+  for (const l of limitations(search, evidence)) rows.push({ section: "limitation", tier: "n/a", representation: "n/a", decision: "n/a_statement", key: l.code, note: l.text });
   const lines = [CSV_COLUMNS.join(",")];
   for (const r of rows) lines.push(CSV_COLUMNS.map((k) => csvEscape(r[k])).join(","));
   return lines.join("\n");
