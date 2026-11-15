@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TerraTwin · Demo deck · NASA Space Apps 2026</title>
+<meta name="description" content="TerraTwin: finding Earth's terrain twins of Mars, compared the way Mars was actually measured. Seven-slide demo deck, team AstroSUST, NASA Space Apps 2026.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#020304;--panel:#06080a;--ink:#f2f4f5;--muted:#a6aeb6;--faint:#7f8891;--mars:#ec7f53;--earth:#4fc9bb;--amber:#e6c15a;--line:#2f363e;--s:1}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg)}
+body{color:var(--ink);font-family:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;font-style:normal;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+em,i,cite,dfn{font-style:normal}
+.m{font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace}
+.deck{display:flex;flex-direction:column;align-items:center;gap:12px}
+.slide{position:relative;flex:none;width:min(100vw,calc(100vh * 16 / 9));aspect-ratio:16/9;overflow:hidden;background:var(--bg);box-shadow:0 0 0 1px var(--line)}
+.stage{position:absolute;left:0;top:0;width:1280px;height:720px;transform-origin:0 0;transform:scale(var(--s))}
+/* corner brackets (solid 1px strokes) */
+.brk,.stage::after{--b:var(--faint);--l:12px;background:
+ linear-gradient(var(--b),var(--b)) left top/var(--l) 1px no-repeat,linear-gradient(var(--b),var(--b)) left top/1px var(--l) no-repeat,
+ linear-gradient(var(--b),var(--b)) right top/var(--l) 1px no-repeat,linear-gradient(var(--b),var(--b)) right top/1px var(--l) no-repeat,
+ linear-gradient(var(--b),var(--b)) left bottom/var(--l) 1px no-repeat,linear-gradient(var(--b),var(--b)) left bottom/1px var(--l) no-repeat,
+ linear-gradient(var(--b),var(--b)) right bottom/var(--l) 1px no-repeat,linear-gradient(var(--b),var(--b)) right bottom/1px var(--l) no-repeat}
+.stage::after{content:"";position:absolute;inset:14px;pointer-events:none;--b:var(--line);--l:16px}
+.abs{position:absolute}
+.top{position:absolute;left:56px;right:56px;top:36px;display:flex;justify-content:space-between;align-items:center}
+.kicker{display:flex;align-items:center;gap:10px;font:500 13px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.kicker.mars{color:var(--mars)}.kicker.earth{color:var(--earth)}.kicker.amber{color:var(--amber)}
+.sq{display:inline-block;width:7px;height:7px;background:var(--muted);flex:none}
+.sq.mars{background:var(--mars)}.sq.earth{background:var(--earth)}.sq.amber{background:var(--amber)}
+.pg{font:500 14px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;color:var(--muted)}
+.foot{position:absolute;left:56px;right:56px;bottom:24px;padding-top:11px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:24px;font:400 12px/1.3 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.04em;color:var(--faint);white-space:nowrap}
+h1.title{position:absolute;left:56px;right:56px;top:74px;font:600 46px/1.06 "Barlow Semi Condensed","Barlow",sans-serif;letter-spacing:.02em;text-transform:uppercase}
+p.body{font-size:20px;line-height:1.42;color:var(--ink)}
+.mars-c{color:var(--mars)}.earth-c{color:var(--earth)}.amber-c{color:var(--amber)}.muted-c{color:var(--muted)}
+.arr{display:inline-block;width:.9em;height:.4em;fill:none;stroke:currentColor;stroke-width:1.5;vertical-align:middle;margin:0 .22em;overflow:visible}
+sup{font-size:.66em;line-height:0;vertical-align:.55em}
+/* screenshots */
+.shot{position:absolute;padding:7px}
+.shot .crop{position:relative;overflow:hidden;width:100%;border:1px solid var(--line);border-radius:2px;background:#000}
+.shot .crop img{display:block;width:100%;height:100%;object-fit:cover;max-width:none}
+.shot figcaption{margin-top:9px;font:400 12px/1.35 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+/* slide 1 */
+.brand{font:600 100px/.95 "Barlow Semi Condensed","Barlow",sans-serif;letter-spacing:.045em;text-transform:uppercase;margin-left:-3px}
+.tag{margin-top:20px;font-size:26px;line-height:1.3;font-weight:500}
+.finding{margin-top:28px;padding:2px 0 2px 18px;border-left:2px solid var(--mars)}
+.finding p{margin-top:10px;font-size:21px;line-height:1.4;color:var(--ink)}
+.meta{margin-top:28px;display:grid;grid-template-columns:112px 1fr;row-gap:9px;align-items:baseline}
+.meta dt{font:500 12.5px/1.3 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.16em;text-transform:uppercase;color:var(--faint)}
+.meta dd{font-size:18px;line-height:1.35;color:var(--muted)}
+.meta dd.m{font-size:17px;color:var(--ink)}
+/* slide 2 */
+.big{display:flex;align-items:flex-end;gap:22px}
+.big .num{font-family:"IBM Plex Mono",ui-monospace,monospace;font-weight:500;font-size:150px;line-height:.84;letter-spacing:-.03em;white-space:nowrap}
+.big .num small{font-size:.44em;margin-left:.12em;letter-spacing:0}
+.big .lbl{font-size:21px;line-height:1.32;color:var(--muted);padding-bottom:8px;max-width:236px}
+.big.sm{margin-top:26px}.big.sm .num{font-size:72px;color:var(--muted)}.big.sm .lbl{padding-bottom:2px}
+.legend{display:flex;gap:26px;align-items:center;margin-top:12px;font:400 12.5px/1.3 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:9px}
+.legend .k{width:13px;height:13px;border:1px solid var(--line);background:transparent;flex:none}
+.legend .k.on{background:var(--mars);border-color:var(--mars)}
+.legend .note{margin-left:auto;color:var(--faint)}
+/* slide 3 */
+.sub{position:absolute;left:56px;top:132px;font-size:22px;line-height:1.3;color:var(--muted)}
+.pipe{position:absolute;left:56px;top:186px;width:1168px;height:318px;display:grid;grid-template-columns:repeat(5,1fr);gap:22px;list-style:none}
+.step{position:relative;display:flex;flex-direction:column;padding:16px 16px 14px;border:1px solid var(--line);border-radius:2px;background:var(--panel)}
+.step .n{font:500 14px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.14em;color:var(--faint)}
+.step h3{margin-top:13px;font:600 27px/1.05 "Barlow Semi Condensed","Barlow",sans-serif;letter-spacing:.03em;text-transform:uppercase}
+.step p{margin-top:10px;font-size:20px;line-height:1.3;color:var(--ink)}
+.step .d{margin-top:auto;padding-top:10px;border-top:1px solid var(--line);font:400 11.5px/1.45 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--earth)}
+.step .d.mars-c{color:var(--mars)}.step .d.muted-c{color:var(--muted)}
+.step.key{border-color:var(--mars)}.step.key .n{color:var(--mars)}
+.step:not(:last-child)::after{content:"";position:absolute;right:-17px;top:50%;width:11px;height:1px;background:var(--muted)}
+.step:not(:last-child)::before{content:"";position:absolute;right:-17px;top:50%;width:6px;height:6px;border-top:1px solid var(--muted);border-right:1px solid var(--muted);transform:translate(0,-3px) rotate(45deg)}
+.datarow{position:absolute;left:56px;top:526px;width:1168px;padding:16px 20px;display:grid;grid-template-columns:86px 1fr;row-gap:10px;align-items:baseline}
+.datarow dt{font:500 12.5px/1.3 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase}
+.datarow dd{font:400 16px/1.35 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink)}
+/* slide 4 */
+.tline{font:400 13px/1.3 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.rk{display:grid;grid-template-columns:74px 1fr 150px;column-gap:14px;align-items:center;padding:13px 0 0;border-top:1px solid var(--line)}
+.rk .rank{font:500 15px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--earth)}
+.rk .rank small{display:block;margin-top:3px;font-size:11px;letter-spacing:.12em;color:var(--faint)}
+.rk .co{font:500 21px/1.2 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink)}
+.rk .pl{margin-top:4px;font-size:17px;line-height:1.3;color:var(--muted)}
+.rk .sv{text-align:right;font:500 34px/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink);white-space:nowrap}
+.rk .sv b{font-weight:400;font-size:15px;color:var(--faint);margin-right:8px}
+.rk .bar{grid-column:1 / -1;margin-top:12px;height:4px;background:#12161a;position:relative}
+.rk .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--earth)}
+.rk.ref .rank{color:var(--muted)}.rk.ref .bar i{background:var(--faint)}.rk.ref .sv{color:var(--muted)}
+.note{font:400 13px/1.45 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.04em;color:var(--faint)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--line)}
+.stats div{padding:12px 14px 0 0}
+.stats b{display:block;font:500 30px/1 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink)}
+.stats span{display:block;margin-top:7px;font:400 11.5px/1.4 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+/* slide 5 */
+.ctx{position:absolute;left:56px;top:150px;width:676px;display:grid;grid-template-columns:252px 212px 212px}
+.ctx .col{border-left:1px solid var(--line);padding:0 12px 0 14px}
+.ctx .col:first-child{border-left:0;padding-left:0}
+.ctx h4{height:46px;font:500 12.5px/1.35 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.ctx h4 b{display:block;font-weight:500}
+.ctx .pair{height:43px}
+.ctx .pair span{display:block;font:400 11px/1.2 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.ctx .pair b{display:block;margin-top:3px;font:500 17px/1.2 "IBM Plex Mono",ui-monospace,monospace;color:var(--ink);white-space:nowrap}
+.ctx .pair b small{font:400 13px/1 "Barlow",sans-serif;color:var(--muted);margin-left:6px}
+.hb{position:absolute;top:512px;height:138px;padding:15px 18px;border:1px solid var(--line);border-radius:2px;background:var(--panel)}
+.hb p{margin-top:9px;font-size:20px;line-height:1.36}
+/* slide 6 */
+.hero{position:absolute;left:56px;top:146px}
+.hero .f{font:500 124px/.9 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:-.03em;white-space:nowrap;display:flex;align-items:center}
+.hero .f small{font-size:.44em;margin-left:.1em;letter-spacing:0}
+.hero .f .arr{width:.62em;height:.3em;margin:0 .2em;stroke-width:1.1;color:var(--faint)}
+.hero .cap{margin-top:14px;font:400 13px/1.45 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.colh{padding-bottom:11px;border-bottom:1px solid var(--line)}
+.ev{list-style:none}
+.ev li{display:grid;grid-template-columns:176px 1fr;column-gap:14px;align-items:baseline;padding:8px 0 7px;border-bottom:1px solid #161b20}
+.ev li b{font:500 21px/1.2 "IBM Plex Mono",ui-monospace,monospace;color:var(--earth);white-space:nowrap}
+.ev li span{font-size:19px;line-height:1.25;color:var(--ink)}
+.ev li.adv b{color:var(--amber)}
+.ny{list-style:none}
+.ny li{position:relative;padding:11px 0 10px 20px;border-bottom:1px solid #161b20;font-size:20px;line-height:1.3}
+.ny li::before{content:"";position:absolute;left:0;top:20px;width:7px;height:7px;border:1px solid var(--amber)}
+/* slide 7 */
+.blk{margin-bottom:20px}
+.blk p{margin-top:9px;font-size:20px;line-height:1.36}
+.blk p + p{margin-top:6px}
+.trio{display:grid;grid-template-columns:repeat(3,auto);justify-content:start;column-gap:34px;margin-top:9px}
+.trio b{display:block;font:500 40px/1 "IBM Plex Mono",ui-monospace,monospace}
+.trio span{display:block;margin-top:6px;font:400 11.5px/1.35 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+.url{position:absolute;left:56px;top:548px;font:500 44px/1 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:-.01em;color:var(--mars);text-decoration:none;white-space:nowrap}
+.credits{position:absolute;left:56px;right:56px;top:606px;font:400 11.5px/1.5 "IBM Plex Mono",ui-monospace,monospace;letter-spacing:.05em;color:var(--faint)}
+.credits b{font-weight:500;letter-spacing:.16em;color:var(--muted);margin-right:8px}
+/* print: one slide per page */
+@page{size:1280px 720px;margin:0}
+@media print{
+ html,body{background:var(--bg);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ .deck{display:block}
+ .slide{width:1280px;height:720px;aspect-ratio:auto;box-shadow:none;break-after:page;page-break-after:always;break-inside:avoid;page-break-inside:avoid}
+ .slide:last-child{break-after:auto;page-break-after:auto}
+ .stage{transform:none!important}
+}
+</style>
+</head>
+<body>
+<main class="deck" id="deck">
+
+<!-- 1 · TITLE -->
+<section class="slide" id="s1" aria-label="Slide 1 of 7: Title">
+<div class="stage">
+  <div class="top"><span class="kicker"><i class="sq mars"></i>NASA Space Apps 2026 · Team AstroSUST</span><span class="pg">1 / 7</span></div>
+  <div class="abs" style="left:56px;top:104px;width:572px">
+    <h1 class="brand">TerraTwin</h1>
+    <p class="tag">Finding Earth's terrain twins of Mars — compared the way Mars was actually measured.</p>
+    <div class="finding">
+      <div class="kicker mars">Finding</div>
+      <p>For Jezero crater, a whole-Earth search puts two windows in north-west China ahead of the classic Atacama analog.</p>
+    </div>
+    <dl class="meta">
+      <dt>Challenge</dt><dd>Identify Earth Locations that Analog the Permanent Moon Base Locations and Mars</dd>
+      <dt>Team</dt><dd>AstroSUST</dd>
+      <dt>Live app</dt><dd class="m">https://terratwin-five.vercel.app</dd>
+    </dl>
+  </div>
+  <figure class="shot brk" style="left:664px;top:80px;width:560px;height:566px">
+    <div class="crop" style="height:524px"><img src="img/mars-globe.jpg" alt="TerraTwin live app: the Mars globe with research zones marked" style="position:absolute;width:965.9px;height:auto;left:-393.1px;top:-41.6px"></div>
+    <figcaption>Live app · Mars globe</figcaption>
+  </figure>
+  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span></div>
+</div>
+</section>
+
+<!-- 2 · PROBLEM -->
+<section class="slide" id="s2" aria-label="Slide 2 of 7: Problem">
+<div class="stage">
+  <div class="top"><span class="kicker"><i class="sq mars"></i>01 · Problem</span><span class="pg">2 / 7</span></div>
+  <h1 class="title">At Jezero, 69 % of the Mars grid is interpolated</h1>
+  <div class="abs" style="left:56px;top:166px;width:500px">
+    <div class="big"><span class="num mars-c">31<small>%</small></span><span class="lbl">of the 463 m grid cells at Jezero contain a MOLA laser return</span></div>
+    <div class="big sm"><span class="num">69<small>%</small></span><span class="lbl">are interpolated</span></div>
+    <p class="body" style="margin-top:34px">Mars analog sites on Earth are mostly chosen by eye and reputation. NASA's MOLA altimeter mapped Mars along laser tracks. Comparing that grid with raw Earth elevation compares two different measurements.</p>
+  </div>
+  <figure class="abs brk" style="left:610px;top:156px;width:614px;padding:7px">
+    <div id="grid" role="img" aria-label="Schematic grid: 31 percent of cells lie on laser tracks, 69 percent are interpolated" style="width:600px;height:440px"></div>
+    <div class="legend"><span><i class="k on"></i>Laser return · 31 %</span><span><i class="k"></i>Interpolated · 69 %</span><span class="note">Schematic, not to scale</span></div>
+  </figure>
+  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span></div>
+</div>
+</section>
+
+<!-- 3 · METHOD -->
+<section class="slide" id="s3" aria-label="Slide 3 of 7: Method">
+<div class="stage">
+  <div class="top"><span class="kicker"><i class="sq earth"></i>02 · Method</span><span class="pg">3 / 7</span></div>
+  <h1 class="title">Observe Earth the way MOLA observed Mars</h1>
+  <p class="sub">Observation-Operator Matching (OOM), in five steps.</p>
+  <ol class="pipe">
+    <li class="step"><span class="n">01</span><h3>Screen</h3><p>249,165 Earth land cells, 25 km, against the Mars target</p><div class="d">GMTED2010</div></li>
+    <li class="step"><span class="n">02</span><h3>Refine</h3><p>50 km windows for the shortlist; vegetated ground removed</p><div class="d">Copernicus GLO-90 · ESA WorldCover</div></li>
+    <li class="step key"><span class="n">03</span><h3>Re-observe</h3><p>Earth seen through the site's own MOLA sampling, interpolation, registration</p><div class="d mars-c">NASA MOLA MEGDR counts · USGS MOLA mosaic</div></li>
+    <li class="step"><span class="n">04</span><h3>Score</h3><p>8 multiscale descriptors: slope, relief, roughness, Hurst exponent</p><div class="d muted-c">Roughness at 926 m / 2.3 km / 9.3 km</div></li>
+    <li class="step"><span class="n">05</span><h3>Decide</h3><p>A leader only if stable in all four orientations; otherwise a tie</p><div class="d muted-c">4 window orientations</div></li>
+  </ol>
+  <dl class="datarow brk">
+    <dt class="mars-c">Mars</dt><dd>NASA MOLA MEGDR 128 ppd counts (PDS) · USGS MOLA 463 m mosaic</dd>
+    <dt class="earth-c">Earth</dt><dd>GMTED2010 · ESA Copernicus DEM GLO-90 · ESA WorldCover 2021</dd>
+  </dl>
+  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span></div>
+</div>
+</section>
+
+<!-- 4 · FINDING -->
+<section class="slide" id="s4" aria-label="Slide 4 of 7: Finding">
+<div class="stage">
+  <div class="top"><span class="kicker"><i class="sq mars"></i>03 · Finding</span><span class="pg">4 / 7</span></div>
+  <h1 class="title">Jezero: a tie in north-west China, ahead of Atacama</h1>
+  <div class="abs" style="left:56px;top:150px;width:600px">
+    <div class="tline" style="margin-bottom:12px">Target · Jezero crater · 17.68° N 77.01° E · whole Earth, as MOLA would see it</div>
+    <div class="rk"><div class="rank">Tie<small>member</small></div><div><div class="co">37.06° N 86.21° E</div><div class="pl">Kunlun–Altun mountain belt, southern rim of the Tarim Basin, Xinjiang</div></div><div class="sv"><b>S</b>0.781</div><div class="bar"><i style="width:78.1%"></i></div></div>
+    <div class="rk" style="margin-top:12px"><div class="rank">Tie<small>member</small></div><div><div class="co">37.29° N 97.51° E</div><div class="pl">North-eastern Qaidam Basin near Delingha, Qinghai</div></div><div class="sv"><b>S</b>0.693</div><div class="bar"><i style="width:69.3%"></i></div></div>
+    <div class="rk ref" style="margin-top:12px"><div class="rank">9 / 90<small>rank</small></div><div><div class="co">Atacama Yungay</div><div class="pl">24.09° S 69.99° W · the classic analog</div></div><div class="sv"><b>S</b>0.613</div><div class="bar"><i style="width:61.3%"></i></div></div>
+    <p class="note" style="margin-top:14px">Research pool alone (fixed 230 windows): Atacama Yungay is the stable leader, S 0.614, 4/4 orientations.</p>
+    <p class="body" style="margin-top:10px;font-size:17px;line-height:1.32">Place names are approximate, read from the coordinates by the team. The Qaidam Basin is independently proposed as a Mars analog (Xiao et al. 2017, Earth-Science Reviews 164). TerraTwin makes no novelty claim.</p>
+  </div>
+  <figure class="shot brk" style="left:692px;top:150px;width:532px">
+    <div class="crop" style="height:324px"><img src="img/earth-screen.jpg" alt="TerraTwin live app: Earth globe with the similarity field for Jezero"></div>
+    <figcaption id="cap4">Live app · Earth view for Jezero, similarity field</figcaption>
+  </figure>
+  <div class="abs stats" style="left:699px;top:548px;width:518px">
+    <div><b>90</b><span>windows refined in the same run</span></div>
+    <div><b>40 + 50</b><span>global + research-pool windows</span></div>
+    <div><b>122</b><span>vegetated cells excluded first</span></div>
+  </div>
+  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span></div>
+</div>
+</section>
+
+<!-- 5 · CHARACTERISATION -->
+<section class="slide" id="s5" aria-label="Slide 5 of 7: Characterisation">
+<div class="stage">
+  <div class="top"><span class="kicker"><i class="sq amber"></i>04 · Characterisation · context, never in the score</span><span class="pg">5 / 7</span></div>
+  <h1 class="title">Where the analogy holds, and where it breaks</h1>
+  <div class="ctx">
+    <div class="col">
+      <h4><b class="mars-c">Mars · Jezero</b>17.68° N 77.01° E</h4>
+      <div class="pair"><span>Thermal inertia · TES</span><b>296 J m<sup>−2</sup> K<sup>−1</sup> s<sup>−½</sup></b></div>
+      <div class="pair"><span>Rock abundance · TES</span><b>32 %</b></div>
+      <div class="pair"><span>Surface temperature · modelled</span><b>217 K</b></div>
+      <div class="pair"><span>Water-ice consistency · SWIM</span><b>−0.34<small>ice not indicated</small></b></div>
+      <div class="pair"><span>Geologic unit · USGS SIM 3292</span><b>mNhm</b></div>
+      <div class="pair"><span>Solar-energy potential</span><b>171 W m<sup>−2</sup></b></div>
+    </div>
+    <div class="col">
+      <h4><b class="earth-c">Earth · S 0.781</b>37.06° N 86.21° E</h4>
+      <div class="pair"><span>Aridity index</span><b>0.15<small>arid</small></b></div>
+      <div class="pair"><span>Köppen class</span><b>ET<small>polar tundra</small></b></div>
+      <div class="pair"><span>Permafrost probability</span><b class="amber-c">1.00</b></div>
+      <div class="pair"><span>Bare ground</span><b>99.7 %</b></div>
+    </div>
+    <div class="col">
+      <h4><b class="earth-c">Earth · S 0.693</b>37.29° N 97.51° E</h4>
+      <div class="pair"><span>Aridity index</span><b>0.14<small>arid</small></b></div>
+      <div class="pair"><span>Köppen class</span><b>BSk<small>cold arid steppe</small></b></div>
+      <div class="pair"><span>Permafrost probability</span><b>0.00</b></div>
+    </div>
+  </div>
+  <p class="note abs" style="left:56px;top:470px;width:676px">Atacama Yungay: aridity index &lt; 0.0001 (hyper-arid) · Köppen BWh (hot desert)</p>
+  <figure class="shot brk" style="left:764px;top:146px;width:460px">
+    <div class="crop" style="height:279px"><img src="img/compare-3d.jpg" alt="TerraTwin live app: compare view with 3D relief of the Mars and Earth windows"></div>
+    <figcaption>Live app · compare view, 3D relief of both 50 km windows</figcaption>
+  </figure>
+  <div class="hb" style="left:56px;width:420px">
+    <div class="kicker earth"><i class="sq earth"></i>Holds</div>
+    <p>Terrain geometry as MOLA observes it. Cold, arid, bare ground.</p>
+  </div>
+  <div class="hb" style="left:496px;width:728px">
+    <div class="kicker amber"><i class="sq amber"></i>Breaks</div>
+    <p>The Xinjiang window is permafrost terrain; Jezero shows no shallow-ice signal. Gravity, pressure, atmosphere and radiation differ on any Earth site. Geology and process are not evaluated.</p>
+  </div>
+  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span></div>
+</div>
+</section>
+
+<!-- 6 · EVIDENCE -->
+<section class="slide" id="s6" aria-label="Slide 6 of 7: Evidence">
+<div class="stage">
+  <div class="top"><span class="kicker"><i class="sq amber"></i>05 · Evidence · synthetic validation only</span><span class="pg">6 / 7</span></div>
+  <h1 class="title">What is established, and what is not yet</h1>
+  <div class="hero">
+    <div class="f"><span class="muted-c">18<small>%</small></span><svg class="arr" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6h25M20 1l6 5-6 5"/></svg><span class="earth-c">95<small>%</small></span></div>
+    <p class="cap">True twin found first · uncorrected, then with OOM<br>Benchmark on 213 synthetic terrain twins</p>
+  </div>
+  <figure class="shot brk" style="left:884px;top:140px;width:340px">
+    <div class="crop" style="height:203px"><img src="img/evidence.jpg" alt="TerraTwin live app: evidence page with the benchmark key figures"></div>
+    <figcaption>Live app · evidence page</figcaption>
+  </figure>
+  <div class="abs" style="left:56px;top:384px;width:716px">
+    <div class="kicker earth colh"><i class="sq earth"></i>Established · on synthetic twins</div>
+    <ul class="ev">
+      <li><b>0.30<svg class="arr" viewBox="0 0 28 12" aria-hidden="true"><path d="M1 6h25M20 1l6 5-6 5"/></svg>0.97</b><span>mean reciprocal rank</span></li>
+      <li><b>175 / 0</b><span>twins improved / ranked worse</span></li>
+      <li><b>98.9 %</b><span>named leader correct; ties hold the twin 35/35</span></li>
+      <li><b>0 of 6</b><span>vegetated controls pass the land-cover gate</span></li>
+      <li class="adv"><b>0.54 &lt; 0.65</b><span>adverse test kept visible: cubic gridding, OOM worse</span></li>
+    </ul>
+  </div>
+  <div class="abs" style="left:812px;top:384px;width:412px">
+    <div class="kicker amber colh"><i class="sq amber"></i>Not yet established</div>
+    <ul class="ny">
+      <li>Validation against field data or expert review</li>
+      <li>Benefit is shown on synthetic twins only</li>
+      <li>Similarity is terrain geometry only</li>
+    </ul>
+  </div>
+  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span></div>
+</div>
+</section>
+
+<!-- 7 · USE AND NEXT STEPS -->
+<section class="slide" id="s7" aria-label="Slide 7 of 7: Use and next steps">
+<div class="stage">
+  <div class="top"><span class="kicker"><i class="sq earth"></i>06 · Use and next steps</span><span class="pg">7 / 7</span></div>
+  <h1 class="title">Analyse any Mars coordinate, export the dossier</h1>
+  <div class="abs" style="left:56px;top:152px;width:640px">
+    <div class="blk">
+      <div class="kicker"><i class="sq"></i>Who uses it</div>
+      <p>Analog-site selection teams, terrain and hazard algorithm testers, field-campaign planners, students.</p>
+    </div>
+    <div class="blk">
+      <div class="kicker"><i class="sq earth"></i>What you get</div>
+      <p>Terrain record, six planetary-context factors, global screen, and an on-demand discovery run (1–6 min).</p>
+      <p>Exportable characterization dossier (JSON / CSV / print) with provenance and limitations.</p>
+    </div>
+    <div class="blk" style="margin-bottom:0">
+      <div class="kicker"><i class="sq mars"></i>Real Mars results</div>
+      <div class="trio"><div><b>39</b><span>NASA Exploration Zones analysed</span></div><div><b class="earth-c">29</b><span>stable leaders</span></div><div><b>10</b><span>ties</span></div></div>
+    </div>
+  </div>
+  <figure class="shot brk" style="left:736px;top:146px;width:488px">
+    <div class="crop" style="height:226px"><img src="img/report.jpg" alt="TerraTwin live app: mission dossier with JSON, CSV and print export" style="position:absolute;width:644px;height:auto;left:-136px;top:-38px"></div>
+    <figcaption>Live app · mission dossier, JSON / CSV / print</figcaption>
+  </figure>
+  <div class="abs blk" style="left:743px;top:432px;width:474px">
+    <div class="kicker amber"><i class="sq amber"></i>Next</div>
+    <p>Validation against field data and expert review: not yet done.</p>
+  </div>
+  <a class="url" href="https://terratwin-five.vercel.app">terratwin-five.vercel.app</a>
+  <p class="credits"><b>DATA</b>NASA MOLA MEGDR 128 ppd counts (PDS) · USGS MOLA 463 m mosaic · MGS TES thermal inertia and rock abundance · Mars Odyssey GRS · SWIM · USGS SIM 3292 · NASA Mars Trek and GIBS imagery · GMTED2010 · ESA Copernicus DEM GLO-90 · ESA WorldCover 2021</p>
+  <div class="foot"><span>TerraTwin · AstroSUST · NASA Space Apps 2026 · terratwin-five.vercel.app</span><span>Deck and code prepared with AI assistance (disclosed in the README)</span></div>
+</div>
+</section>
+
+</main>
+<script>
+(function(){
+  var slides=[].slice.call(document.querySelectorAll('.slide'));
+  function fit(){var w=slides[0].getBoundingClientRect().width;if(w>0)document.documentElement.style.setProperty('--s',(w/1280).toFixed(5));}
+  fit();window.addEventListener('resize',fit);window.addEventListener('load',fit);
+  function cur(){var mid=window.innerHeight/2,b=0,bd=1e9;slides.forEach(function(s,i){var r=s.getBoundingClientRect(),d=Math.abs((r.top+r.bottom)/2-mid);if(d<bd){bd=d;b=i;}});return b;}
+  function go(i){i=Math.max(0,Math.min(slides.length-1,i));slides[i].scrollIntoView({behavior:'auto',block:'center'});}
+  window.addEventListener('keydown',function(e){
+    if(e.metaKey||e.ctrlKey||e.altKey)return;var k=e.key;
+    if(k==='ArrowRight'||k==='PageDown'||k===' '||k==='Spacebar'){e.preventDefault();go(cur()+((k===' '||k==='Spacebar')&&e.shiftKey?-1:1));}
+    else if(k==='ArrowLeft'||k==='PageUp'){e.preventDefault();go(cur()-1);}
+    else if(k==='Home'){e.preventDefault();go(0);}
+    else if(k==='End'){e.preventDefault();go(slides.length-1);}
+  });
+  /* Slide 2 schematic: 20 x 15 cells, 93 of 300 on laser tracks = 31 % */
+  var el=document.getElementById('grid');
+  if(el){
+    var C=20,R=15,cw=30,ch=440/15,on={},tracks=[0,4,7,11,14,17],n=0,s='';
+    function col(c0,r){return Math.floor(c0+0.5+(r+0.5)/6);}
+    tracks.forEach(function(c0){for(var r=0;r<R;r++){on[col(c0,r)+','+r]=1;}});
+    for(var r0=0;r0<3;r0++){on['2,'+r0]=1;}
+    s+='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 440" width="600" height="440">';
+    for(var r=0;r<R;r++){for(var c=0;c<C;c++){var k=on[c+','+r];if(k)n++;
+      s+='<rect x="'+(c*cw+1.5)+'" y="'+(r*ch+1.5).toFixed(2)+'" width="'+(cw-3)+'" height="'+(ch-3).toFixed(2)+'" rx="1" fill="'+(k?'#ec7f53':'none')+'" fill-opacity="'+(k?'0.9':'1')+'" stroke="'+(k?'#ec7f53':'#2f363e')+'" stroke-width="1"/>';}}
+    tracks.forEach(function(c0){s+='<line x1="'+((c0+0.5)*cw)+'" y1="0" x2="'+((c0+0.5+R/6)*cw)+'" y2="440" stroke="#f2f4f5" stroke-opacity="0.55" stroke-width="1" stroke-dasharray="2 5"/>';});
+    s+='</svg>';el.innerHTML=s;el.setAttribute('data-observed',n+'/'+(C*R));
+  }
+})();
+</script>
+</body>
+</html>
