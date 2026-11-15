@@ -2,7 +2,7 @@ import { Disclosure } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { zoneName } from "../../lib/glossary";
 import { useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
-import { Axis, Chart, FigTitle, Grid, IntervalSwatch, Key, Mark, RingSwatch, Row, ROW_GRID, RuleSwatch, scale, Seg, SolidSwatch, Ticks, useWidth } from "./chartKit";
+import { Axis, Chart, FigTitle, Grid, IntervalSwatch, Key, Mark, RingSwatch, Row, ROW_GRID, RuleSwatch, scale, Seg, SolidSwatch, StruckSwatch, Ticks, useWidth } from "./chartKit";
 import { Gloss } from "./Gloss";
 import { CHAIN_NAMES, fmtInt, fmtNum, fmtPct, niceTicks, type EvidenceModel } from "./model";
 
@@ -21,7 +21,8 @@ export function MethodChart({ m, fig }: { m: EvidenceModel; fig?: string }) {
       legend={<>
         <Key swatch={<SolidSwatch />}>Deployed method</Key>
         <Key swatch={<SolidSwatch className="bg-muted" />}>Alternative</Key>
-        <Key swatch={<RingSwatch className="border-faint" />}>Retired</Key>
+        <Key swatch={<RingSwatch />}>Direct comparison</Key>
+        <Key swatch={<StruckSwatch />}>Retired</Key>
         <Key swatch={<IntervalSwatch />}>95 % interval</Key>
       </>}
     >
@@ -29,6 +30,8 @@ export function MethodChart({ m, fig }: { m: EvidenceModel; fig?: string }) {
         {m.methods.map((r) => {
           const deployed = r.code === "M2_OOM";
           const retired = r.code === "M1_qweights";
+          // Direct comparison is the hollow square here as in the key figures and FIG 03.
+          const direct = r.code === "M0_baseline";
           return (
             <Row key={r.code} emphasis={deployed}
               label={<>{r.name}{r.note && <span className={cx("ml-2 font-mono text-[10.5px] uppercase tracking-[0.06em]", deployed ? "text-ink" : "text-faint")}>{r.note}</span>}</>}
@@ -42,7 +45,7 @@ export function MethodChart({ m, fig }: { m: EvidenceModel; fig?: string }) {
             >
               <Grid s={mrrAxis} />
               {r.lo !== null && r.hi !== null && <Seg a={mrrAxis.at(r.lo)} b={mrrAxis.at(r.hi)} caps className={deployed ? "bg-ink/80" : "bg-muted/80"} />}
-              <Mark x={mrrAxis.at(r.mrr)} size={deployed ? 10 : 8} kind={retired ? "retired" : deployed ? "solid" : "alt"} />
+              <Mark x={mrrAxis.at(r.mrr)} size={deployed ? 10 : retired || direct ? 9 : 8} kind={retired ? "retired" : deployed ? "solid" : direct ? "hollow" : "alt"} />
             </Row>
           );
         })}

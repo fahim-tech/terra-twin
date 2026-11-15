@@ -123,14 +123,20 @@ export function useWidth<T extends HTMLElement>(): [React.RefObject<T>, number] 
   return [ref, w];
 }
 
-/** Square marker kinds: solid = deployed / selected, alt = alternative, hollow = direct comparison, retired = withdrawn. */
+/**
+ * Square marker kinds, one meaning each across every figure on the page: solid = deployed / selected,
+ * alt = alternative, hollow = direct comparison (no correction), retired = withdrawn (struck through).
+ */
 export type MarkKind = "solid" | "alt" | "hollow" | "retired" | "warn" | "mars";
+
+/** A 1 px diagonal across a square, top left to bottom right: the "withdrawn" strike. */
+const STRIKE = "bg-[linear-gradient(to_top_right,transparent_calc(50%-0.6px),var(--color-faint)_calc(50%-0.6px),var(--color-faint)_calc(50%+0.6px),transparent_calc(50%+0.6px))]";
 
 const MARK: Record<MarkKind, string> = {
   solid: "bg-ink",
   alt: "bg-muted",
   hollow: "border-[1.5px] border-muted bg-space",
-  retired: "border-[1.5px] border-faint bg-space",
+  retired: cx("border-[1.5px] border-faint bg-space", STRIKE),
   warn: "bg-warn",
   mars: "bg-mars",
 };
@@ -182,6 +188,8 @@ export function Key({ swatch, children }: { swatch: ReactNode; children: ReactNo
 }
 export const SolidSwatch = ({ className }: { className?: string }) => <span aria-hidden className={cx("inline-block h-2 w-2 shrink-0", className ?? "bg-ink")} />;
 export const RingSwatch = ({ className }: { className?: string }) => <span aria-hidden className={cx("inline-block h-2 w-2 shrink-0 border-[1.5px]", className ?? "border-muted")} />;
+/** Hollow square struck through: retired / withdrawn. */
+export const StruckSwatch = () => <span aria-hidden className={cx("inline-block h-2 w-2 shrink-0", MARK.retired)} />;
 /** ├─┤ interval whisker. */
 export const IntervalSwatch = () => (
   <span aria-hidden className="relative inline-block h-[9px] w-4 shrink-0">
