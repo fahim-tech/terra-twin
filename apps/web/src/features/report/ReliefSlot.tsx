@@ -146,6 +146,13 @@ function ReliefPlate({ plate, planet, kicker, name, q }: { plate: string; planet
                     {relief.source.vertical_reference ? <> · heights: {relief.source.vertical_reference}</> : null}
                   </dd>
                 </div>
+                {/* The payload's own note, verbatim: what the surface is (a surface model includes vegetation and buildings). */}
+                {relief.source.note && (
+                  <div className="flex gap-3">
+                    <dt className="kicker w-12 shrink-0 pt-px">Note</dt>
+                    <dd className="text-faint">{relief.source.note}</dd>
+                  </div>
+                )}
                 <div className="flex gap-3">
                   <dt className="kicker w-12 shrink-0 pt-px">Scale</dt>
                   <dd className="text-muted">
