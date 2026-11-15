@@ -73,8 +73,8 @@ export function CompareTerm({ k, children, className }: { k: GlossaryKey; childr
             <motion.span ref={pop} id={id} role="tooltip" data-compare-term=""
               initial={{ opacity: 0, y: pos?.below ? -4 : 4 }} animate={{ opacity: pos ? 1 : 0, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }}
               style={{ position: "fixed", left: pos?.left ?? -9999, top: pos?.top ?? 0 }}
-              className="surface-solid z-[60] block w-[min(320px,calc(100vw-16px))] rounded-[10px] p-3 text-left text-caption font-normal normal-case tracking-normal text-muted">
-              <span className="mb-1 block text-label text-ink">{g.term}</span>
+              className="surface-solid frame z-[60] block w-[min(320px,calc(100vw-16px))] rounded-control p-3 text-left text-caption font-normal normal-case tracking-normal text-muted [--frame-l:8px]">
+              <span className="label-caps mb-1.5 block text-ink">{g.term}</span>
               {g.definition}
               {"source" in g && g.source ? <span className="mt-1.5 block font-mono text-[11px] text-faint">{g.source}</span> : null}
             </motion.span>

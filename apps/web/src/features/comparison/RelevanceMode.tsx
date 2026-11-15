@@ -1,6 +1,6 @@
-import { Kicker } from "../../components/primitives";
 import { cx, pct } from "../../components/ui";
 import type { CandidateView } from "../analogs/candidates";
+import { PlanetMark, SectionRule, StatusMark } from "./marks";
 import { DIFFERENCES_SOURCE, PLANETARY_DIFFERENCES } from "./science";
 
 export type DimensionStatus = "evaluated" | "partial" | "not_evaluated";
@@ -14,10 +14,11 @@ export const DIMENSIONS = (c: CandidateView) => [
   { name: "Resources", status: "not_evaluated" as DimensionStatus, detail: "Ice and mineral resource layers are not connected." },
 ];
 
+/** Status words; the square marks (marks.tsx StatusMark) carry the same three states on screen. */
 export const STATUS_COPY: Record<DimensionStatus, { glyph: string; word: string }> = {
-  evaluated: { glyph: "●", word: "Evaluated" },
-  partial: { glyph: "◐", word: "Partial" },
-  not_evaluated: { glyph: "○", word: "Not evaluated" },
+  evaluated: { glyph: "■", word: "Evaluated" },
+  partial: { glyph: "◧", word: "Partial" },
+  not_evaluated: { glyph: "□", word: "Not evaluated" },
 };
 
 type LandcoverGate = { bare_min: number; veg_max: number } | null | undefined;
@@ -39,55 +40,62 @@ export function applications(c: CandidateView, gate: LandcoverGate): { text: str
 }
 
 export function RelevanceMode({ c, gate }: { c: CandidateView; gate: LandcoverGate }) {
+  const dims = DIMENSIONS(c);
   return (
-    <div className="grid gap-x-8 gap-y-5 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+    <div className="grid gap-x-10 gap-y-6 @min-[900px]:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
       <section aria-label="Dimensions of analogy">
-        <Kicker className="mb-1.5">Dimensions of analogy</Kicker>
+        <SectionRule title="Dimensions of analogy" as="h4" className="mb-1" />
         <ul>
-          {DIMENSIONS(c).map((d) => {
+          {dims.map((d) => {
             const s = STATUS_COPY[d.status];
             return (
-              <li key={d.name} className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 border-t border-line/60 py-2 first:border-t-0">
-                <span className={cx("text-caption", d.status === "evaluated" ? "text-ink" : d.status === "partial" ? "text-warn" : "text-faint")}>
-                  <span aria-hidden>{s.glyph}</span> {s.word}
+              <li key={d.name} className="grid grid-cols-[124px_minmax(0,1fr)] gap-x-4 border-t border-line py-2.5 first:border-t-0">
+                <span className={cx("flex items-center gap-2 self-start pt-0.5 text-[11px] font-semibold uppercase leading-none tracking-[0.1em]", d.status === "evaluated" ? "text-ink" : d.status === "partial" ? "text-warn" : "text-faint")}>
+                  <StatusMark status={d.status} />{s.word}
                 </span>
                 <span>
                   <span className="block text-label text-ink">{d.name}</span>
-                  <span className="block text-caption text-muted">{d.detail}</span>
+                  <span className="mt-0.5 block text-caption text-muted">{d.detail}</span>
                 </span>
               </li>
             );
           })}
         </ul>
-        <p className="mt-2 text-caption text-faint">An Earth site need not match Mars in every way. TerraTwin measures terrain geometry and shows the other dimensions so the gaps stay visible.</p>
+        <p className="mt-2 border-t border-line pt-2.5 text-caption text-faint">An Earth site need not match Mars in every way. TerraTwin measures terrain geometry and shows the other dimensions so the gaps stay visible.</p>
       </section>
 
-      <div className="space-y-5">
+      <div className="space-y-6">
         <section aria-label="Potential applications">
-          <Kicker className="mb-1.5">Potential applications · to be verified</Kicker>
+          <SectionRule title="Potential applications" as="h4" aside="to be verified" className="mb-2" />
           <ul className="space-y-1.5">
             {applications(c, gate).map((a) => (
-              <li key={a.text} className="text-caption text-muted"><span className="text-ink">{a.text}</span> <span className="text-faint">Basis: {a.basis}.</span></li>
+              <li key={a.text} className="relative pl-4 text-caption text-muted before:absolute before:left-0 before:top-[0.55em] before:h-1 before:w-1 before:border before:border-faint">
+                <span className="text-ink">{a.text}</span> <span className="text-faint">Basis: {a.basis}.</span>
+              </li>
             ))}
           </ul>
         </section>
         <section aria-label="Planetary differences">
-          <Kicker className="mb-1.5">Planetary differences · no Earth site reproduces these</Kicker>
+          <SectionRule title="Planetary differences" as="h4" aside="no Earth site reproduces these" className="mb-1.5" />
           <table className="w-full text-left text-caption">
-            <thead className="text-faint">
-              <tr><th scope="col" className="py-1 font-normal">Condition</th><th scope="col" className="py-1 font-normal"><span className="text-mars" aria-hidden>● </span>Mars</th><th scope="col" className="py-1 font-normal"><span className="text-earth" aria-hidden>● </span>Earth</th></tr>
+            <thead>
+              <tr className="border-b border-line-strong">
+                <th scope="col" className="kicker py-1.5 pr-3">Condition</th>
+                <th scope="col" className="kicker py-1.5 pr-3"><span className="inline-flex items-center gap-1.5"><PlanetMark planet="mars" />Mars</span></th>
+                <th scope="col" className="kicker py-1.5"><span className="inline-flex items-center gap-1.5"><PlanetMark planet="earth" />Earth</span></th>
+              </tr>
             </thead>
             <tbody>
               {PLANETARY_DIFFERENCES.map((d) => (
-                <tr key={d.factor} className="border-t border-line/60 align-top" title={d.note}>
-                  <td className="py-1 pr-3 text-ink">{d.factor}</td>
-                  <td className="py-1 pr-3 text-muted">{d.mars}</td>
-                  <td className="py-1 text-muted">{d.earth}</td>
+                <tr key={d.factor} className="border-t border-line align-top first:border-t-0" title={d.note}>
+                  <td className="py-1.5 pr-3 text-label text-ink">{d.factor}</td>
+                  <td className="py-1.5 pr-3 text-muted">{d.mars}</td>
+                  <td className="py-1.5 text-muted">{d.earth}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="mt-1.5 text-caption text-faint">Source: {DIFFERENCES_SOURCE}. Shown as limitations, never folded into the score.</p>
+          <p className="mt-2 border-t border-line pt-2 text-caption text-faint">Source: {DIFFERENCES_SOURCE}. Shown as limitations, never folded into the score.</p>
         </section>
       </div>
     </div>
