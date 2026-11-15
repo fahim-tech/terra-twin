@@ -13,6 +13,9 @@ interface GlobeState {
   /** CSS-pixel area of each globe frame covered by shell UI (mirrors what the globe was told). */
   insets: Record<Planet, { top: number; right: number; bottom: number; left: number }>;
   setInsets: (p: Planet, i: { top: number; right: number; bottom: number; left: number }) => void;
+  /** Recent imagery tile failures per planet (null = none reported). */
+  imagery: Record<Planet, { layer: string; failures: number; at: number } | null>;
+  reportImagery: (p: Planet, layer: string, failures: number) => void;
   setHover: (h: { planet: Planet; lat: number; lon: number } | null) => void;
   setCamera: (p: Planet, c: CameraTelemetry) => void;
   setAnchors: (p: Planet, a: AnchorPosition[]) => void;
@@ -26,6 +29,8 @@ export const useGlobes = create<GlobeState>((set) => ({
   hover: null,
   insets: { mars: { top: 0, right: 0, bottom: 0, left: 0 }, earth: { top: 0, right: 0, bottom: 0, left: 0 } },
   setInsets: (p, i) => set((s) => ({ insets: { ...s.insets, [p]: i } })),
+  imagery: { mars: null, earth: null },
+  reportImagery: (p, layer, failures) => set((s) => ({ imagery: { ...s.imagery, [p]: { layer, failures, at: Date.now() } } })),
   setHover: (hover) => set({ hover }),
   setCamera: (p, c) => set((s) => ({ camera: { ...s.camera, [p]: c } })),
   setAnchors: (p, a) => set((s) => ({ anchors: { ...s.anchors, [p]: Object.fromEntries(a.map((x) => [x.id, x])) } })),

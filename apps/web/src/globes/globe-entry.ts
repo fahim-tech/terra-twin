@@ -414,13 +414,30 @@ function flyTo(lat: number, lon: number, heightKm = planet === "mars" ? 1_400 : 
 }
 
 let currentLayerId: string | null = null;
+let tileFailures = 0;
+let failureTimer: ReturnType<typeof setTimeout> | null = null;
+/** Report imagery outages to the shell, at most every 5 s, so a dead tile server is visible, not silent. */
+function watchProvider(provider: UrlTemplateImageryProvider, layerId: string) {
+  provider.errorEvent.addEventListener(() => {
+    tileFailures++;
+    if (failureTimer) return;
+    failureTimer = setTimeout(() => {
+      post({ t: "imageryStatus", layer: layerId, failures: tileFailures, ok: false });
+      tileFailures = 0;
+      failureTimer = null;
+    }, 5000);
+  });
+}
+
 function setLayer(id: string) {
   if (!viewer) return;
   const def = LAYERS.find((l) => l.id === id) ?? LAYERS[0];
   if (def.id === currentLayerId) return;
   currentLayerId = def.id;
   const old = baseLayer;
-  const layer = new ImageryLayer(def.make(ellipsoid), { alpha: old && !reducedMotion ? 0 : 1 });
+  const provider = def.make(ellipsoid);
+  watchProvider(provider, def.id);
+  const layer = new ImageryLayer(provider, { alpha: old && !reducedMotion ? 0 : 1 });
   // Insert directly above the old base so overlays stay on top, then crossfade (no base-colour flash).
   viewer.imageryLayers.add(layer, old ? viewer.imageryLayers.indexOf(old) + 1 : 0);
   baseLayer = layer;

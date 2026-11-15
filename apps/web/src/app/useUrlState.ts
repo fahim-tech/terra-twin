@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { formatLat, formatLon, normLon } from "../lib/geodesy";
 import { api } from "../services/api";
 import { type Stage, useApp } from "../store/app";
+import { searchTarget } from "../store/searchTarget";
 
 const STAGES: Stage[] = ["mars", "earth", "compare", "evidence", "report"];
 
@@ -82,16 +83,19 @@ export function useUrlState() {
   // Write state → URL. Stage changes push history entries; everything else replaces.
   useEffect(() => {
     if (restoring.current) return;
+    // Result stages describe the searched target; the Mars stage describes the live selection.
+    const t = stage !== "mars" && stage !== "evidence" ? searchTarget(search) : null;
+    const place = t ? { siteId: t.siteId, lat: t.lat, lon: t.lon } : selection ? { siteId: selection.siteId, lat: selection.lat, lon: selection.lon } : null;
     const hash = buildHash({
-      stage, site: selection?.siteId ?? null,
-      lat: selection && !selection.siteId ? selection.lat : null, lon: selection && !selection.siteId ? selection.lon : null,
-      mission, cand: candidateId,
+      stage, site: place?.siteId ?? null,
+      lat: place && !place.siteId ? place.lat : null, lon: place && !place.siteId ? place.lon : null,
+      mission: t ? t.mission : mission, cand: stage === "mars" ? null : candidateId,
     });
     if (hash === location.hash) return;
     if (stage !== lastStage.current) history.pushState(null, "", hash);
     else history.replaceState(null, "", hash);
     lastStage.current = stage;
-  }, [stage, selection, mission, candidateId]);
+  }, [stage, selection, mission, candidateId, search]);
 
   // Back / Forward between stages (only to stages that are reachable with the current results).
   useEffect(() => {

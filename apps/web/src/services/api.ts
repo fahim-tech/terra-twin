@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { AnalogSearch, MarsAnalysis, MarsSite, MissionProfile, PoolWindow, ResearchSiteSummary, Tier1Result, VisualizationLegend } from "../types/contracts";
 
@@ -68,7 +68,15 @@ export const useDatasets = () => useQuery({ queryKey: ["datasets"], queryFn: api
 export const useEvidence = () => useQuery({ queryKey: ["evidence"], queryFn: api.evidence });
 
 export const useMarsAnalysis = (p: { lat: number; lon: number; footprint_km: number; mission: string } | null) =>
-  useQuery({ queryKey: ["mars", p], queryFn: () => api.analyseMars(p!), enabled: !!p });
+  useQuery({
+    queryKey: ["mars", p], queryFn: () => api.analyseMars(p!), enabled: !!p,
+    // Keep showing the previous result only while the same point is re-queried (footprint or mission
+    // change); a different point must never borrow another location's measurements.
+    placeholderData: (prev, prevQuery) => {
+      const k = prevQuery?.queryKey[1] as { lat: number; lon: number } | null | undefined;
+      return k && p && k.lat === p.lat && k.lon === p.lon ? keepPreviousData(prev) : undefined;
+    },
+  });
 
 export const useResearchSummary = () => useQuery({ queryKey: ["researchSummary"], queryFn: api.researchSummary });
 export const useEarthPool = () => useQuery({ queryKey: ["earthPool"], queryFn: api.earthPool });

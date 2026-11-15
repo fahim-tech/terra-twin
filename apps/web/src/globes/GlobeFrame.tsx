@@ -68,6 +68,9 @@ export const GlobeFrame = forwardRef<GlobeHandle, Props>(function GlobeFrame({ p
       } else if (msg.t === "anchors") {
         useGlobes.getState().setAnchors(planet, msg.anchors);
         return;
+      } else if (msg.t === "imageryStatus") {
+        useGlobes.getState().reportImagery(planet, msg.layer, msg.failures);
+        return;
       } else if (msg.t === "snapshot") {
         const done = pending.current.get(msg.requestId);
         pending.current.delete(msg.requestId);

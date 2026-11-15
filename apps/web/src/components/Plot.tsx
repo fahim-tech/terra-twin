@@ -12,10 +12,12 @@ const BASE_LAYOUT = {
   plot_bgcolor: "rgba(0,0,0,0)",
   font: { family: "Inter, system-ui, sans-serif", size: 11, color: "#94A3B5" },
   margin: { l: 56, r: 16, t: 8, b: 40 },
-  xaxis: { gridcolor: "#1d2833", zerolinecolor: "#263240", linecolor: "#263240", tickcolor: "#263240", ticks: "outside", ticklen: 3 },
-  yaxis: { gridcolor: "#1d2833", zerolinecolor: "#263240", linecolor: "#263240", tickcolor: "#263240", automargin: true },
+  xaxis: { gridcolor: "#1d2833", zerolinecolor: "#263240", linecolor: "#263240", tickcolor: "#263240", ticks: "outside", ticklen: 3, fixedrange: true },
+  yaxis: { gridcolor: "#1d2833", zerolinecolor: "#263240", linecolor: "#263240", tickcolor: "#263240", automargin: true, fixedrange: true },
   hoverlabel: { bgcolor: "#17212D", bordercolor: "#263240", font: { color: "#F2F5F8", family: "Inter" } },
   showlegend: false,
+  // No drag-to-zoom: it traps touch scrolling and has no discoverable reset. Hover stays on.
+  dragmode: false,
 };
 
 function merge(a: Record<string, any>, b: Record<string, any>): Record<string, any> {
@@ -33,7 +35,7 @@ export function Plot({ data, layout = {}, height = 260, label }: { data: unknown
     const node = el.current;
     load().then((P) => {
       if (!alive || !node) return;
-      return P.react(node, data, merge(BASE_LAYOUT, { ...layout, height }), { displayModeBar: false, responsive: true });
+      return P.react(node, data, merge(BASE_LAYOUT, { ...layout, height }), { displayModeBar: false, responsive: true, scrollZoom: false, doubleClick: false });
     }).catch((e) => setErr(String(e)));
     return () => { alive = false; };
   }, [data, layout, height]);

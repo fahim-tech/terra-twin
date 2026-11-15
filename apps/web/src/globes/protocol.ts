@@ -111,6 +111,8 @@ export type GlobeToParent =
   | { t: "snapshot"; requestId: string; dataUrl: string | null; width: number; height: number; error?: string }
   | { t: "interaction" }
   | { t: "key"; key: "Escape" }
+  /** Imagery tiles failing to load (throttled); `failures` counts since the previous report. */
+  | { t: "imageryStatus"; layer: string; failures: number; ok: boolean }
   | { t: "error"; message: string };
 
 export const CHANNEL = "terratwin-globe/1";
