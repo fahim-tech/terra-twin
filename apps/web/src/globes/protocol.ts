@@ -106,6 +106,7 @@ export type GlobeToParent =
   | { t: "anchors"; anchors: AnchorPosition[] }
   | { t: "snapshot"; requestId: string; dataUrl: string | null; width: number; height: number; error?: string }
   | { t: "interaction" }
+  | { t: "key"; key: "Escape" }
   | { t: "error"; message: string };
 
 export const CHANNEL = "terratwin-globe/1";

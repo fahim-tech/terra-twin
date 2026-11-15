@@ -93,7 +93,7 @@ export const GlobeFrame = forwardRef<GlobeHandle, Props>(function GlobeFrame({ p
     <div className={`relative h-full w-full ${className ?? ""}`}>
       <iframe
         ref={frame}
-        title={`${planet === "mars" ? "Mars" : "Earth"} globe`}
+        title={`${planet === "mars" ? "Mars" : "Earth"} globe. Arrow keys pan, plus and minus zoom, N faces north, Enter selects the point under the centre crosshair.`}
         src={`./globe.html?planet=${planet}`}
         className="absolute inset-0 h-full w-full border-0 transition-opacity duration-700"
         style={{ opacity: loaded ? 1 : 0 }}

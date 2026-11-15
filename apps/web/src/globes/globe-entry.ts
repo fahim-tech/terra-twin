@@ -720,6 +720,34 @@ window.addEventListener("message", (ev: MessageEvent) => {
   }
 });
 
+// Keyboard operation when the globe frame has focus: every pointer action has a key equivalent.
+window.addEventListener("keydown", (e: KeyboardEvent) => {
+  if (!viewer || e.metaKey || e.ctrlKey || e.altKey) return;
+  const step = e.shiftKey ? 0.5 : 0.2;
+  let handled = true;
+  switch (e.key) {
+    case "ArrowUp": panBy(0, -step); break;
+    case "ArrowDown": panBy(0, step); break;
+    case "ArrowLeft": panBy(-step, 0); break;
+    case "ArrowRight": panBy(step, 0); break;
+    case "+": case "=": zoom("in"); break;
+    case "-": case "_": zoom("out"); break;
+    case "n": case "N": resetHeading(); break;
+    case "Enter": case " ": {
+      const c = currentCenter();
+      if (c) post({ t: "pick", lat: c.lat, lon: c.lon });
+      break;
+    }
+    case "Escape": post({ t: "key", key: "Escape" }); break;
+    default: handled = false;
+  }
+  if (handled) {
+    e.preventDefault();
+    spinning = false;
+    post({ t: "interaction" });
+  }
+});
+
 window.addEventListener("beforeunload", () => { viewer?.destroy(); viewer = null; });
 
 // Handshake: tell the parent this realm is listening; it replies with `init`.
