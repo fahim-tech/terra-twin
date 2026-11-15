@@ -54,14 +54,16 @@ export function MarsOverlay() {
       ? (ns === "n" ? zone.bbox.lat_max - selection.lat : selection.lat - zone.bbox.lat_min) * pxPerDegLat : 0;
     return Math.min(260, Math.max(aoiHalfPx, zonePx));
   };
-  // The zone outlines around a callout's point, and the other zones' centre glyphs: its plate keeps clear of
-  // them, so it never sits across a line (a plate on a neighbouring zone's corner seems to name that zone) or
-  // covers another zone's mark. Only zones near enough to share the screen with the label are tracked.
+  // The zone outlines around a callout's point, and the zones' centre glyphs: its plate keeps clear of them, so
+  // it never sits across a line (a plate on a neighbouring zone's corner seems to name that zone) or covers a
+  // zone's mark — except the glyph it labels, when the point is a zone's centre. Only zones near enough to share
+  // the screen with the label are tracked.
   const around = (lat: number, lon: number, ownId: string | null) => {
     const near = zonesNear(sites.data, lat, lon, NEAR_KM);
+    const labelled = (s: { lat: number; lon: number }) => Math.abs(s.lat - lat) < 1e-6 && Math.abs(s.lon - lon) < 1e-6;
     return {
       outlines: near.map((s) => ({ pts: zoneRing(s), own: s.id === ownId })),
-      marks: near.filter((s) => s.id !== ownId).map((s) => ({ lat: s.lat, lon: s.lon })),
+      marks: near.filter((s) => !labelled(s)).map((s) => ({ lat: s.lat, lon: s.lon })),
     };
   };
   // Preferred sides only: the callout layer moves a label that would leave the free part of the frame.
