@@ -1,4 +1,5 @@
-import { Disclosure, Kicker, Measure, Term } from "../../components/primitives";
+import { Disclosure, Kicker, Measure } from "../../components/primitives";
+import { CompareTerm as Term } from "./CompareTerm";
 import { cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
 import { useApp } from "../../store/app";
