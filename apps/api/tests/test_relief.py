@@ -105,8 +105,91 @@ def test_mars_relief_without_reader_stays_503(client, monkeypatch, tmp_path):
     mosaic = tmp_path / "Mars_MGS_MOLA_DEM_mosaic_global_463m.tif"
     mosaic.write_bytes(b"")
     monkeypatch.setattr(RELIEF, "settings", Settings(mola_mosaic=mosaic))
+    monkeypatch.setattr(RELIEF, "_mola_reader", lambda: None)  # no GDAL on this server
     r = client.get("/api/mars/relief?site=Jezero")
     assert r.status_code == 503 and "no reader" in r.json()["detail"]["reason"]
+
+
+def _fake_mosaic(monkeypatch, tmp_path, reader):
+    mosaic = tmp_path / "Mars_MGS_MOLA_DEM_mosaic_global_463m.tif"
+    mosaic.write_bytes(b"")
+    monkeypatch.setattr(RELIEF, "settings", Settings(mola_mosaic=mosaic))
+    monkeypatch.setattr(RELIEF, "_mola_reader", lambda: reader)
+    RELIEF._mars_grid.cache_clear()
+    return mosaic
+
+
+@requires_data
+def test_mars_relief_reads_the_zone_window_from_the_mosaic(client, monkeypatch, tmp_path):
+    from vendor.terratwin.oom_worker import PIX
+
+    calls = []
+    z = np.add.outer(np.arange(108.0) * -2.0, np.arange(108.0)) - 1500.0  # north-west high, south low
+    z[5, 7] = np.nan
+
+    def reader(path, lat, lon, half_km, pix_m, resample):
+        calls.append((path, lat, lon, half_km, pix_m, resample))
+        return z.copy(), {"pix_m": pix_m}
+
+    mosaic = _fake_mosaic(monkeypatch, tmp_path, reader)
+    r = client.get("/api/mars/relief?site=Jezero")
+    assert r.status_code == 200
+    d = r.json()
+    fp = RS.mars_footprints().loc["Jezero"]
+    # The research comparison's window: 50 km centred on the zone, bilinear, the engine's pixel.
+    assert calls == [(str(mosaic), float(fp.lat_c), float(fp.lon_c), 25.0, PIX, "bilinear")]
+    assert (d["id"], d["planet"], d["lat"], d["lon"]) == ("Jezero", "mars", float(fp.lat_c), float(fp.lon_c))
+    assert (d["rows"], d["cols"], d["window_km"], d["cell_m"], d["units"]) == (108, 108, 50.0, PIX, "m")
+    assert len(d["elevation"]) == 108 * 108 and d["elevation"][5 * 108 + 7] is None
+    assert d["elevation"][0] == round(float(z[0, 0]), 1) and d["elevation"][-1] == round(float(z[-1, -1]), 1)
+    assert d["z_min"] == round(float(np.nanmin(z)), 1) and d["z_max"] == round(float(np.nanmax(z)), 1)
+    assert d["valid_fraction"] == pytest.approx(1 - 1 / (108 * 108))
+    assert d["orientation"]["row0"] == "north" and d["orientation"]["col0"] == "west" and "Mars" in d["orientation"]["frame"]
+    assert d["source"]["dataset"] == "mola_mosaic" and d["source"]["representation"] == "as_measured"
+    assert "not an observation resolution" in d["source"]["note"]
+    # Read once per zone, then cached.
+    assert client.get("/api/mars/relief?site=Jezero").status_code == 200 and len(calls) == 1
+
+
+@requires_data
+def test_mars_relief_read_failure_is_503_never_a_substitute(client, monkeypatch, tmp_path):
+    def reader(*_a, **_k):
+        raise RuntimeError("cannot open")
+
+    _fake_mosaic(monkeypatch, tmp_path, reader)
+    r = client.get("/api/mars/relief?site=Jezero")
+    assert r.status_code == 503
+    detail = r.json()["detail"]
+    assert detail["reason"].startswith("The MOLA mosaic could not be read") and "elevation" not in detail
+
+
+@requires_data
+def test_no_zone_window_comes_near_the_antimeridian():
+    fp = RS.mars_footprints()
+    assert len(fp) == 39
+    assert not any(RELIEF.crosses_antimeridian(float(r.lat_c), float(r.lon_c), 25.0) for r in fp.itertuples())
+    assert RELIEF.crosses_antimeridian(10.0, 179.8, 25.0) and RELIEF.crosses_antimeridian(-40.0, -179.5, 25.0)
+
+
+@requires_data
+def test_datasets_say_connected_only_when_the_rasters_exist(client, monkeypatch, tmp_path):
+    from terratwin_api import config as CONFIG
+
+    def status(ds_id):
+        return next(d for d in client.get("/api/datasets").json()["datasets"] if d["id"] == ds_id)
+
+    monkeypatch.setattr(CONFIG, "settings", Settings(mola_mosaic=None, megdr_counts_dir=None))
+    assert status("mola_mosaic")["status"] == "missing" and status("mola_counts_tiles")["status"] == "missing"
+    mosaic = tmp_path / "mosaic.tif"
+    mosaic.write_bytes(b"")
+    counts = tmp_path / "counts"
+    counts.mkdir()
+    for t in ("megc00n000hb.img", "megc44n000hb.img"):
+        (counts / t).write_bytes(b"")
+    monkeypatch.setattr(CONFIG, "settings", Settings(mola_mosaic=mosaic, megdr_counts_dir=counts))
+    assert status("mola_mosaic")["status"] == "connected"
+    tiles = status("mola_counts_tiles")
+    assert tiles["status"] == "connected" and tiles["coverage"].startswith("2 of 16 tiles connected")
 
 
 @requires_data

@@ -6,7 +6,7 @@ from ..config import API_VERSION, CONTRACT_VERSION, OOM_METHOD_VERSION, RESEARCH
 from ..schemas.common import EARTH_CONVENTION, MARS_CONVENTION
 from ..schemas.requests import AnalogSearchRequest, CompareRequest, MarsAnalysisRequest, assert_score_contract
 from ..services import analysis_store, evidence, mars, relief, research_store as RS, tier1, tier2, visualization as VIS
-from ..services.catalog import DATASETS, MISSION_BY_ID, MISSIONS
+from ..services.catalog import MISSION_BY_ID, MISSIONS, datasets_now
 
 router = APIRouter()
 
@@ -43,7 +43,7 @@ def datasets():
                     "imported_at": man["imported_at"], "n_files": len(man["files"])}
     except RS.ResearchDataUnavailable:
         imported = None
-    return {"datasets": [d.model_dump() for d in DATASETS], "research_import": imported,
+    return {"datasets": datasets_now(), "research_import": imported,
             "integrity_checks": [c.__dict__ for c in checks], "live_refinement": tier2.live_status(),
             "conventions": {"mars": MARS_CONVENTION.model_dump(), "earth": EARTH_CONVENTION.model_dump()}}
 
@@ -216,11 +216,19 @@ def earth_pool_relief(window_id: str):
 
 @router.get("/api/mars/relief")
 def mars_relief(site: str):
-    """Mars elevation grid for an Exploration Zone. Needs the USGS MOLA 463 m mosaic (GIS workstream);
-    until a reader for it is connected this answers 503 with the reason, never a substitute grid."""
-    if site not in _data_or_503(RS.mars_footprints).index:
+    """Mars elevation grid of an Exploration Zone's 50 km window, in the shape of the Earth relief.
+
+    Read from the USGS MOLA 463 m mosaic with the research extraction (``aoi.mars_aoi``). When the mosaic
+    or its GDAL reader is not connected this answers 503 with the reason, never a substitute grid.
+    """
+    footprints = _data_or_503(RS.mars_footprints)
+    if site not in footprints.index:
         raise HTTPException(404, detail=f"unknown site {site!r}")
-    raise HTTPException(503, detail={**relief.mars_relief_status(), "site": site})
+    fp = footprints.loc[site]
+    try:
+        return relief.mars_relief(site, float(fp.lat_c), float(fp.lon_c))
+    except relief.MarsReliefUnavailable as e:
+        raise HTTPException(503, detail={**e.status, "site": site}) from None
 
 
 @router.get("/api/visualization/legend")
