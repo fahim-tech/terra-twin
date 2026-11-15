@@ -36,17 +36,43 @@ export interface Row { top: number; bottom: number }
  */
 export function cleanCut(rows: Row[], target: number, floor: number): number {
   for (let c = Math.round(target); c >= floor; c -= 2) {
-    if (!rows.some((r) => r.top < c - 1 && r.bottom > c + 1)) return c;
+    if (!isCut(rows, c)) return c;
   }
   return Math.round(target);
 }
 
-/** Leaf-like rows of a column: text lines, list items, buttons, figures; short enough to be one row. */
+const isCut = (rows: Row[], c: number) => rows.some((r) => r.top < c - 1 && r.bottom > c + 1);
+
+/**
+ * Like cleanCut, but first looks down to `ceiling` so a figure the line would slice is shown whole rather
+ * than hidden; only when no clean line lies below does it move up (never further than `floor`).
+ */
+export function cleanCutShowing(rows: Row[], target: number, ceiling: number, floor: number): number {
+  for (let c = Math.round(target); c <= ceiling; c += 2) {
+    if (!isCut(rows, c)) return c;
+  }
+  return cleanCut(rows, target, floor);
+}
+
+/**
+ * Rows of a column that a detent must not slice: text lines, list items, buttons, and whole figures — a
+ * figure's label and its value count as one row (the nearest ancestor of a mono value that also holds its
+ * label), so a detent never shows a label with its value hidden under the footer.
+ */
 function rowsIn(el: HTMLElement, origin: number): Row[] {
   const out: Row[] = [];
-  el.querySelectorAll<HTMLElement>("p, li, dt, dd, button, h2, h3, h4, [role=row], [role=tab], .num, span.kicker, span.toponym, label").forEach((n) => {
+  const push = (n: Element) => {
     const r = n.getBoundingClientRect();
-    if (r.height > 0 && r.height <= 96) out.push({ top: r.top - origin, bottom: r.bottom - origin });
+    if (r.height > 0 && r.height <= 120) out.push({ top: r.top - origin, bottom: r.bottom - origin });
+  };
+  el.querySelectorAll<HTMLElement>("p, li, dt, dd, button, h2, h3, h4, [role=row], [role=tab], .num, span.kicker, span.toponym, label, dl > div").forEach(push);
+  el.querySelectorAll<HTMLElement>(".num").forEach((n) => {
+    let a: HTMLElement | null = n.parentElement;
+    for (let i = 0; a && a !== el && i < 4; i++, a = a.parentElement) {
+      const h = a.getBoundingClientRect().height;
+      if (h > 120) break;
+      if (a.textContent && n.textContent && a.textContent.trim().length > n.textContent.trim().length + 2) { push(a); break; }
+    }
   });
   return out;
 }
@@ -103,7 +129,9 @@ export function Sheet({ children, label, snap, onSnapChange, peek = 132, header,
         const figure = rows.find((r) => r.top > 24) ?? null;
         // At least the first figure rows (about 150 px of body), more when the screen allows it.
         const want = Math.max(b.height, Math.min(figure ? figure.bottom + 120 : 150, h * 0.42));
-        const c = cleanCut(rows, want, Math.max(60, want - 140));
+        // The sheet may grow to 70 % of the stage to show a sliced figure whole.
+        const ceiling = Math.max(want, h * 0.7 - (b.top - top) - footer);
+        const c = cleanCutShowing(rows, want, Math.min(want + 140, ceiling), Math.max(60, want - 140));
         const half = Math.round(h - (b.top - top) - c - footer);
         if (Math.abs((fit.half ?? Math.round(h * 0.48)) - half) > 4 && half > 64) next.half = half;
       }
