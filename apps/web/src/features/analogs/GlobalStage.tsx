@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useId, useState } from "react";
 import { Kicker, Term } from "../../components/primitives";
 import { Button, cx, Segmented } from "../../components/ui";
 import { api } from "../../services/api";
@@ -43,6 +43,7 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
   const knownFilter = useApp((s) => s.knownFilter);
   const set = useApp((s) => s.set);
   const [loading, setLoading] = useState<null | "more" | "view">(null);
+  const zoomHintId = useId();
   const [inView, setInView] = useState<{ searchId: string; ids: Set<string>; total: number; box: ViewBox } | null>(null);
   const camera = useGlobes((s) => s.camera.earth);
   const insets = useGlobes((s) => s.insets.earth);
@@ -79,8 +80,12 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
     }
   };
 
+  const canRank = !loading && !!box && !!search.mars.site;
   const rankInView = async () => {
-    if (!search.mars.site || !box) return;
+    if (!canRank || !box || !search.mars.site) {
+      if (!box && !loading) useApp.getState().announce("Zoom in to a region to rank its cells; the whole-globe view is too wide.");
+      return;
+    }
     setLoading("view");
     try {
       const res = await tier1InView(search.mars.site, target.mission, box, 100);
@@ -125,7 +130,11 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
       {near.length > 0 && (
         <div className="mt-3">
           <div className="px-2 pb-1 text-caption text-muted">
-            <span className="num text-num-sm text-ink">{view ? near.length : t1.summary.n_within_0p05_of_leader}</span> cells within {NEAR_TOL.toFixed(2)} of the top — not ranked against each other
+            {/* The global count only describes the unfiltered list; a filter or the in-view list counts what is shown. */}
+            {view || knownFilter !== "all"
+              ? <><span className="num text-num-sm text-ink">{near.length}</span> {near.length === 1 ? "cell" : "cells"}{knownFilter !== "all" && <> of <span className="num text-num-sm">{t1.summary.n_within_0p05_of_leader}</span></>}</>
+              : <><span className="num text-num-sm text-ink">{t1.summary.n_within_0p05_of_leader}</span>{near.length < t1.summary.n_within_0p05_of_leader && <> (<span className="num text-num-sm">{near.length}</span> loaded)</>} cells</>}
+            {" "}within {NEAR_TOL.toFixed(2)} of the top — not ranked against each other
           </div>
           <ul role="group" aria-label="Cells within 0.05 of the top, not ranked against each other" className="rounded-control bg-white/[0.025]">
             {near.map((c) => <CellRow key={c.id} c={c} on={candidateId === c.id} approx />)}
@@ -153,15 +162,20 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
           {view ? <>Ranked in view</> : <><span className="num text-num-sm">{contiguous.toLocaleString()}</span> of <span className="num text-num-sm">{t1.total.toLocaleString()}</span> by rank</>}
         </span>
         <span className="flex items-center gap-1">
-          <Button variant="ghost" onClick={rankInView} disabled={!!loading || !box || !search.mars.site}
-            title={box ? "List the screened cells inside the current globe view" : "Zoom in to a region to rank the cells in view"}>
+          {/* Stays focusable while unavailable (aria-disabled), with the reason as visible text below. */}
+          <button type="button" onClick={rankInView} aria-disabled={!canRank} aria-describedby={!box ? zoomHintId : undefined}
+            className={cx("hit inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[8px] px-3.5 py-2 text-label transition-[color,background,transform] duration-150",
+              canRank ? "text-muted hover:bg-elevated hover:text-ink active:scale-[0.97]" : "cursor-not-allowed text-faint")}>
             {loading === "view" ? "Ranking…" : "Rank cells in view"}
-          </Button>
+          </button>
           {!view && contiguous < t1.total && (
             <Button variant="ghost" onClick={loadMore} disabled={!!loading || !search.mars.site}>{loading === "more" ? "Loading…" : "Load more"}</Button>
           )}
         </span>
       </div>
+      {!box && search.mars.site && (
+        <p id={zoomHintId} className="mt-1 px-2 text-caption text-muted">Zoom in to a region to rank its cells — the whole-globe view is too wide.</p>
+      )}
       <p className="mt-2 px-2 text-caption text-faint">◆ near a documented analog · ⚠ data-quality flag. {t1.disclaimer}</p>
     </section>
   );
