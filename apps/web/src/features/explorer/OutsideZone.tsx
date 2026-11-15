@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { Disclosure } from "../../components/primitives";
+import { Block, Disclosure } from "../../components/primitives";
 import { Button } from "../../components/ui";
 import { useSites } from "../../services/api";
 import { useApp, type Selection } from "../../store/app";
@@ -9,46 +9,56 @@ import { zoneName } from "../../lib/glossary";
 import { useExplorer } from "./explorerStore";
 import { OutcomeGlyph } from "./MarsSearch";
 import { useSiteOutcomes } from "./outcomes";
+import { Mark, SectionTitle } from "./parts";
+import { useScales } from "./useScales";
 import { formatCoord, formatKm, readZone, zoneSelection } from "./zones";
 
-/** Body of the inspector for a point outside the 39 research zones: one sentence, then the gaps on demand. */
+/** Body of the inspector for a point outside the research zones: one sentence, the way back, then the gaps. */
 export function OutsideBody({ a }: { a: MarsAnalysis | undefined }) {
   const u = a?.unavailable;
   const kept = useExplorer((s) => s.kept);
   const selection = useApp((s) => s.selection);
+  const { zones } = useScales();
   const isKept = !!kept && !!selection && kept.lat === selection.lat && kept.lon === selection.lon;
   return (
-    <div className="py-3">
-      <p className="text-body text-ink">TerraTwin measures Mars terrain only inside 39 research zones for now.</p>
+    <div className="pt-1">
+      <p className="py-2 text-body text-ink">
+        TerraTwin measures Mars terrain only inside {zones !== null ? <><span className="num">{zones}</span> research zones</> : "its research zones"} for now.
+      </p>
       {/* The nearby zones come first so they are visible in a half-open phone sheet. */}
       <NearbyZones lat={a?.coordinate.lat ?? selection?.lat} lon={a?.coordinate.lon ?? selection?.lon} />
-      <p className="mt-3 text-caption text-muted">
-        No terrain values are shown for this point and no Earth comparison can be run from it — nothing here is estimated or borrowed from a nearby zone.
-      </p>
-      {isKept && (
-        <p role="status" className="mt-3 text-caption text-muted">
-          ✓ Point kept. Its marker stays on the globe; pick a research zone from search whenever you are ready.
+      <Block title={<SectionTitle n={2}>Not measured here</SectionTitle>}>
+        <p className="text-caption text-muted">
+          No terrain values are shown for this point and no Earth comparison can be run from it — nothing here is estimated or borrowed from a nearby zone.
         </p>
-      )}
-      <Disclosure summary="What would be needed" className="mt-3">
-        {u?.reason && <p className="text-caption text-muted">{u.reason}</p>}
-        {u?.missing_inputs.length ? (
-          <ul className="mt-2 space-y-1">
-            {u.missing_inputs.map((x) => (
-              <li key={x} className="flex gap-2 text-caption text-ink"><span aria-hidden className="text-faint">—</span><span className={/[()_]/.test(x) ? "font-mono text-[11.5px]" : undefined}>{x}</span></li>
-            ))}
-          </ul>
-        ) : !u ? <p className="text-caption text-faint">Loading the list of missing datasets…</p> : null}
-        {u?.owner && <p className="mt-2 text-caption text-faint">Owner: {u.owner}</p>}
-        {a && a.unavailable_factors.length > 0 && (
-          <p className="mt-2 text-caption text-faint">Also not connected anywhere yet: {a.unavailable_factors.map((f) => f.label.toLowerCase()).join(", ")}.</p>
+        {isKept && (
+          <p role="status" className="mt-3 flex items-center gap-2 text-caption text-muted">
+            <Mark on /> Point kept. Its marker stays on the globe; pick a research zone from search whenever you are ready.
+          </p>
         )}
-      </Disclosure>
+        <Disclosure summary="What would be needed" className="mt-2.5">
+          {u?.reason && <p className="text-caption text-muted">{u.reason}</p>}
+          {u?.missing_inputs.length ? (
+            <ul className="mt-2 space-y-1.5">
+              {u.missing_inputs.map((x) => (
+                <li key={x} className="flex gap-2.5 text-caption text-ink">
+                  <span aria-hidden className="mt-[6px] h-1 w-1 shrink-0 bg-faint" />
+                  <span className={/[()_]/.test(x) ? "font-mono text-[11.5px]" : undefined}>{x}</span>
+                </li>
+              ))}
+            </ul>
+          ) : !u ? <p className="text-caption text-faint">Loading the list of missing datasets…</p> : null}
+          {u?.owner && <p className="mt-2 text-caption text-faint">Owner: {u.owner}</p>}
+          {a && a.unavailable_factors.length > 0 && (
+            <p className="mt-2 text-caption text-faint">Also not connected anywhere yet: {a.unavailable_factors.map((f) => f.label.toLowerCase()).join(", ")}.</p>
+          )}
+        </Disclosure>
+      </Block>
     </div>
   );
 }
 
-/** The three nearest research zones, as quiet rows: a guided way back to measured ground. */
+/** The three nearest research zones as command rows: a guided way back to measured ground. */
 function NearbyZones({ lat, lon }: { lat?: number; lon?: number }) {
   const sites = useSites();
   const select = useApp((s) => s.select);
@@ -60,33 +70,28 @@ function NearbyZones({ lat, lon }: { lat?: number; lon?: number }) {
     .sort((x, y) => x.km - y.km)
     .slice(0, 3);
   return (
-    <div className="mt-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-label text-ink">Nearest research zones</h3>
-        <span className="text-caption text-faint">distance to zone centre</span>
-      </div>
-      <ul className="mt-1.5">
+    <Block title={<SectionTitle n={1}>Nearest research zones</SectionTitle>} aside="to zone centre">
+      <ul className="border-y border-line">
         {near.map(({ s, km }) => (
           <li key={s.id} className="border-b border-line last:border-b-0">
             <button type="button" onClick={() => { if (selection) useExplorer.getState().set({ origin: selection, kept: null }); select(zoneSelection(s)); }}
-              className="hit flex w-full items-center justify-between gap-3 rounded-control py-2 text-left hover:bg-elevated/60">
-              <span className="flex min-w-0 items-center gap-2.5">
-                <OutcomeGlyph type={bySite[s.id]?.type} />
-                <span className="truncate text-label text-ink">{zoneName(s.id)}</span>
-              </span>
+              className="hit group relative -mx-2 flex w-[calc(100%+16px)] items-center gap-3 px-2 py-2.5 text-left transition-colors duration-150 hover:bg-white/[0.04] active:bg-white/[0.08] active:duration-0">
+              <span aria-hidden className="absolute inset-y-0 left-0 w-0.5 bg-ink opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100" />
+              <OutcomeGlyph type={bySite[s.id]?.type} />
+              <span className="min-w-0 flex-1 truncate text-label text-ink">{zoneName(s.id)}</span>
               <span className="shrink-0 text-caption text-muted"><KmFigure km={km} /></span>
             </button>
           </li>
         ))}
       </ul>
-    </div>
+    </Block>
   );
 }
 
 /** Distance with a mono figure and a text-face unit (great-circle distance to the zone centre). */
 export function KmFigure({ km }: { km: number }) {
   const [v, u] = formatKm(km).split(" ");
-  return <span><span className="num">{v}</span> {u}</span>;
+  return <span className="whitespace-nowrap"><span className="num">{v}</span> {u}</span>;
 }
 
 /** Actions for an off-zone point: go to the nearest zone (keeping this point marked) or keep this point. */
@@ -100,13 +105,21 @@ export function OutsideActions({ selection }: { selection: Selection }) {
     if (!near) return;
     set({ origin: selection, kept: null });
     select(zoneSelection(near.site));
-    useApp.getState().announce(`Moved to the nearest research zone, ${near.name}${near.km !== null && near.km !== undefined ? `, ${formatKm(near.km)} away` : ""}. Your point ${formatCoord(selection.lat, selection.lon)} stays marked.`);
+    useApp.getState().announce(`Moved to the nearest research zone, ${near.name}${typeof near.km === "number" ? `, ${formatKm(near.km)} away` : ""}. Your point ${formatCoord(selection.lat, selection.lon)} stays marked.`);
   };
   return (
     <div className="space-y-1.5">
-      <Button variant="primary-mars" className="w-full py-2.5" onClick={go} disabled={!near}>
-        {near ? <span>Go to nearest zone · {near.name}{near.km !== null && near.km !== undefined && <> · <KmFigure km={near.km} /><span className="sr-only"> to its centre</span></>}</span> : "Loading research zones…"}
-        <ArrowRight className="h-4 w-4" aria-hidden />
+      <Button variant="primary-mars" className="w-full justify-start! py-2.5 text-left" onClick={go} disabled={!near}>
+        {near ? (
+          <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+            <span>Go to nearest zone</span>
+            <span className="truncate text-[13px] font-medium normal-case tracking-normal text-space/70">
+              {near.name}
+              {typeof near.km === "number" && <> · <KmFigure km={near.km} /><span className="sr-only"> to its centre</span></>}
+            </span>
+          </span>
+        ) : <span className="flex-1">Loading research zones…</span>}
+        <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
       </Button>
       {!isKept && (
         <Button variant="ghost" className="w-full" onClick={() => { set({ kept: selection }); useApp.getState().announce("Point kept. Measurements are not available here."); }}>
