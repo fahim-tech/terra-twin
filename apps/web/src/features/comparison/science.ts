@@ -54,3 +54,74 @@ export const PLANETARY_DIFFERENCES = [
   { factor: "Biology", mars: "No known biosphere", earth: "Biologically active", note: "Earth surfaces carry biological weathering and soils; relevance depends on the investigation." },
 ];
 export const DIFFERENCES_SOURCE = "NASA NSSDCA Planetary Fact Sheets (nssdc.gsfc.nasa.gov/planetary/factsheet)";
+
+// ---------------------------------------------------------------- ratio chart geometry
+
+/** Log axis of the measurements chart: Earth/Mars from 0.5× to 2×. Hurst uses a linear Δ axis of ±0.3. */
+export const RATIO_DOMAIN: [number, number] = [0.5, 2];
+export const HURST_DOMAIN = 0.3;
+
+export interface RatioRow {
+  key: string;
+  label: string;
+  unit: string;
+  mars: number | null;
+  earth: number | null;
+  /** Kernel per-descriptor similarity (from the API); null when not computable. */
+  s: number | null;
+  transform: "log" | "linear";
+  tol: number;
+  /** Earth/Mars ratio (log rows) or Earth − Mars (linear rows); null when either value is missing or non-positive. */
+  value: number | null;
+  /** Position of the value on the row's axis, 0..1, clamped. */
+  pos: number | null;
+  /** True when the value lies outside the drawn axis and is pinned to its edge. */
+  clipped: boolean;
+  /** Tolerance band on the axis, 0..1. */
+  band: [number, number];
+  /** Within research tolerance (kernel s ≥ 1/e, which is the same as the value lying inside the band). */
+  within: boolean | null;
+  /** Short relation, e.g. "1.33× higher on Earth", "+0.02 on Earth". */
+  relation: string;
+}
+
+const log2 = (x: number) => Math.log(x) / Math.LN2;
+/** 0..1 on the 0.5×–2× log axis. */
+export function ratioPos(r: number): number {
+  return (log2(r) - log2(RATIO_DOMAIN[0])) / (log2(RATIO_DOMAIN[1]) - log2(RATIO_DOMAIN[0]));
+}
+/** 0..1 on the ±0.3 linear Δ axis. */
+export function deltaPos(d: number): number {
+  return (d + HURST_DOMAIN) / (2 * HURST_DOMAIN);
+}
+const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
+
+/** One chart row from Mars/Earth values and the registry tolerance (no new thresholds). */
+export function ratioRow(key: string, mars: number | null, earth: number | null, s: number | null, label?: string, unit?: string): RatioRow {
+  const spec = TIER1_SPECS[key] ?? { label: label ?? key, unit: unit ?? "", tol: 0.3, transform: "log" as const };
+  const base = { key, label: label ?? spec.label, unit: unit ?? spec.unit, mars, earth, s, transform: spec.transform, tol: spec.tol };
+  if (spec.transform === "linear") {
+    const band: [number, number] = [deltaPos(-spec.tol), deltaPos(spec.tol)];
+    if (mars === null || earth === null) return { ...base, value: null, pos: null, clipped: false, band, within: null, relation: "Not comparable — value missing" };
+    const d = earth - mars;
+    const raw = deltaPos(d);
+    const within = s !== null ? s >= S_AT_TOLERANCE : Math.abs(d) <= spec.tol;
+    return { ...base, value: d, pos: clamp01(raw), clipped: raw < 0 || raw > 1, band, within, relation: `${d >= 0 ? "+" : "−"}${Math.abs(d).toFixed(2)} on Earth` };
+  }
+  const band: [number, number] = [ratioPos(1 / (1 + spec.tol)), ratioPos(1 + spec.tol)];
+  if (mars === null || earth === null || mars <= 0 || earth <= 0) return { ...base, value: null, pos: null, clipped: false, band, within: null, relation: "Not comparable — value missing" };
+  const r = earth / mars;
+  const raw = ratioPos(r);
+  const within = s !== null ? s >= S_AT_TOLERANCE : r >= 1 / (1 + spec.tol) && r <= 1 + spec.tol;
+  const relation = Math.abs(r - 1) < 0.005 ? "Equal on both" : r > 1 ? `${r.toFixed(2)}× higher on Earth` : `${(1 / r).toFixed(2)}× lower on Earth`;
+  return { ...base, value: r, pos: clamp01(raw), clipped: raw < 0 || raw > 1, band, within, relation };
+}
+
+/** Splits rows into "Similar" (inside tolerance), "Different" (outside) and "Not comparable". */
+export function groupRows(rows: RatioRow[]) {
+  return {
+    similar: rows.filter((r) => r.within === true),
+    different: rows.filter((r) => r.within === false),
+    missing: rows.filter((r) => r.within === null),
+  };
+}
