@@ -113,6 +113,8 @@ export function MarsSearch() {
   };
 
   const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Tab leaves the combobox: close the list so focus moves on to the next control, never onto the list itself.
+    if (e.key === "Tab") { setOpen(false); return; }
     if (e.key === "Enter") { e.preventDefault(); if (open || coord) choose(active, true); else openList(); return; }
     if (e.key === "Escape") {
       if (open || q) { e.preventDefault(); e.stopPropagation(); if (open) setOpen(false); else setQ(""); }
@@ -201,7 +203,7 @@ export function MarsSearch() {
         {open && (
           <motion.div key="list" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
             className="absolute inset-x-0 top-[calc(100%-1px)] z-40 overflow-hidden rounded-b-control bg-surface shadow-[inset_0_0_0_1px_rgb(255_255_255/0.1),0_24px_60px_-20px_rgb(0_0_0/0.85)]">
-            <ul ref={list} id={listId} role="listbox" aria-label={coord ? "Coordinate" : "Research zones"} className="scroll-thin fade-edges max-h-[min(56vh,440px)] overflow-y-auto py-1">
+            <ul ref={list} id={listId} role="listbox" tabIndex={-1} aria-label={coord ? "Coordinate" : "Research zones"} className="scroll-thin fade-edges max-h-[min(56vh,440px)] overflow-y-auto py-1">
               {coord ? (
                 <li role="presentation">
                   <div id={`${listId}-coord`} role="option" aria-selected onMouseDown={(e) => e.preventDefault()} onClick={() => choose(0)}
