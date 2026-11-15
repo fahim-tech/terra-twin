@@ -8,13 +8,13 @@ describe("comparison modes", () => {
     expect(relief?.label).toBe("3D relief");
   });
 
-  it("does not offer 3D relief until a viewer is wired (no placeholder state)", () => {
+  it("never offers 3D relief without a viewer (no placeholder state)", () => {
     expect(visibleModes({ relief: false }).map((m) => m.value)).toEqual(["spatial", "measurements", "evidence", "relevance"]);
-    expect(visibleModes({ relief: ReliefViewer !== null }).some((m) => m.value === "relief")).toBe(ReliefViewer !== null);
   });
 
-  it("offers 3D relief last once wired", () => {
-    const modes = visibleModes({ relief: true }).map((m) => m.value);
+  it("offers 3D relief, last, now that the relief viewer is wired", () => {
+    expect(ReliefViewer).not.toBeNull();
+    const modes = visibleModes({ relief: ReliefViewer !== null }).map((m) => m.value);
     expect(modes).toEqual(["spatial", "measurements", "evidence", "relevance", "relief"]);
   });
 
@@ -28,5 +28,13 @@ describe("comparison modes", () => {
     expect(nextMode(m, "measurements", "Enter")).toBeNull();
     // A mode that is not offered never moves the selection.
     expect(nextMode(m, "relief", "ArrowRight")).toBeNull();
+  });
+
+  it("reaches 3D relief from the keyboard once it is offered, and wraps from it", () => {
+    const m = visibleModes({ relief: true }).map((x) => x.value);
+    expect(nextMode(m, "relevance", "ArrowRight")).toBe("relief");
+    expect(nextMode(m, "relief", "ArrowRight")).toBe("spatial");
+    expect(nextMode(m, "spatial", "ArrowLeft")).toBe("relief");
+    expect(nextMode(m, "measurements", "End")).toBe("relief");
   });
 });
