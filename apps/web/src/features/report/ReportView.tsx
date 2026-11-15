@@ -483,10 +483,10 @@ function Exports({ search, c, mission, generatedAt }: { search: AnalogSearch; c:
         {copied ? <Check className="h-3.5 w-3.5" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}{copied ? "Copied" : "Copy JSON"}
       </Button>
       <Button variant="ghost" onClick={() => { download(`${base}.json`, json(), "application/json"); announce("Report JSON downloaded"); }}>
-        <Download className="h-3.5 w-3.5" aria-hidden />Download JSON
+        <Download className="h-3.5 w-3.5" aria-hidden /><span className="max-sm:sr-only">Download</span> JSON
       </Button>
       <Button variant="ghost" onClick={() => { download(`${base}.csv`, buildCsv(search, c), "text/csv"); announce("Report CSV downloaded"); }}>
-        <Download className="h-3.5 w-3.5" aria-hidden />Download CSV
+        <Download className="h-3.5 w-3.5" aria-hidden /><span className="max-sm:sr-only">Download</span> CSV
       </Button>
       <Button variant="outline" onClick={() => window.print()}>
         <Printer className="h-3.5 w-3.5" aria-hidden />Print
