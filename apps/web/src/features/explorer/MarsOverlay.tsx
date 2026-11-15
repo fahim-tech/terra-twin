@@ -8,15 +8,15 @@ import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
 import { Callouts, type Callout } from "./Callouts";
 import { useExplorer } from "./explorerStore";
-import { Mark } from "./parts";
-import { formatCoord, formatKm, readZone } from "./zones";
+import { KmFigure, Mark } from "./parts";
+import { formatCoord, readZone } from "./zones";
 
 /** Callout label: a dark plate with corner brackets, condensed caps name over a mono coordinate. */
 function Plate({ title, coord, tone, align = "left" }: { title: string; coord: string; tone: "mars" | "neutral"; align?: "left" | "right" }) {
   const frame = { "--frame-l": "6px", "--frame-c": tone === "mars" ? "rgb(236 127 83 / 0.95)" : "rgb(242 244 245 / 0.7)" } as CSSProperties;
   return (
     <div style={frame} className={cx("frame on-imagery whitespace-nowrap bg-[rgb(2_3_4/0.8)] px-2.5 pb-[5px] pt-[3px]", align === "right" && "text-right")}>
-      <div className="font-[family-name:var(--font-display)] text-[16px] font-semibold uppercase leading-[1.2] tracking-[0.06em] text-ink">{title}</div>
+      <div className="toponym text-[16px] leading-[1.2] tracking-[0.06em] text-ink">{title}</div>
       <div className="num text-[11px] leading-[1.3] text-ink/80">{coord}</div>
     </div>
   );
@@ -109,14 +109,14 @@ function HoverReadout() {
         {z.inside ? (
           <>
             <span className="kicker !text-muted">Research zone</span>
-            <span className="font-[family-name:var(--font-display)] text-[15px] font-semibold uppercase leading-none tracking-[0.05em] text-ink">{z.name}</span>
+            <span className="toponym text-[15px] leading-none tracking-[0.05em] text-ink">{z.name}</span>
           </>
         ) : (
           <>
             <span className="kicker !text-muted">No terrain data</span>
             <span className="text-label text-muted">
               nearest <span className="text-ink">{z.name}</span>
-              {typeof z.km === "number" && <>, <span className="num text-ink">{formatKm(z.km).split(" ")[0]}</span> km to centre</>}
+              {typeof z.km === "number" && <>, <span className="text-ink"><KmFigure km={z.km} /></span> to centre</>}
             </span>
           </>
         )}

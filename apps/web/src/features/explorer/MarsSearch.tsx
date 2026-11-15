@@ -8,10 +8,10 @@ import { useEvidence, useMissions, useSites } from "../../services/api";
 import { useApp, type Selection } from "../../store/app";
 import { useExplorer } from "./explorerStore";
 import { OUTCOME_COPY, useSiteOutcomes } from "./outcomes";
-import { Kbd, Mark } from "./parts";
+import { Kbd, KmFigure, Mark } from "./parts";
 import { nextActive, revealDelta } from "./readouts";
 import { useScales } from "./useScales";
-import { formatCoord, formatKm, readZone, selectionFor, zoneSelection } from "./zones";
+import { formatCoord, readZone, selectionFor, zoneSelection } from "./zones";
 
 /**
  * Shown first (spec §8): zones that between them show a stable leader, a tie and a documented
@@ -204,7 +204,7 @@ export function MarsSearch() {
                           {coordZone.inside
                             ? <span>Inside research zone · <span className="text-ink">{coordZone.name}</span></span>
                             : <span>Outside research zones · nearest <span className="text-ink">{coordZone.name}</span>
-                                {typeof coordZone.km === "number" && <>, <span className="whitespace-nowrap"><span className="num">{formatKm(coordZone.km).split(" ")[0]}</span> km to centre</span></>}
+                                {typeof coordZone.km === "number" && <>, <KmFigure km={coordZone.km} /> to centre</>}
                               </span>}
                         </span>
                       )}

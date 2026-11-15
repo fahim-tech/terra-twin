@@ -9,7 +9,7 @@ import { zoneName } from "../../lib/glossary";
 import { useExplorer } from "./explorerStore";
 import { OutcomeGlyph } from "./MarsSearch";
 import { useSiteOutcomes } from "./outcomes";
-import { Mark, SectionTitle } from "./parts";
+import { KmFigure, Mark, SectionTitle } from "./parts";
 import { useScales } from "./useScales";
 import { formatCoord, formatKm, readZone, zoneSelection } from "./zones";
 
@@ -88,11 +88,8 @@ function NearbyZones({ lat, lon }: { lat?: number; lon?: number }) {
   );
 }
 
-/** Distance with a mono figure and a text-face unit (great-circle distance to the zone centre). */
-export function KmFigure({ km }: { km: number }) {
-  const [v, u] = formatKm(km).split(" ");
-  return <span className="whitespace-nowrap"><span className="num">{v}</span> {u}</span>;
-}
+/** Kept here too for views that already import it from this module (the Earth no-result view). */
+export { KmFigure };
 
 /** Actions for an off-zone point: go to the nearest zone (keeping this point marked) or keep this point. */
 export function OutsideActions({ selection }: { selection: Selection }) {

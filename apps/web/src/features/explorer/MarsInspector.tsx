@@ -205,7 +205,7 @@ function MissionRow({ compact }: { compact?: boolean }) {
         {/* Native select for its accessibility and phone pickers, drawn as a square instrument field with our own chevron. */}
         <span className="relative min-w-0 flex-1">
           <select id="mars-mission" value={mission} onChange={(e) => useApp.getState().set({ mission: e.target.value })}
-            className="hit h-9 w-full cursor-pointer appearance-none truncate rounded-control bg-white/[0.025] py-0 pl-3 pr-9 font-[family-name:var(--font-display)] text-[14px] font-semibold uppercase tracking-[0.08em] text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)] transition-[box-shadow,background-color] duration-150 hover:bg-white/[0.05] hover:shadow-[inset_0_0_0_1px_rgb(242_244_245/0.4)]">
+            className="hit h-9 w-full cursor-pointer appearance-none truncate rounded-control bg-white/[0.025] py-0 pl-3 pr-9 toponym text-[14px] tracking-[0.08em] text-ink shadow-[inset_0_0_0_1px_var(--color-line-strong)] transition-[box-shadow,background-color] duration-150 hover:bg-white/[0.05] hover:shadow-[inset_0_0_0_1px_rgb(242_244_245/0.4)]">
             {(missions.data ?? [{ id: mission, label: "Loading…", available: true } as MissionProfile]).map((x) => (
               <option key={x.id} value={x.id} disabled={!x.available}>{x.label}{x.available ? "" : " — not available yet"}</option>
             ))}

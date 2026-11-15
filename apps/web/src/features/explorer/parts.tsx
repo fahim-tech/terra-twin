@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cx } from "../../components/ui";
+import { formatKm } from "./zones";
 
 /** Numbered section title for a `Block`: "01  TERRAIN" (the Block draws the hairline after it). */
 export function SectionTitle({ n, children }: { n: number; children: ReactNode }) {
@@ -38,4 +39,10 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
       {children}
     </kbd>
   );
+}
+
+/** Distance with a mono figure and a text-face unit, kept on one line (e.g. great-circle km to a zone centre). */
+export function KmFigure({ km }: { km: number }) {
+  const [v, u] = formatKm(km).split(" ");
+  return <span className="whitespace-nowrap"><span className="num">{v}</span> {u}</span>;
 }

@@ -1,5 +1,4 @@
 import { Disclosure, Term } from "../../components/primitives";
-import { cx } from "../../components/ui";
 import type { MarsAnalysis } from "../../types/contracts";
 import { InfoPopover } from "./InfoPopover";
 import { Mark } from "./parts";
@@ -58,7 +57,7 @@ export function Availability({ a }: { a: MarsAnalysis }) {
           <ul className="space-y-1.5 pb-1">
             {missing.map((f) => (
               <li key={f.key} className="flex gap-2.5 text-caption">
-                <span aria-hidden className={cx("mt-[6px] h-1 w-1 shrink-0 bg-faint")} />
+                <span aria-hidden className="mt-[6px] h-1 w-1 shrink-0 bg-faint" />
                 <span><span className="text-ink">{f.label}</span> <span className="text-faint">— {f.reason ?? "no dataset connected"}</span></span>
               </li>
             ))}
