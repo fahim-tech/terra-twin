@@ -10,7 +10,8 @@ import type { AnalogSearch } from "../../types/contracts";
 
 /** "USGS MOLA 463 m mosaic (TERRATWIN_MOLA_MOSAIC)" → plain name + env name in mono. */
 function MissingInput({ text }: { text: string }) {
-  const m = /^(.*?)\s*\(([A-Z0-9_]+)\)\s*$/.exec(text);
+  // Env names and function names are technical details: set them in mono after the plain name.
+  const m = /^(.*?)\s*\(([A-Z0-9_]+)\)\s*$/.exec(text) ?? /^(.*?)\s*([a-z_]+\(\))\s*$/.exec(text);
   return (
     <li className="flex flex-wrap items-baseline gap-x-2 py-1 text-caption text-ink">
       <span aria-hidden className="text-faint">○</span>

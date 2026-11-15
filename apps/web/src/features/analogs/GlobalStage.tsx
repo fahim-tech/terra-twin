@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Kicker, Term } from "../../components/primitives";
 import { Button, cx, Segmented } from "../../components/ui";
 import { api } from "../../services/api";
 import { useApp } from "../../store/app";
+import { useGlobes } from "../../store/globes";
 import { searchTarget } from "../../store/searchTarget";
-import type { AnalogSearch } from "../../types/contracts";
+import type { AnalogSearch, Tier1Candidate } from "../../types/contracts";
 import { type CandidateView, candidateList, coord, groupNearTop } from "./candidates";
 import { chooseCandidate } from "./tierMemory";
+import { contiguousCount, mergeByRank, tier1InView, type ViewBox, viewBox } from "./viewQuery";
 
 const NEAR_TOL = 0.05;
 
@@ -40,28 +42,55 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
   const t1 = search.tier1!;
   const knownFilter = useApp((s) => s.knownFilter);
   const set = useApp((s) => s.set);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<null | "more" | "view">(null);
+  const [inView, setInView] = useState<{ searchId: string; ids: Set<string>; total: number; box: ViewBox } | null>(null);
+  const camera = useGlobes((s) => s.camera.earth);
+  const insets = useGlobes((s) => s.insets.earth);
   const target = searchTarget(search)!;
-  const rows = candidateList(search).filter((c) => c.tier === 1)
+  const view = inView?.searchId === search.id ? inView : null;
+  const all = candidateList(search).filter((c) => c.tier === 1);
+  const rows = (view ? all.filter((c) => view.ids.has(c.id)) : all)
     .filter((c) => knownFilter === "all" || c.t1?.known_analog.status === knownFilter);
   const top = t1.summary.leader_similarity;
   const { near, rest } = groupNearTop(rows, top, NEAR_TOL);
-  const shown = t1.candidates.length;
+  const contiguous = contiguousCount(t1.candidates);
   const km = t1.candidate_pool.cell_size_km;
+  const frame = typeof window === "undefined" ? null : { w: window.innerWidth - insets.left - insets.right, h: window.innerHeight - 52 - insets.top - insets.bottom };
+  const box = frame ? viewBox(camera, frame.w, frame.h) : null;
+
+  /** Merge cells into the search (so they can be selected and compared) keeping global ranks. */
+  const merge = (cells: Tier1Candidate[]) => {
+    const cur = useApp.getState().search;
+    if (cur?.id !== search.id || !cur.tier1) return false; // a newer search replaced this one
+    set({ search: { ...cur, tier1: { ...cur.tier1, candidates: mergeByRank(cur.tier1.candidates, cells) } } });
+    return true;
+  };
 
   const loadMore = async () => {
     if (!search.mars.site) return;
-    setLoading(true);
+    setLoading("more");
     try {
-      const page = await api.tier1Page(search.mars.site, target.mission, shown, 100);
-      const cur = useApp.getState().search;
-      if (cur?.id !== search.id || !cur.tier1) return; // a newer search replaced this one
-      set({ search: { ...cur, tier1: { ...cur.tier1, candidates: [...cur.tier1.candidates, ...page.candidates] } } });
-      useApp.getState().announce(`Loaded ${page.candidates.length} more cells. ${(shown + page.candidates.length).toLocaleString()} of ${t1.total.toLocaleString()} shown.`);
+      const page = await api.tier1Page(search.mars.site, target.mission, contiguous, 100);
+      if (merge(page.candidates)) useApp.getState().announce(`Loaded ${page.candidates.length} more cells, ranks ${contiguous + 1} to ${contiguous + page.candidates.length}.`);
     } catch (e) {
       useApp.getState().announce(`Could not load more cells: ${(e as Error).message}`, true);
     } finally {
-      setLoading(false);
+      setLoading(null);
+    }
+  };
+
+  const rankInView = async () => {
+    if (!search.mars.site || !box) return;
+    setLoading("view");
+    try {
+      const res = await tier1InView(search.mars.site, target.mission, box, 100);
+      if (!merge(res.candidates)) return;
+      setInView({ searchId: search.id, ids: new Set(res.candidates.map((c) => `t1:${c.region_id}`)), total: res.total, box });
+      useApp.getState().announce(res.total ? `${res.total.toLocaleString()} screened cells in view; showing the ${Math.min(res.total, res.candidates.length)} highest by global rank.` : "No screened land cells in this view.");
+    } catch (e) {
+      useApp.getState().announce(`Could not rank cells in view: ${(e as Error).message}`, true);
+    } finally {
+      setLoading(null);
     }
   };
 
@@ -82,12 +111,21 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
           options={[{ value: "all", label: "All cells" }, { value: "not_in_reference_set", label: "Not in reference set" }, { value: "near_documented_analog", label: "Near known analog" }]} />
       </div>
 
+      {view && (
+        <div className="mt-3 flex items-start justify-between gap-3 rounded-control bg-elevated px-3 py-2">
+          <p className="text-caption text-muted">
+            <span className="text-ink">In view</span> · <span className="num text-num-sm text-ink">{view.total.toLocaleString()}</span> cells between{" "}
+            <span className="num text-num-sm">{coord(view.box.north, view.box.west, 1)}</span> and <span className="num text-num-sm">{coord(view.box.south, view.box.east, 1)}</span>.
+            Ranks stay global{view.total > view.ids.size ? `; the ${view.ids.size} highest are listed` : ""}.
+          </p>
+          <button type="button" onClick={() => setInView(null)} className="hit shrink-0 text-caption text-ink underline decoration-faint underline-offset-2 hover:decoration-ink">All ranks</button>
+        </div>
+      )}
+
       {near.length > 0 && (
         <div className="mt-3">
-          <div className="flex items-baseline justify-between gap-3 px-2 pb-1">
-            <span className="text-caption text-muted">
-              <span className="num text-num-sm text-ink">{t1.summary.n_within_0p05_of_leader}</span> cells within {NEAR_TOL.toFixed(2)} of the top — not ranked against each other
-            </span>
+          <div className="px-2 pb-1 text-caption text-muted">
+            <span className="num text-num-sm text-ink">{view ? near.length : t1.summary.n_within_0p05_of_leader}</span> cells within {NEAR_TOL.toFixed(2)} of the top — not ranked against each other
           </div>
           <ul role="group" aria-label="Cells within 0.05 of the top, not ranked against each other" className="rounded-control bg-white/[0.025]">
             {near.map((c) => <CellRow key={c.id} c={c} on={candidateId === c.id} approx />)}
@@ -95,17 +133,34 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
         </div>
       )}
       {rest.length > 0 && (
-        <ul aria-label="Further cells by rank" className="mt-2">
-          {rest.map((c) => <CellRow key={c.id} c={c} on={candidateId === c.id} approx={false} />)}
+        <ul aria-label="Further cells by global rank" className="mt-2">
+          {rest.map((c, i) => {
+            const prev = i ? rest[i - 1].rank! : near.length ? near[near.length - 1].rank! : 0;
+            const gap = !view && knownFilter === "all" && c.rank! - prev > 1;
+            return (
+              <Fragment key={c.id}>
+                {gap && <li aria-hidden className="px-2 py-1 text-caption text-faint">⋯ ranks {prev + 1}–{c.rank! - 1} not loaded</li>}
+                <CellRow c={c} on={candidateId === c.id} approx={false} />
+              </Fragment>
+            );
+          })}
         </ul>
       )}
-      {rows.length === 0 && <p className="px-2 py-4 text-caption text-muted">No loaded cell matches this filter. Load more cells or choose “All cells”.</p>}
+      {rows.length === 0 && <p className="px-2 py-4 text-caption text-muted">{view ? "No screened land cell in this view matches." : "No loaded cell matches this filter. Load more cells or choose “All cells”."}</p>}
 
-      <div className="mt-2 flex items-center justify-between gap-3 px-2">
-        <span className="text-caption text-faint"><span className="num text-num-sm">{shown.toLocaleString()}</span> of <span className="num text-num-sm">{t1.total.toLocaleString()}</span> shown</span>
-        {shown < t1.total && (
-          <Button variant="ghost" onClick={loadMore} disabled={loading || !search.mars.site}>{loading ? "Loading…" : "Load 100 more"}</Button>
-        )}
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-2">
+        <span className="text-caption text-faint">
+          {view ? <>Ranked in view</> : <><span className="num text-num-sm">{contiguous.toLocaleString()}</span> of <span className="num text-num-sm">{t1.total.toLocaleString()}</span> by rank</>}
+        </span>
+        <span className="flex items-center gap-1">
+          <Button variant="ghost" onClick={rankInView} disabled={!!loading || !box || !search.mars.site}
+            title={box ? "List the screened cells inside the current globe view" : "Zoom in so the view centre is on the planet"}>
+            {loading === "view" ? "Ranking…" : "Rank cells in view"}
+          </Button>
+          {!view && contiguous < t1.total && (
+            <Button variant="ghost" onClick={loadMore} disabled={!!loading || !search.mars.site}>{loading === "more" ? "Loading…" : "Load more"}</Button>
+          )}
+        </span>
       </div>
       <p className="mt-2 px-2 text-caption text-faint">◆ near a documented analog · ⚠ data-quality flag. {t1.disclaimer}</p>
     </section>

@@ -8,7 +8,7 @@ import { useMissions } from "../../services/api";
 import { useApp } from "../../store/app";
 import { resultsAreStale, searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
-import { type CandidateView, candidateList, measuresOf, prettyWindow, selectedCandidate, T2_MEASURES } from "./candidates";
+import { type CandidateView, candidateList, decisionMembers, measuresOf, prettyWindow, selectedCandidate, T2_MEASURES, unorderedMembers } from "./candidates";
 import { GlobalStage } from "./GlobalStage";
 import { NoResult } from "./NoResult";
 import { ResearchStage } from "./ResearchStage";
@@ -74,7 +74,8 @@ function Footer({ current, search, target }: { current: CandidateView | null; se
     return hint ? <PanelFooter><p className="text-caption text-muted">{hint}</p></PanelFooter> : null;
   }
   const isT2 = current.tier === 2;
-  const tieIdx = isT2 && d.type === "tied_set" ? d.members.indexOf(current.t2!.id) : -1;
+  // Position in the west-to-east listing, never in the API order (which is by S and would read as a rank).
+  const tieIdx = isT2 && d.type === "tied_set" ? unorderedMembers(decisionMembers(search.tier2)).findIndex((m) => m.id === current.t2!.id) : -1;
   const n = isT2 ? measuresOf(current.coverage, T2_MEASURES) : current.t1?.n_features_used ?? null;
   const total = isT2 ? T2_MEASURES : 7;
   return (
@@ -118,9 +119,10 @@ export function AnalogResults() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <PanelHeader className="pb-1">
-        <h2 data-stage-heading="earth" tabIndex={-1} className="outline-none focus-visible:outline-none">
+        {/* Focus lands here after a stage change (screen readers announce it); the heading is not interactive, so no ring. */}
+        <h2 data-stage-heading="earth" tabIndex={-1} style={{ outline: "none" }}>
           <span className="block text-caption text-muted">Results for</span>
-          <span className="toponym mt-0.5 block text-toponym text-ink">{targetName(target)}</span>
+          <span className="toponym mt-0.5 block text-toponym-sm text-ink sm:text-toponym">{targetName(target)}</span>
         </h2>
         <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
           <span className="text-mars">{mission?.label ?? target.mission.replace(/_/g, " ")}</span>
