@@ -1,0 +1,30 @@
+# Dependencies and builds
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Imported research artefacts and source rasters (large / unpublished; see docs/research-integration.md)
+apps/api/data/research/
+apps/api/data/rasters/
+*.tif
+*.img
+*.npy
+*.pkl
+*.parquet
+*.zip
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
