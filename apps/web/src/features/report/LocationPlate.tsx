@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { useGlobeBus } from "../../app/globeBus";
 import { cx } from "../../components/ui";
@@ -138,7 +139,9 @@ export function LocationPlate({ planet, plate, lat, lon, frame, kicker, name, im
       <div className="frame relative mt-3 [--frame-l:12px]" style={{ padding: MARGIN }}>
         <div className="@container relative aspect-[4/3] w-full overflow-hidden bg-elevated ring-1 ring-ink/45 [print-color-adjust:exact]">
           {onImagery ? (
-            <img src={snap.shot.dataUrl} alt={`${planetName} imagery centred on ${coord}, seen from ${PLATE_HEIGHT_KM} km, north up, with the ${frame.label} outlined.`}
+            // Both plates are released together; the imagery cross-fades in (an opacity change, kept under reduced motion).
+            <motion.img src={snap.shot.dataUrl} alt={`${planetName} imagery centred on ${coord}, seen from ${PLATE_HEIGHT_KM} km, north up, with the ${frame.label} outlined.`}
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
               className="absolute inset-0 h-full w-full object-cover" />
           ) : (
             <div className="absolute inset-x-0 top-[66%] px-6 text-center" role={snap.status === "loading" ? "status" : undefined}>
