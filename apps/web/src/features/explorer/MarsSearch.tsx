@@ -88,7 +88,7 @@ export function MarsSearch() {
         <Search className="h-4 w-4 shrink-0 text-muted" aria-hidden />
         <input ref={input} value={q} onChange={(e) => { setQ(e.target.value); setOpen(true); setActive(0); }} onFocus={() => setOpen(true)} onClick={() => setOpen(true)} onKeyDown={onKey}
           role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list" aria-activedescendant={activeId}
-          placeholder={selection ? `${selection.label} · search zones or lat, lon` : `Search ${sites.data?.length ?? 39} research zones or enter lat, lon`}
+          placeholder={selection ? `${selection.siteId ? zoneName(selection.siteId) : formatCoord(selection.lat, selection.lon)} · search zones or lat, lon` : `Search ${sites.data?.length ?? 39} research zones or enter lat, lon`}
           aria-label="Search research zones or enter a latitude and longitude"
           style={{ outline: "none" }} className="h-full min-w-0 flex-1 bg-transparent text-body text-ink placeholder:text-muted" />
         {q && (
@@ -109,7 +109,7 @@ export function MarsSearch() {
                   <span className="block text-label text-ink">Go to <span className="num">{formatCoord(coord.lat, coord.lon)}</span></span>
                   {coordZone && (
                     <span className="mt-0.5 block text-caption text-muted">
-                      {coordZone.inside ? <>Inside research zone · {coordZone.name}</> : <>Outside research zones · nearest {coordZone.name}, <span className="num">{formatKm(coordZone.km ?? 0)}</span></>}
+                      {coordZone.inside ? <>Inside research zone · {coordZone.name}</> : <>Outside research zones · nearest {coordZone.name}, <span className="whitespace-nowrap"><span className="num">{formatKm(coordZone.km ?? 0).split(" ")[0]}</span> km</span></>}
                     </span>
                   )}
                 </span>

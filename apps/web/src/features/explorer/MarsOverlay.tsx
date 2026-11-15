@@ -1,4 +1,5 @@
 import { AnnotationLayer, type Annotation } from "../../components/map/Annotations";
+import { zoneName } from "../../lib/glossary";
 import { useSites } from "../../services/api";
 import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
@@ -28,7 +29,7 @@ export function MarsOverlay() {
       id: "selection", lat: selection.lat, lon: selection.lon, tone: "mars", side: sideFor("selection", "ne"),
       content: (
         <div className="on-imagery whitespace-nowrap">
-          <div className="toponym text-toponym-sm text-ink">{selection.siteId ? selection.label : "Selected point"}</div>
+          <div className="toponym text-toponym-sm text-ink">{selection.siteId ? zoneName(selection.siteId) : "Selected point"}</div>
           <div className="num text-num-sm text-ink/85">{formatCoord(selection.lat, selection.lon)}</div>
         </div>
       ),
