@@ -98,4 +98,4 @@ export const useRelief = (id: string | null | undefined) =>
   useQuery({ queryKey: ["relief", id], queryFn: () => api.relief(id!), enabled: !!id });
 /** A 503 here is a state (the mosaic is not connected), not a transient failure, so it is never retried. */
 export const useMarsRelief = (site: string | null | undefined) =>
-  useQuery({ queryKey: ["marsRelief", site], queryFn: () => api.marsRelief(site!), enabled: !!site, retry: false });
+  useQuery({ queryKey: ["marsRelief", site], queryFn: () => api.marsRelief(site!), enabled: !!site, retry: false, retryOnMount: false, staleTime: 10 * 60_000 });
