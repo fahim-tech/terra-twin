@@ -13,6 +13,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+.vercel/
 
 # Imported research artefacts and source rasters (large / unpublished; see docs/research-integration.md)
 apps/api/data/research/

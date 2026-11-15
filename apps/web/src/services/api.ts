@@ -2,7 +2,13 @@ import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { AnalogSearch, MarsAnalysis, MarsSite, MissionProfile, PoolWindow, Relief, ResearchSiteSummary, Tier1Result, VisualizationLegend } from "../types/contracts";
 
-export const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+/**
+ * API origin. VITE_API_BASE_URL wins when set (an empty value means the page's own origin). Otherwise the
+ * dev server talks to the local API, and a production build uses its own origin: on Vercel, /api and /v1
+ * are forwarded to the API server (apps/web/vercel.json).
+ */
+const CONFIGURED_API = import.meta.env.VITE_API_BASE_URL;
+export const API_BASE = (CONFIGURED_API ?? (import.meta.env.DEV ? "http://127.0.0.1:8000" : "")).replace(/\/$/, "");
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number, readonly detail?: unknown) {
