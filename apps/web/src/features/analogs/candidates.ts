@@ -70,15 +70,45 @@ export function tierOf(id: string | null): 1 | 2 | null {
   return id.startsWith("t1:") ? 1 : id.startsWith("t2:") ? 2 : null;
 }
 
-/** Number of descriptors a coverage fraction stands for (tier 2 uses 8, tier 1 uses 7). */
+/** Number of descriptors a coverage fraction stands for, out of `total` (a count read from the payloads, below). */
 export function measuresOf(coverage: number | null | undefined, total: number): number | null {
   if (coverage === null || coverage === undefined || Number.isNaN(coverage)) return null;
   return Math.round(coverage * total);
 }
 
-/** Tier-2 descriptors per research window (see `coverage_basis`). */
+/**
+ * Research descriptors per window, read from the evidence record's method (`method.features`, the descriptors S is
+ * computed from). Null while the record is not loaded or lists none: never a typed-in count.
+ */
+export function t2DescriptorCount(evidence: unknown): number | null {
+  const method = evidence && typeof evidence === "object" ? (evidence as { method?: unknown }).method : null;
+  const features = method && typeof method === "object" ? (method as { features?: unknown }).features : null;
+  return Array.isArray(features) && features.length > 0 ? features.length : null;
+}
+
+/**
+ * Global-screen descriptors per cell, read from the tier-1 weights the screen ran with (`tier1.weights`, one key per
+ * descriptor; a mission profile's `tier1_weights` has the same keys). Null when the payload carries no weights.
+ */
+export function t1DescriptorCount(weights: Record<string, number> | null | undefined): number | null {
+  const n = weights ? Object.keys(weights).length : 0;
+  return n > 0 ? n : null;
+}
+
+/** Both descriptor counts for a search, from its payloads: tier 1 from the screen's weights, tier 2 from the evidence method. */
+export function descriptorCounts(search: AnalogSearch | null | undefined, evidence: unknown): { t1: number | null; t2: number | null } {
+  return { t1: t1DescriptorCount(search?.tier1?.weights), t2: t2DescriptorCount(evidence) };
+}
+
+/**
+ * @deprecated Typed-in count kept only until the remaining call sites read `t2DescriptorCount(evidence)`; equals the
+ * evidence record's `method.features` length today (candidates.test.ts checks the fixture).
+ */
 export const T2_MEASURES = 8;
-/** Tier-1 descriptors per global-screen cell (`n_features_used` counts these). */
+/**
+ * @deprecated Typed-in count kept only until the remaining call sites read `t1DescriptorCount(search.tier1.weights)`;
+ * `n_features_used` on a cell counts the descriptors that cell actually had.
+ */
 export const T1_MEASURES = 7;
 
 /**

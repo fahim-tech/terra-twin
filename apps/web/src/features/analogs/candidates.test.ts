@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { boundsOf, groupNearTop, measuresOf, tierOf, unorderedMembers } from "./candidates";
+import { boundsOf, descriptorCounts, groupNearTop, measuresOf, t1DescriptorCount, t2DescriptorCount, T1_MEASURES, T2_MEASURES, tierOf, unorderedMembers } from "./candidates";
+import evidence from "../evidence/evidence.fixture.json";
 
 describe("boundsOf", () => {
   it("frames scattered points with the shortest longitude arc", () => {
@@ -36,6 +37,21 @@ describe("ties and measures", () => {
     expect(measuresOf(1, 8)).toBe(8);
     expect(measuresOf(0.875, 8)).toBe(7);
     expect(measuresOf(null, 8)).toBeNull();
+  });
+  it("reads the descriptor counts from the payloads, never a default", () => {
+    // Tier 2: the evidence record's method lists the descriptors S is computed from.
+    expect(t2DescriptorCount(evidence)).toBe((evidence as { method: { features: string[] } }).method.features.length);
+    expect(t2DescriptorCount(evidence)).toBe(T2_MEASURES); // the deprecated constant still agrees with the record
+    expect(t2DescriptorCount(null)).toBeNull();
+    expect(t2DescriptorCount({ method: { features: [] } })).toBeNull();
+    // Tier 1: one weight per global-screen descriptor.
+    const weights = { slope_mean: 1, slope_p90: 1, relief: 1, roughness: 1, curvature: 1, tpi: 1, hurst: 1 };
+    expect(t1DescriptorCount(weights)).toBe(7);
+    expect(t1DescriptorCount(weights)).toBe(T1_MEASURES);
+    expect(t1DescriptorCount({})).toBeNull();
+    expect(t1DescriptorCount(null)).toBeNull();
+    expect(descriptorCounts(null, null)).toEqual({ t1: null, t2: null });
+    expect(descriptorCounts({ tier1: { weights: { a: 1, b: 2 } } } as never, evidence)).toEqual({ t1: 2, t2: T2_MEASURES });
   });
   it("knows the tier of an id", () => {
     expect(tierOf("t1:gmted25k:1")).toBe(1);
