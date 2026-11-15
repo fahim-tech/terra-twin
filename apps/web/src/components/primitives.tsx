@@ -111,7 +111,7 @@ export function Term({ k, children, className }: { k: GlossaryKey; children?: Re
   return (
     <span ref={ref} className={cx("relative inline", className)} {...triggers.wrapper}>
       <button type="button" aria-describedby={open ? id : undefined} aria-expanded={open} {...triggers.button}
-        className="cursor-help underline decoration-faint/60 decoration-dotted underline-offset-[3px] hover:decoration-ink">
+        className="term-hit cursor-help underline decoration-faint/60 decoration-dotted underline-offset-[3px] hover:decoration-ink">
         {children ?? g.label}
       </button>
       <AnimatePresence>

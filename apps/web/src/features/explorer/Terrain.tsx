@@ -99,8 +99,11 @@ export function Terrain({ tier1, zone, flags }: { tier1: FeatureValue[]; zone: F
         ))}
       </dl>
 
+      {/* Two glossary triggers on separate lines with a gap, so a thumb lands on the one it means. */}
       <p className="mt-3 text-caption text-faint">
-        <Term k="globalScreen">Global-screen measures</Term> · median of 25 km cells in the zone ·{" "}
+        <Term k="globalScreen">Global-screen measures</Term> · median of 25 km cells in the zone
+      </p>
+      <p className="mt-2.5 text-caption text-faint">
         {gridFlag ? (
           <InfoPopover label="MOLA grid: what 463 m means" trigger={<span className="underline decoration-faint/50 decoration-dotted underline-offset-[3px] hover:text-ink">MOLA 463 m grid</span>}>
             <span className="mb-1 block text-label text-ink">Grid spacing, not resolution</span>
