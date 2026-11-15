@@ -162,6 +162,8 @@ export interface Model {
   elevTicks: number[];
   /** Terrain vertices, interleaved: x, z (world), elevation (m), dz/dEast, dz/dNorth. */
   terrain: Float32Array;
+  /** 1 where a terrain vertex has an elevation (the lattice is (rows + 2) × (cols + 2), row-major). */
+  ok: Uint8Array;
   terrainIndex: Uint32Array;
   /** Walls (two triangles per edge segment), interleaved: x, z, elevation (m), outward normal x, z. */
   walls: Float32Array;
@@ -267,7 +269,7 @@ export function buildModel(g: Grid): Model | null {
   const elevTicks = niceTicks(zBase, stats.max, 4).values;
   const model: Model = {
     rows, cols, cellM, widthM, heightM, scale, hx, hz, zMin: stats.min, zMax: stats.max, zBase, contour, kmTicks, elevTicks,
-    terrain, terrainIndex: Uint32Array.from(idx), walls: Float32Array.from(wall), floor,
+    terrain, ok, terrainIndex: Uint32Array.from(idx), walls: Float32Array.from(wall), floor,
     lines: { data: new Float32Array(0), ranges: { grid: [0, 0], floor: [0, 0], ticks: [0, 0], north: [0, 0] }, verticals: [], tops: [], elevRanges: [] },
     stats,
   };
@@ -510,10 +512,47 @@ export interface Probe {
   p: Vec3;
 }
 
+/** Elevation lattice corners of a quad, in the order the mesh lists them: v00, v10, v11, v01 (NW, SW, SE, NE). */
+function quadAt(m: Model, x: number, z: number) {
+  const c = m.cellM * m.scale; // one cell in world units
+  // Lattice column b spans [L(b), L(b + 1)] with L(0) = west edge, L(k) = west + (k − 0.5) cells, L(cols + 1) = east edge.
+  const b = Math.min(m.cols, Math.max(0, Math.floor((x + m.hx) / c + 0.5)));
+  const a = Math.min(m.rows, Math.max(0, Math.floor((z + m.hz) / c + 0.5)));
+  const LC = m.cols + 2;
+  const v00 = a * LC + b, v01 = v00 + 1, v10 = v00 + LC, v11 = v10 + 1;
+  const t = m.terrain;
+  const x0 = t[v00 * 5], x1 = t[v01 * 5], z0 = t[v00 * 5 + 1], z1 = t[v10 * 5 + 1];
+  return { a, b, v00, v01, v10, v11, u: x1 > x0 ? (x - x0) / (x1 - x0) : 0, v: z1 > z0 ? (z - z0) / (z1 - z0) : 0 };
+}
+
 /**
- * Grid cell under a screen point: the view ray is marched through the box onto the surface (bilinear
- * between cell centres, as drawn) and refined by bisection. Through a gap it lands on the floor and
- * reports that cell with no elevation. Null off the window.
+ * Elevation (m) of the surface exactly as the mesh draws it at world (x, z): each lattice quad is two
+ * triangles split along its north-west–south-east diagonal, or, beside a gap, the one triangle of its three
+ * valid corners; a point is interpolated on its triangle's plane. Null where nothing is drawn (a gap, where the
+ * floor shows) and outside the window.
+ */
+export function meshElevation(m: Model, x: number, z: number): number | null {
+  if (!(x >= -m.hx && x <= m.hx && z >= -m.hz && z <= m.hz)) return null;
+  const { v00, v01, v10, v11, u, v } = quadAt(m, x, z);
+  const ok = m.ok, t = m.terrain;
+  const n = ok[v00] + ok[v01] + ok[v10] + ok[v11];
+  if (n < 3) return null;
+  const e00 = t[v00 * 5 + 2], e01 = t[v01 * 5 + 2], e10 = t[v10 * 5 + 2], e11 = t[v11 * 5 + 2];
+  const sw = () => e00 + v * (e10 - e00) + u * (e11 - e10); // triangle (v00, v10, v11): v ≥ u
+  const ne = () => e00 + u * (e01 - e00) + v * (e11 - e01); // triangle (v00, v11, v01): u ≥ v
+  if (n === 4) return v >= u ? sw() : ne();
+  if (!ok[v01]) return v >= u ? sw() : null;
+  if (!ok[v10]) return u >= v ? ne() : null;
+  if (!ok[v00]) return u + v >= 1 ? e10 - e11 + e01 + u * (e11 - e10) + v * (e11 - e01) : null; // (v10, v11, v01)
+  return u + v <= 1 ? e00 + u * (e01 - e00) + v * (e10 - e00) : null; // (v00, v10, v01): v11 missing
+}
+
+/**
+ * Grid cell under a screen point. The view ray is marched through the box onto the surface as drawn
+ * (`meshElevation`, the very triangles on screen) and refined by bisection, so the probe mark sits where the
+ * pointer meets the terrain, beside water edges too. On the surface it reads the cell whose area holds the hit
+ * point (always a cell with an elevation: a triangle beside a gap never reaches into the gap cell's area).
+ * Through a gap it lands on the hatched floor and reports the gap's own cell, with no elevation. Null off the window.
  */
 export function pickCell(m: Model, g: Grid, cam: Camera, px: number, py: number, width: number, height: number): Probe | null {
   const tanV = Math.tan(FOV / 2), tanH = tanV * (width / Math.max(1, height));
@@ -534,18 +573,20 @@ export function pickCell(m: Model, g: Grid, cam: Camera, px: number, py: number,
     t1 = Math.min(t1, b);
   }
   if (!(t1 > t0)) return null;
-  const toCell = (x: number, z: number) => [(z + m.hz) / m.scale / g.cellM - 0.5, (x + m.hx) / m.scale / g.cellM - 0.5] as const;
   const surface = (x: number, z: number) => {
-    const [fr, fc] = toCell(x, z);
-    const r0 = Math.min(g.rows - 1, Math.max(0, Math.floor(fr))), c0 = Math.min(g.cols - 1, Math.max(0, Math.floor(fc)));
-    const r1 = Math.min(g.rows - 1, r0 + 1), c1 = Math.min(g.cols - 1, c0 + 1);
-    const tr = Math.min(1, Math.max(0, fr - r0)), tc = Math.min(1, Math.max(0, fc - c0));
-    const z00 = g.z[r0 * g.cols + c0], z01 = g.z[r0 * g.cols + c1], z10 = g.z[r1 * g.cols + c0], z11 = g.z[r1 * g.cols + c1];
-    const e = (z00 * (1 - tc) + z01 * tc) * (1 - tr) + (z10 * (1 - tc) + z11 * tc) * tr;
-    return Number.isFinite(e) ? (e - m.zBase) * cam.ys : -Infinity; // a gap is open down to the floor
+    const e = meshElevation(m, x, z);
+    return e === null ? -Infinity : (e - m.zBase) * cam.ys; // a gap is open down to the floor
   };
   const at = (t: number): Vec3 => [cam.eye[0] + d[0] * t, cam.eye[1] + d[1] * t, cam.eye[2] + d[2] * t];
   const below = (t: number) => { const p = at(t); return p[1] <= Math.max(0, surface(p[0], p[2])); };
+  const probe = (row: number, col: number, p: Vec3): Probe => {
+    const v = g.z[row * g.cols + col];
+    return { row, col, elevation: Number.isFinite(v) ? v : null, eastKm: ((col + 0.5) * g.cellM) / 1000, northKm: ((g.rows - row - 0.5) * g.cellM) / 1000, p };
+  };
+  const cellAt = (x: number, z: number) => [
+    Math.min(g.rows - 1, Math.max(0, Math.floor((z + m.hz) / m.scale / g.cellM))),
+    Math.min(g.cols - 1, Math.max(0, Math.floor((x + m.hx) / m.scale / g.cellM))),
+  ] as const;
   const steps = 480;
   let prev = t0;
   for (let i = 0; i <= steps; i++) {
@@ -554,13 +595,21 @@ export function pickCell(m: Model, g: Grid, cam: Camera, px: number, py: number,
       let a = prev, b = t;
       for (let k = 0; k < 24; k++) { const mid = (a + b) / 2; if (below(mid)) b = mid; else a = mid; }
       const p = at(b);
-      const [fr, fc] = toCell(p[0], p[2]);
-      const row = Math.min(g.rows - 1, Math.max(0, Math.round(fr))), col = Math.min(g.cols - 1, Math.max(0, Math.round(fc)));
-      const v = g.z[row * g.cols + col];
-      return {
-        row, col, elevation: Number.isFinite(v) ? v : null,
-        eastKm: ((col + 0.5) * g.cellM) / 1000, northKm: ((g.rows - row - 0.5) * g.cellM) / 1000, p,
-      };
+      const [row, col] = cellAt(p[0], p[2]);
+      if (meshElevation(m, p[0], p[2]) !== null) return probe(row, col, p); // on the drawn surface (or its wall)
+      // On the floor, seen through a gap: the gap's own cell, the quad corner without an elevation nearest the hit.
+      // Lattice vertex (a, b) stands for cell (a − 1, b − 1), clamped at the edge ring; da/db step along v/u.
+      const q = quadAt(m, p[0], p[2]);
+      let best: [number, number] = [row, col], bestD = Infinity;
+      for (const [vertex, da, db] of [[q.v00, 0, 0], [q.v01, 0, 1], [q.v10, 1, 0], [q.v11, 1, 1]] as const) {
+        if (m.ok[vertex]) continue;
+        const dist = (q.u - db) ** 2 + (q.v - da) ** 2;
+        if (dist < bestD) {
+          bestD = dist;
+          best = [Math.min(g.rows - 1, Math.max(0, q.a + da - 1)), Math.min(g.cols - 1, Math.max(0, q.b + db - 1))];
+        }
+      }
+      return probe(best[0], best[1], p);
     }
     prev = t;
   }

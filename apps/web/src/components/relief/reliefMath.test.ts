@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   anchorShown, ariaSummary, axisPlacement, baseElevation, boxEdges, buildModel, camera, contourInterval, contourSegments, gradients, gridStats,
-  fitDistance, fmtHeading, fmtPitch, hillshade, homePose, labelAnchors, labelBox, layoutLabels, niceStep, niceTicks, pickCell, project, representationNote, sunVector, TINT,
+  fitDistance, fmtHeading, fmtPitch, hillshade, homePose, labelAnchors, labelBox, layoutLabels, meshElevation, niceStep, niceTicks, pickCell, project, representationNote, sunVector, TINT,
   toGrid, worldY, type Grid,
 } from "./reliefMath";
 
@@ -222,6 +222,65 @@ describe("framing and probe", () => {
     expect(placed.some((l) => l.text === "N")).toBe(true);
     expect(placed.filter((l) => l.kind === "elev").every((l) => l.align === "left" || l.align === "right")).toBe(true);
     expect(placed.filter((l) => l.kind === "km").every((l) => /^km-(s|w)-/.test(l.key))).toBe(true);
+  });
+});
+
+describe("probe beside a water edge", () => {
+  // Water fills the south-east of the window (cells with no elevation), as along a coast.
+  const gaps: [number, number][] = [];
+  for (let i = 0; i < 12; i++) for (let j = 0; j < 12; j++) if (i + j >= 15) gaps.push([i, j]);
+  const g = plane(12, 12, 400, 0.01, 0.015, gaps);
+  const m = buildModel(g)!;
+  const t = m.terrain;
+  const LC = m.cols + 2;
+  const centroid = (vs: number[]) => vs.map((v) => [t[v * 5], t[v * 5 + 1], t[v * 5 + 2]]).reduce((s, p) => [s[0] + p[0] / 3, s[1] + p[1] / 3, s[2] + p[2] / 3], [0, 0, 0]);
+  // Quads beside the coast: exactly three corners with an elevation, so the mesh draws one triangle of the two.
+  const coast: { a: number; b: number; drawn: number[]; open: number[]; missing: number }[] = [];
+  for (let a = 0; a <= m.rows; a++) {
+    for (let b = 0; b <= m.cols; b++) {
+      const v00 = a * LC + b, v01 = v00 + 1, v10 = v00 + LC, v11 = v10 + 1;
+      const quad = [v00, v10, v11, v01];
+      if (quad.filter((v) => m.ok[v]).length !== 3) continue;
+      const missing = quad.find((v) => !m.ok[v])!;
+      // The undrawn half: the missing corner with the two corners beside it (not the one diagonal to it).
+      const k = quad.indexOf(missing);
+      coast.push({ a, b, drawn: quad.filter((v) => m.ok[v]), open: [missing, quad[(k + 1) % 4], quad[(k + 3) % 4]], missing });
+    }
+  }
+
+  it("interpolates exactly the triangles the mesh draws, and nothing over a gap", () => {
+    expect(coast.length).toBeGreaterThan(5);
+    for (let k = 0; k < m.terrainIndex.length; k += 3) {
+      const [x, z, e] = centroid([m.terrainIndex[k], m.terrainIndex[k + 1], m.terrainIndex[k + 2]]);
+      expect(meshElevation(m, x, z)).toBeCloseTo(e, 3);
+    }
+    for (const q of coast) {
+      const [x, z] = centroid(q.open);
+      expect(meshElevation(m, x, z)).toBeNull();
+    }
+    expect(meshElevation(m, m.hx * 0.95, m.hz * 0.95)).toBeNull(); // open water
+    expect(meshElevation(m, -m.hx * 1.01, 0)).toBeNull(); // outside the window
+  });
+
+  it("keeps the probe on the drawn surface beside water, and on the floor only where the floor shows", () => {
+    const above = camera(m, { ...homePose(4), el: (88 * Math.PI) / 180 }, 900, 560);
+    for (const q of coast) {
+      const [x, z] = centroid(q.drawn);
+      const y = worldY(m, meshElevation(m, x, z)!, above.ys);
+      const s = project(above.viewProj, [x, y, z], 900, 560);
+      const hit = pickCell(m, g, above, s.x, s.y, 900, 560)!;
+      expect(hit.p[1]).toBeCloseTo(y, 4); // on the terrain, not on the floor under it
+      expect(hit.elevation).not.toBeNull(); // and reading a cell that has an elevation
+      expect(hit.elevation).toBe(g.z[hit.row * g.cols + hit.col]);
+
+      const [fx, fz] = centroid(q.open);
+      const f = project(above.viewProj, [fx, 0, fz], 900, 560);
+      const floor = pickCell(m, g, above, f.x, f.y, 900, 560)!;
+      expect(floor.p[1]).toBeCloseTo(0, 6); // the hatched floor
+      expect(floor.elevation).toBeNull();
+      const a = Math.floor(q.missing / LC), b = q.missing % LC; // the gap's own cell
+      expect([floor.row, floor.col]).toEqual([Math.min(g.rows - 1, Math.max(0, a - 1)), Math.min(g.cols - 1, Math.max(0, b - 1))]);
+    }
   });
 });
 
