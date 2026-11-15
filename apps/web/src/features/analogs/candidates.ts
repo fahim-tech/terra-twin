@@ -98,6 +98,26 @@ export function unorderedMembers<T extends { lon: number | null; id: string }>(m
 }
 
 /**
+ * Decision member ids in the one display order every view uses: tied members west to east (no rank),
+ * members without a located candidate after them by name. A named leader keeps its single member.
+ */
+export function memberOrder(t2: Tier2Result): string[] {
+  const d = t2.decision;
+  if (d.type !== "tied_set") return [...d.members];
+  const located = unorderedMembers(decisionMembers(t2).filter((c) => c.lon !== null)).map((c) => c.id);
+  const rest = d.members.filter((id) => !located.includes(id)).sort((a, b) => a.localeCompare(b, "en", { numeric: true }));
+  return [...located, ...rest];
+}
+
+/** The window to pre-select: only the decision's own named leader, never a tie member or list position. */
+export function stableLeaderId(t2: Tier2Result): string | undefined {
+  const d = t2.decision;
+  if (d.type !== "named_leader") return undefined;
+  const id = d.members[0];
+  return id && t2.candidates.some((c) => c.id === id) ? id : undefined;
+}
+
+/**
  * Splits a tier-1 page into the cells within `tol` of the top score (not ranked against each other)
  * and the rest. Uses the global leader similarity from the summary when available, so the group is
  * correct even on later pages.

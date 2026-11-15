@@ -63,8 +63,8 @@ describe("report model", () => {
     expect(candidateRole(s, c)).toBe("tie_member");
     expect(decisionHeadline(s)).toBe("Tie · 3 equivalent windows");
     expect(decisionLabel(s)).toBe(G5.tied);
-    // Unordered group: sorted by name, not by score.
-    expect(decisionMembers(s)).toEqual(["Window 217 · roughness decile 8", "Window 224 · roughness decile 8", "Window 233 · roughness decile 8"]);
+    // Unordered group: west to east (the order every view uses), not by score.
+    expect(decisionMembers(s)).toEqual(["Window 233 · roughness decile 8", "Window 217 · roughness decile 8", "Window 224 · roughness decile 8"]);
   });
 
   it("keeps abstention explicit and shows no score", () => {

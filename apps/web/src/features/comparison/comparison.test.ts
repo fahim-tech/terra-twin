@@ -79,7 +79,8 @@ describe("verdict", () => {
     const s = search({ type: "tied_set", members: ["rand_d8_233", "rand_d8_217", "rand_d8_224"], rotations_checked: 4, label: G5.tied });
     const v = verdictFor(s, t2cand("rand_d8_217", 0.703));
     expect(v.kind).toBe("tie_member");
-    expect(v.headline).toBe("Member of a tie (2 of 3)");
+    // Numbered in the shared unordered display order (here by name: no located candidates), never by S.
+    expect(v.headline).toBe("Member of a tie (1 of 3)");
     expect(v.headline.toLowerCase()).not.toContain("leader");
     expect(v.detail).toBe(G5.tied);
   });

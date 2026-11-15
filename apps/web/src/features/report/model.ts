@@ -6,6 +6,7 @@
 import { G5 } from "../../lib/glossary";
 import { searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, MissionProfile, Tier1Candidate, Tier2Candidate } from "../../types/contracts";
+import { memberOrder } from "../analogs/candidates";
 import { interpret, PLANETARY_DIFFERENCES, TIER1_SPECS } from "../comparison/science";
 
 export type DecisionType = AnalogSearch["tier2"]["decision"]["type"];
@@ -100,11 +101,9 @@ export function decisionLabel(search: AnalogSearch): string | null {
   return DECISION[d.type].g5 ?? d.label ?? null;
 }
 
-/** Tie members as an unordered group (alphabetical, so list order never reads as a ranking). */
+/** Tie members as an unordered group (west to east, the order every view uses, so list order never reads as a ranking). */
 export function decisionMembers(search: AnalogSearch): string[] {
-  const d = search.tier2.decision;
-  const names = d.members.map(windowLabel);
-  return d.type === "tied_set" ? [...names].sort((a, b) => a.localeCompare(b, "en", { numeric: true })) : names;
+  return memberOrder(search.tier2).map(windowLabel);
 }
 
 export function representationLabel(r: "mars_observation_space" | "as_measured"): string {

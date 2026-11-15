@@ -6,7 +6,7 @@
 import { G5, GLOSSARY, zoneName } from "../../lib/glossary";
 import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
-import type { CandidateView } from "../analogs/candidates";
+import { type CandidateView, memberOrder } from "../analogs/candidates";
 
 export type VerdictKind = "leader" | "tie_member" | "not_member" | "screening" | "no_convincing" | "insufficient";
 
@@ -30,7 +30,7 @@ export function verdictFor(search: AnalogSearch, c: CandidateView): Verdict {
   }
   const d = search.tier2.decision;
   const id = c.t2?.id ?? "";
-  const k = d.members.indexOf(id);
+  const k = memberOrder(search.tier2).indexOf(id);
   if (d.type === "named_leader") {
     return k >= 0
       ? { kind: "leader", glyph: "◉", headline: "Stable leader", detail: d.label ?? G5.leader }
