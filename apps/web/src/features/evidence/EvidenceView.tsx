@@ -256,9 +256,6 @@ function Callout({ tone, children }: { tone: "warn"; children: ReactNode }) {
   );
 }
 
-/** Named controls outside ESA WorldCover coverage: the filter cannot clear them (research record, G5). */
-const NO_LANDCOVER = new Set(["McMurdo Dry Valleys"]);
-
 function Controls({ m }: { m: EvidenceModel }) {
   const c = m.controls;
   // The payload keys the middle column only as "M3"; it does not say which bias-correction variant
@@ -272,7 +269,7 @@ function Controls({ m }: { m: EvidenceModel }) {
   return (
     <div className="grid gap-x-12 gap-y-12 md:grid-cols-2">
       <div>
-        <h3 className="m-0 text-title text-ink">Positive controls{target && <> · {target === "Cerberus" ? "Elysium Planitia (Cerberus)" : zoneName(target)}</>}</h3>
+        <h3 className="m-0 text-title text-ink">Positive controls{target && <> · {zoneName(target)}</>}</h3>
         <p className="mt-1 text-caption text-muted">Documented volcanic analogs, ranked among {c.poolSize ?? "the"} pool windows (1 = most similar).</p>
         <table className="mt-4 w-full border-collapse text-left">
           <thead>
@@ -293,7 +290,7 @@ function Controls({ m }: { m: EvidenceModel }) {
           </tbody>
         </table>
         <p className="mt-3 text-caption text-muted">
-          <span aria-hidden className="mr-1 text-warn">⚠</span>{bestOom !== null ? <>Best rank with OOM is <span className="num text-ink">#{bestOom}</span> of {c.poolSize ?? "?"} at 50 km. </> : null}Terrain geometry is not geology.
+          <span aria-hidden className="mr-1 text-warn">⚠</span>{bestOom !== null ? <>Best rank with OOM is <span className="num text-ink">#{bestOom}</span> of {c.poolSize ?? "?"}{m.coverage.tier2Km !== null ? <> at {m.coverage.tier2Km} km</> : null}. </> : null}Terrain geometry is not geology.
         </p>
       </div>
       <div>
@@ -315,20 +312,14 @@ function Controls({ m }: { m: EvidenceModel }) {
         )}
         <Disclosure summary="All named controls and the filter" className="mt-4">
           <ul className="list-none p-0">
-            {c.gatePass.map((g) => {
-              const noData = NO_LANDCOVER.has(g.name);
-              return (
-                <li key={g.name} className="flex justify-between gap-3 border-b border-line py-1.5 text-caption">
-                  <span className="text-muted">{g.name}</span>
-                  <span className={g.pass ? "text-ink" : "text-faint"}>{g.pass ? "✓ eligible" : noData ? "◌ not cleared · no WorldCover data" : "⊘ excluded"}</span>
-                </li>
-              );
-            })}
+            {c.gatePass.map((g) => (
+              <li key={g.name} className="flex justify-between gap-3 border-b border-line py-1.5 text-caption">
+                <span className="text-muted">{g.name}</span>
+                <span className={g.pass ? "text-ink" : "text-faint"}>{g.pass ? "✓ eligible" : "⊘ not cleared"}</span>
+              </li>
+            ))}
           </ul>
           <p className="mt-2 text-caption text-faint">{G5.gate}.</p>
-          {c.gatePass.some((g) => NO_LANDCOVER.has(g.name) && !g.pass) && (
-            <p className="mt-1 text-caption text-faint">McMurdo Dry Valleys has no WorldCover data and is therefore not cleared by the filter — not removed as vegetated.</p>
-          )}
         </Disclosure>
       </div>
     </div>

@@ -129,6 +129,8 @@ function FullMatrix({ m }: { m: EvidenceModel }) {
 
 /** Paired fidelity error for each interpolator variant (lower is better). */
 export function InterpolatorChart({ m }: { m: EvidenceModel }) {
+  // The caveat is the research record's own limitation text, so nothing is stated that the payload does not carry.
+  const surrogate = m.limitations.find((l) => l.code === "operator_is_surrogate") ?? null;
   const max = Math.max(...m.interp.rows.map((r) => r.error), 0.1);
   const ticks = niceTicks(0, max, 4);
   const step = ticks.length > 1 ? ticks[1] - ticks[0] : max;
@@ -161,9 +163,11 @@ export function InterpolatorChart({ m }: { m: EvidenceModel }) {
         ))}
       </ol>
       <Axis s={s} format={(v) => (v === 0 ? "0" : v.toFixed(step < 0.1 ? 2 : 1))} title="Paired fidelity error (lower = closer to Mars)" />
-      <p className="mt-6 max-w-[70ch] text-caption text-muted">
-        <span aria-hidden className="mr-1 text-warn">⚠</span>The half-pixel registration offset was measured in the Mars data on all 39 research zones; it is not yet confirmed by USGS metadata.
-      </p>
+      {surrogate && (
+        <p className="mt-6 max-w-[70ch] text-caption text-muted">
+          <span aria-hidden className="mr-1 text-warn">⚠</span>{surrogate.text}
+        </p>
+      )}
     </Chart>
   );
 }
