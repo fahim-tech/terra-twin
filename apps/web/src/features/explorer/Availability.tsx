@@ -3,6 +3,7 @@ import type { MarsAnalysis } from "../../types/contracts";
 import { InfoPopover } from "./InfoPopover";
 import { Mark } from "./parts";
 import { availabilityItems, type AvailItem } from "./readouts";
+import { useScales } from "./useScales";
 
 const pctText = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
 
@@ -12,6 +13,8 @@ const pctText = (v: number | null) => (v === null ? "—" : `${Math.round(v * 10
  * never a confidence; the missing datasets and their reasons are one disclosure away.
  */
 export function Availability({ a }: { a: MarsAnalysis }) {
+  // The research window's size comes from the API's coverage record, never from the field name.
+  const { windowKm } = useScales();
   const items = availabilityItems(a);
   const on = items.filter((i) => i.on);
   const off = items.filter((i) => !i.on);
@@ -31,7 +34,7 @@ export function Availability({ a }: { a: MarsAnalysis }) {
                 Share of the zone's MOLA bins with at least one laser return; the rest are interpolated.
                 <span className="mt-2.5 grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1 border-t border-line pt-2.5">
                   <span className="kicker">Interpolated</span><span className="num text-num-sm text-ink">{pctText(os.interpolation_dependence)}</span>
-                  <span className="kicker">50 km window</span><span className="num text-num-sm text-ink">{pctText(os.observed_fraction_native_50km)}</span>
+                  <span className="kicker">{windowKm !== null ? `${windowKm} km window` : "Research window"}</span><span className="num text-num-sm text-ink">{pctText(os.observed_fraction_native_50km)}</span>
                   <span className="kicker">Shots / bin</span><span className="num text-num-sm text-ink">{os.mean_counts === null ? "—" : os.mean_counts.toFixed(2)}</span>
                   <span className="kicker">Counts grid</span><span>{os.source_grid}</span>
                 </span>
