@@ -14,6 +14,7 @@ import { Readout, Readouts, rowClass, SectionHead, SelectionBar } from "./instru
 import { DiscoveryAction } from "./DiscoveryAction";
 import { sText } from "./readout";
 import { searchTarget } from "../../store/searchTarget";
+import { PLACE_NOTE, placeNear } from "../../lib/places";
 import { useMissions, useSites } from "../../services/api";
 import { DiscoveryCompareActions } from "./DiscoveryAction";
 
@@ -138,6 +139,7 @@ function CandRow({ c, on, onPick }: { c: DiscoveryCandidate; on: boolean; onPick
           <span className="text-faint">S </span>{sText(c.S)}
         </span>
         <span className="min-w-0 truncate text-caption text-muted">
+          {placeNear(c.lat, c.lon) && <span className="text-ink/85" title={PLACE_NOTE}>≈ {placeNear(c.lat, c.lon)!.text} · </span>}
           {c.verdict ?? "—"}{lc?.gate ? ` · land cover ${lc.gate}` : ""}
         </span>
         <span className="num whitespace-nowrap text-right text-num-sm text-faint">cov {pctText(c.coverage)}</span>
@@ -198,6 +200,7 @@ function CandidateDetail({ c, run, index }: { c: DiscoveryCandidate; run: Discov
             <span className="num min-w-0 whitespace-nowrap text-num text-earth">{cellLabel(c.lat, c.lon)}</span>
             <SFigure value={c.S} term className="shrink-0 text-[22px] text-ink" />
           </div>
+          {placeNear(c.lat, c.lon) && <p className="mt-0.5 text-caption text-ink/85" title={PLACE_NOTE}>≈ {placeNear(c.lat, c.lon)!.text} <span className="text-faint">· approximate place</span></p>}
           <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-3">
             <span className="break-all font-mono text-[10.5px] text-faint">{c.id}</span>
             <span className="text-caption text-muted">validated on <Term k="synthetic">synthetic twins only</Term></span>
