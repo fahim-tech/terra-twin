@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixture from "./evidence.fixture.json";
-import { buildModel, fmtStamp, niceTicks, parseStage } from "./model";
+import { buildModel, fmtStamp, niceTicks, parseStage, zoomedTicks } from "./model";
 
 describe("evidence model", () => {
   const m = buildModel(fixture);
@@ -78,6 +78,17 @@ describe("helpers", () => {
   });
   it("makes nice ticks", () => {
     expect(niceTicks(0, 1, 5)).toEqual([0, 0.2, 0.4, 0.6, 0.8, 1]);
+  });
+  it("labels the start of a zoomed axis that falls between nice ticks", () => {
+    // The observation-support axis: 29 %–34 % has nice ticks at 30, 32, 34 only.
+    expect(niceTicks(0.29, 0.34, 5)).toEqual([0.3, 0.32, 0.34]);
+    expect(zoomedTicks(0.29, 0.34)).toEqual([0.29, 0.3, 0.32, 0.34]);
+  });
+  it("adds an axis end only when it is clear of the nearest nice tick", () => {
+    expect(zoomedTicks(0, 1)).toEqual([0, 0.2, 0.4, 0.6, 0.8, 1]);
+    expect(zoomedTicks(0.299, 0.34)[0]).toBe(0.3);
+    expect(zoomedTicks(0.3, 0.355).at(-1)).toBe(0.355);
+    expect(zoomedTicks(0.5, 0.5)).toEqual([0.5]);
   });
   it("stamps import times in UTC to the minute", () => {
     expect(fmtStamp("2026-11-15T00:40:51+00:00")).toBe("2026-11-15 00:40 UTC");

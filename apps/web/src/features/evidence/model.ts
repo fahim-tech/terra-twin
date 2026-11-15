@@ -244,3 +244,16 @@ export function niceTicks(lo: number, hi: number, target = 5): number[] {
   for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + 1e-9; v += step) out.push(Number(v.toFixed(10)));
   return out;
 }
+
+/**
+ * Ticks for a zoomed axis: the nice ticks, plus each end of the axis when it falls clear of them, so a
+ * reader sees where the zoomed axis starts and stops instead of assuming it starts at the first label.
+ */
+export function zoomedTicks(lo: number, hi: number, target = 5): number[] {
+  const t = niceTicks(lo, hi, target);
+  if (!(hi > lo)) return t;
+  const clear = (hi - lo) * 0.08;
+  if (t[0] - lo > clear) t.unshift(lo);
+  if (hi - t[t.length - 1] > clear) t.push(hi);
+  return t;
+}

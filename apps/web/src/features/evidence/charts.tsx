@@ -4,7 +4,7 @@ import { zoneName } from "../../lib/glossary";
 import { useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { Axis, Chart, FigTitle, Grid, IntervalSwatch, Key, Mark, RingSwatch, Row, ROW_GRID, RuleSwatch, scale, Seg, SolidSwatch, StruckSwatch, Ticks, useWidth } from "./chartKit";
 import { Gloss } from "./Gloss";
-import { CHAIN_NAMES, fmtInt, fmtNum, fmtPct, niceTicks, type EvidenceModel } from "./model";
+import { CHAIN_NAMES, fmtInt, fmtNum, fmtPct, niceTicks, zoomedTicks, type EvidenceModel } from "./model";
 
 const mrrAxis = scale(0, 1, [0, 0.2, 0.4, 0.6, 0.8, 1]);
 /** Greek symbols inside mono lines are set in the text face, which draws them in their standard form. */
@@ -187,7 +187,7 @@ export function SupportStrip({ m, targetSite, fig }: { m: EvidenceModel; targetS
   if (!rows.length) return <p className="text-caption text-faint">Observation support is not in the evidence payload.</p>;
   const lo = Math.floor(((m.support.min ?? 0) - 0.005) * 100) / 100;
   const hi = Math.ceil(((m.support.max ?? 1) + 0.005) * 100) / 100;
-  const s = scale(lo, hi, niceTicks(lo, hi, 5));
+  const s = scale(lo, hi, zoomedTicks(lo, hi));
   // Dodge: stack markers that would overlap (closer than one marker width on screen) upward.
   const MARK = 8;
   const gap = width > 0 ? ((MARK + 2) / width) * 100 : 2.2;
