@@ -495,7 +495,11 @@ function Provenance({ ds, loading, error }: { ds?: DatasetsResponse; loading: bo
                 <tr key={d.id} className="border-t border-line align-top first:border-t-0">
                   <td className="py-3.5 pr-4">
                     <div className="text-label text-ink">
-                      {d.url ? <a className="underline decoration-line-strong underline-offset-[3px] hover:decoration-ink" href={d.url} target="_blank" rel="noreferrer">{d.title}</a> : d.title}
+                      {d.url
+                        ? <a className="underline decoration-line-strong underline-offset-[3px] hover:decoration-ink" href={d.url} target="_blank" rel="noreferrer">
+                            {d.title}<span aria-hidden className="ml-1 inline-block font-mono text-[10.5px] text-faint">↗</span><span className="sr-only"> (opens in a new tab)</span>
+                          </a>
+                        : d.title}
                       <span className="ml-2 font-mono text-[10.5px] uppercase tracking-[0.06em] text-faint">{d.planet === "mars" ? "Mars" : d.planet === "earth" ? "Earth" : d.planet}</span>
                     </div>
                     <div className="mt-0.5 text-caption text-muted md:hidden">{d.role}</div>
