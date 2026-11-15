@@ -6,11 +6,11 @@ import { DIFFERENCES_SOURCE, PLANETARY_DIFFERENCES } from "./science";
 export type DimensionStatus = "evaluated" | "partial" | "not_evaluated";
 
 export const DIMENSIONS = (c: CandidateView) => [
-  { name: "Terrain & geomorphology", status: "evaluated" as DimensionStatus, detail: c.tier === 2 ? "8 multiscale terrain descriptors, compared with Earth as MOLA would observe it." : `7 global-screen terrain descriptors on ${c.t1?.footprint.cell_km_ns ? `${Math.round(c.t1.footprint.cell_km_ns)} km ` : ""}screening cells (Earth as measured).` },
-  { name: "Engineering & operations", status: (c.t2?.landcover?.available ? "partial" : "not_evaluated") as DimensionStatus, detail: c.t2?.landcover?.available ? `Exposed-ground check only: ${pct(c.t2.landcover.frac_bare_like ?? null)} bare-like, ${pct(c.t2.landcover.frac_vegetated ?? null)} vegetated (ESA WorldCover 2021). Trafficability, access and permits not assessed.` : "No surface-cover or access data for this candidate." },
+  { name: "Terrain and geomorphology", status: "evaluated" as DimensionStatus, detail: c.tier === 2 ? "8 multiscale terrain descriptors, compared with Earth as MOLA would observe it." : `7 global-screen terrain descriptors on ${c.t1?.footprint.cell_km_ns ? `${Math.round(c.t1.footprint.cell_km_ns)} km ` : ""}screening cells, Earth as measured.` },
+  { name: "Engineering and operations", status: (c.t2?.landcover?.available ? "partial" : "not_evaluated") as DimensionStatus, detail: c.t2?.landcover?.available ? `Exposed-ground check only: ${pct(c.t2.landcover.frac_bare_like ?? null)} bare-like, ${pct(c.t2.landcover.frac_vegetated ?? null)} vegetated (ESA WorldCover 2021). Trafficability, access and permits not assessed.` : "No surface-cover or access data for this candidate." },
   { name: "Geological materials", status: "not_evaluated" as DimensionStatus, detail: "No lithology or mineralogy dataset is connected for either planet." },
   { name: "Surface processes", status: "not_evaluated" as DimensionStatus, detail: "Process relationships need geological evidence; terrain geometry alone cannot establish them." },
-  { name: "Environmental conditions", status: "not_evaluated" as DimensionStatus, detail: "Climate and thermal datasets are not comparable or not ingested (e.g. MODIS LST ≠ TES thermal inertia)." },
+  { name: "Environmental conditions", status: "not_evaluated" as DimensionStatus, detail: "Climate and thermal datasets are not comparable or not ingested (e.g. MODIS LST is not TES thermal inertia)." },
   { name: "Resources", status: "not_evaluated" as DimensionStatus, detail: "Ice and mineral resource layers are not connected." },
 ];
 

@@ -166,9 +166,10 @@ export function terrainRows(search: AnalogSearch, c: ReportCandidate): { rows: T
 export type DimensionStatus = "evaluated" | "partial" | "not_evaluated";
 export function dimensions(c: ReportCandidate, cellKm: number | null = null): { name: string; status: DimensionStatus; detail: string }[] {
   const lc = c.t2?.landcover;
-  const pc = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)} %`);
+  // Percentages as every view prints them ("100%"); a missing fraction is said, never 0.
+  const pc = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)}%`);
   return [
-    { name: "Terrain and geomorphology", status: "evaluated", detail: c.tier === 2 ? `Eight multiscale terrain descriptors, compared with Earth as MOLA would observe it${c.t2 ? ` (${c.t2.window_km} km window)` : ""}.` : `Seven screening descriptors on ${cellKm !== null ? `${cellKm} km ` : "global-screen "}cells, Earth as measured.` },
+    { name: "Terrain and geomorphology", status: "evaluated", detail: c.tier === 2 ? `8 multiscale terrain descriptors, compared with Earth as MOLA would observe it${c.t2 ? ` (${c.t2.window_km} km window)` : ""}.` : `7 global-screen terrain descriptors on ${cellKm !== null ? `${cellKm} km ` : ""}screening cells, Earth as measured.` },
     { name: "Engineering and operations", status: lc?.available ? "partial" : "not_evaluated", detail: lc?.available ? `Exposed-ground check only: ${pc(lc.frac_bare_like)} bare-like, ${pc(lc.frac_vegetated)} vegetated (ESA WorldCover 2021). Trafficability, access and permits not assessed.` : "No surface-cover or access data for this candidate." },
     { name: "Geological materials", status: "not_evaluated", detail: "No lithology or mineralogy dataset is connected for either planet." },
     { name: "Surface processes", status: "not_evaluated", detail: "Process relationships need geological evidence; terrain geometry alone cannot establish them." },
