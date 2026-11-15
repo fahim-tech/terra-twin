@@ -6,7 +6,7 @@ import type { AnalogSearch } from "../../types/contracts";
 import type { CandidateView } from "../analogs/candidates";
 import { CompareTerm as Term } from "./CompareTerm";
 import { PlanetMark, SectionRule } from "./marks";
-import { measuresLabel, notLoadedReasons, robustness } from "./model";
+import { keepFigures, measuresLabel, notLoadedReasons, robustness } from "./model";
 import { TIER2_LABELS } from "./science";
 
 type Rep = "mars_observation_space" | "as_measured";
@@ -44,7 +44,7 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
   const options: { value: Rep; title: string; figure: number | null; who: string; note: string }[] = [
     {
       value: "mars_observation_space", title: G5.toggleOom, figure: c.score,
-      who: c.label, note: `Research record · rotation 0°, equal weights${measuresLabel(c) ? ` · ${measuresLabel(c)}` : ""}`,
+      who: c.label, note: keepFigures(`Research record · rotation 0°, equal weights${measuresLabel(c) ? ` · ${measuresLabel(c)}` : ""}`),
     },
     {
       value: "as_measured", title: G5.toggleMeasured, figure: base?.S ?? null,
@@ -85,7 +85,7 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
           })}
         </div>
         <p className="mt-2.5 text-caption text-faint">
-          The decision and the headline score use the first representation (<Term k="operator" />). The second is shown for contrast only.
+          The decision and the headline score use the first representation <span className="whitespace-nowrap">(<Term k="operator" />)</span>. The second is shown for contrast only.
         </p>
       </div>
 

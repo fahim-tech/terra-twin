@@ -11,7 +11,7 @@ import { ComparePlates } from "./ComparePlates";
 import { EvidenceMode } from "./EvidenceMode";
 import { StageProbe, useCompareStage, whyDrawerWidth } from "./layout";
 import { NO_RING, SectionRule } from "./marks";
-import { basisFor, compareTargets, verdictFor } from "./model";
+import { basisFor, compareTargets, keepFigures, verdictFor } from "./model";
 import { type CompareMode, visibleModes } from "./modes";
 import { MODE_PANEL_ID, ModeSwitch, modeTabId } from "./ModeSwitch";
 import { PairLink } from "./PairLink";
@@ -116,7 +116,7 @@ export function ComparisonPanel() {
 
   const cellKm = screenCellKm(search);
   const winKm = researchWindowKm(search, c.t2);
-  const basis = basisFor(c, search);
+  const basis = keepFigures(basisFor(c, search));
   const onWhy = () => set({ whyOpen: true });
   // With the Why drawer open, the strip reflows into the width the drawer leaves free (so the G5 scope
   // line is never hidden under it), as long as that leaves a usable strip; otherwise the modal brief
@@ -143,7 +143,7 @@ export function ComparisonPanel() {
         )}
         {mode === "evidence" && (
           <>
-            <ModeHeader index={modeIndex} title={modeSpec.title} basis={c.tier === 2 ? `Research comparison${winKm !== null ? ` · ${winKm} km windows` : ""} · research record` : `Global screen${cellKm !== null ? ` · ${cellKm} km cell` : ""} · Earth as measured`} />
+            <ModeHeader index={modeIndex} title={modeSpec.title} basis={keepFigures(c.tier === 2 ? `Research comparison${winKm !== null ? ` · ${winKm} km windows` : ""} · research record` : `Global screen${cellKm !== null ? ` · ${cellKm} km cell` : ""} · Earth as measured`)} />
             <EvidenceMode search={search} c={c} />
           </>
         )}

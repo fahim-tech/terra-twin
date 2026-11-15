@@ -10,7 +10,7 @@ import { type CandidateView, researchWindowKm, screenCellKm } from "../analogs/c
 import { CompareTerm as Term } from "./CompareTerm";
 import { useCompareStage, WHY_DRAWER_WIDTH_CSS, whyDrawerWidth } from "./layout";
 import { NO_RING, PlanetLabel, SectionRule } from "./marks";
-import { basisFor, earthName, notLoadedReasons, verdictFor } from "./model";
+import { basisFor, earthName, keepFigures, notLoadedReasons, verdictFor } from "./model";
 import { VerdictLine } from "./Readout";
 import { applications } from "./RelevanceMode";
 import { groupRows, type RatioRow, relationParts } from "./science";
@@ -56,7 +56,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
   const gate = c.t2?.landcover;
   const cellKm = screenCellKm(search);
   const winKm = researchWindowKm(search, c.t2);
-  const t1Basis = `Global-screen descriptors${cellKm !== null ? ` · ${cellKm} km` : ""} · as measured`;
+  const t1Basis = keepFigures(`Global-screen descriptors${cellKm !== null ? ` · ${cellKm} km` : ""} · as measured`);
   const reasons = notLoadedReasons(c);
   const off = phone ? { y: 24, x: 0 } : { x: 24, y: 0 };
   const footprint = c.tier === 2 ? (winKm !== null ? `${winKm} km research window` : "research window") : (cellKm !== null ? `${cellKm} km screening cell` : "screening cell");
@@ -77,10 +77,11 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
         </div>
         <PlanetLabel planet="earth" role={c.tier === 2 ? "Research window" : "Screening cell"} className="mt-4" />
         <h2 id={titleId} tabIndex={-1} style={NO_RING} className="toponym mt-2 pr-10 text-[22px] leading-[1.04] tracking-[0.04em] text-ink">{name.name}</h2>
+        {/* Same precision as the strip and the plates (3 decimals), so one point never reads two ways. */}
         <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
-          <span className="num text-num-sm text-ink/90">{formatLat(c.lat, 2)}&ensp;{formatLon(c.lon, 2)}</span>
+          <span className="num whitespace-nowrap text-num-sm text-ink/90">{formatLat(c.lat, 3)}&ensp;{formatLon(c.lon, 3)}</span>
           <span aria-hidden className="text-faint">·</span>
-          <span>{footprint}</span>
+          <span>{keepFigures(footprint)}</span>
         </p>
         {name.sub && <p className="mt-1 text-caption text-faint">{name.sub}</p>}
         <IconButton label="Close" onClick={onClose} className="absolute right-2 top-2"><X className="h-4 w-4" strokeWidth={1.75} /></IconButton>
@@ -96,7 +97,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
             <div className="px-3.5 py-2.5">
               <p className="text-caption text-ink/90">{v.detail}</p>
               <dl className="mt-2 text-caption">
-                <Pair term="Basis">{basisFor(c, search)}</Pair>
+                <Pair term="Basis">{keepFigures(basisFor(c, search))}</Pair>
               </dl>
             </div>
           </div>
@@ -106,8 +107,8 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
           {c.tier === 2 ? (
             <>
               <p className="text-label font-normal leading-relaxed text-ink">
-                S comes from eight research descriptors on the {winKm !== null ? `${winKm} km ` : ""}research windows, and their values are not loaded here. The two lists
-                below are global-screen context (seven descriptors{cellKm !== null ? `, ${cellKm} km cells` : ""}, Earth as measured), not what produced S.
+                S comes from eight research descriptors on the {winKm !== null ? `${winKm}\u00a0km ` : ""}research windows, and their values are not loaded here. The two lists
+                below are global-screen context (seven descriptors{cellKm !== null ? `, ${cellKm}\u00a0km cells` : ""}, Earth as measured), not what produced S.
               </p>
               <dl className="mt-2.5 text-caption">
                 <Pair term="Not loaded"><span className="text-muted">{reasons.mars} {c.t2 && search.tier2.representation === "mars_observation_space" ? reasons.earthOom : ""}</span></Pair>

@@ -88,8 +88,11 @@ function PairName({ planet, name, role, size, className }: { planet: Planet; nam
   );
 }
 
+/** Latitude and longitude, each kept whole: a narrow cell may break between them, never inside one. */
 const Coords = ({ lat, lon, className }: { lat: number; lon: number; className?: string }) => (
-  <span className={cx("num block text-num-sm text-muted", className)}>{formatLat(lat, 3)}&ensp;{formatLon(lon, 3)}</span>
+  <span className={cx("num block text-num-sm text-muted", className)}>
+    <span className="whitespace-nowrap">{formatLat(lat, 3)}</span>&ensp;<span className="whitespace-nowrap">{formatLon(lon, 3)}</span>
+  </span>
 );
 
 function Cell({ label, children, className }: { label: ReactNode; children: ReactNode; className?: string }) {

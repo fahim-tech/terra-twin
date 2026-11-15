@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { G5 } from "../../lib/glossary";
 import type { AnalogSearch } from "../../types/contracts";
 import type { CandidateView } from "../analogs/candidates";
-import { basisFor, compareTargets, earthName, poolKindLabel, verdictFor } from "./model";
+import { basisFor, compareTargets, earthName, keepFigures, poolKindLabel, verdictFor } from "./model";
 import { deltaPos, groupRows, ratioPos, ratioRow, S_AT_TOLERANCE } from "./science";
 
 describe("ratio chart geometry", () => {
@@ -46,6 +46,15 @@ describe("ratio chart geometry", () => {
     expect(g.different).toHaveLength(1);
     expect(g.missing).toHaveLength(1);
     expect(g.similar).toHaveLength(1);
+  });
+});
+
+describe("typesetting", () => {
+  it("keeps figures with the word after them so a line never ends on a bare number", () => {
+    expect(keepFigures("Research comparison · Earth as MOLA would observe it · 8/8 measures"))
+      .toBe("Research comparison · Earth as MOLA would observe it · 8/8\u00a0measures");
+    expect(keepFigures("from the 463 m MOLA grid")).toBe("from the 463\u00a0m MOLA grid");
+    expect(keepFigures("no figures here")).toBe("no figures here");
   });
 });
 

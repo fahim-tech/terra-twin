@@ -66,6 +66,14 @@ export function basisFor(c: CandidateView, search?: AnalogSearch | null): string
     : `Global screen${km !== null ? ` · ${km} km cell` : ""} · Earth as measured${m ? ` · ${m}` : ""}`;
 }
 
+/**
+ * Keeps every figure on the same line as the word after it ("8/8 measures", "463 m", "50 km"), so a
+ * line never ends on a bare number. Only the space after a digit is made non-breaking.
+ */
+export function keepFigures(text: string): string {
+  return text.replace(/(\d) (?=\S)/g, "$1\u00a0");
+}
+
 /** Display name for a research-pool window id (random windows have no toponym; named controls do). */
 export function windowName(id: string): string {
   const m = /^rand_d(\d)_(\d+)$/.exec(id);
