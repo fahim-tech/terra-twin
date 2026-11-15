@@ -11,9 +11,10 @@ import { type CandidateView, researchWindowKm, screenCellKm, selectedCandidate }
 import { ComparePlates } from "./ComparePlates";
 import { EvidenceMode } from "./EvidenceMode";
 import { StageProbe, useCompareStage, whyDrawerWidth } from "./layout";
+import { LiveComparison } from "./LiveComparison";
 import { NO_RING, SectionRule } from "./marks";
-import { basisFor, compareTargets, keepFigures, molaGridText, verdictFor } from "./model";
-import { type CompareMode, visibleModes } from "./modes";
+import { basisFor, type CompareTargets, compareTargets, keepFigures, molaGridText, type Verdict, verdictFor } from "./model";
+import { type CompareMode, type ModeSpec, visibleModes } from "./modes";
 import { MODE_PANEL_ID, ModeSwitch, modeTabId } from "./ModeSwitch";
 import { PairLink } from "./PairLink";
 import { PhoneScale } from "./PhoneScale";
@@ -22,6 +23,7 @@ import { BackToResults, CompactReadout, PhoneReadout, TelemetryReadout, WhyButto
 import { RelevanceMode } from "./RelevanceMode";
 import { ReliefViewer } from "./relief";
 import { ratioRow, TIER1_SPECS } from "./science";
+import { useLiveCompare } from "./useLive";
 import { WhyDrawer } from "./WhyDrawer";
 
 // Kept for the report package, which imports these from here.
@@ -50,20 +52,100 @@ export function tier1Rows(search: AnalogSearch, c: CandidateView): { rows: Compa
 }
 
 /**
- * Comparison stage, as a mission-control telemetry strip docked over the split globes: a title bar
- * (back, what is compared, the square mode switch), the readout cells (Mars | Earth pair, score with its
- * basis, the decision) and the scope line; a mode other than Spatial expands the strip. Plates and
- * dimension lines label each footprint on its globe; the Why drawer is the technical brief. All result
- * text is bound to searchTarget(search), never to the live Mars selection.
+ * Comparison stage. Compare follows what the Earth stage shows: a live discovery window (LiveComparison) when
+ * the Live discovery tab has one selected, else the research record's candidate. Both draw the same strip.
  */
 export function ComparisonPanel() {
+  const live = useLiveCompare();
+  return live.state === "off" ? <ResearchComparison /> : <LiveComparison live={live} />;
+}
+
+/**
+ * The research record's candidate, as a mission-control telemetry strip docked over the split globes. All result
+ * text is bound to searchTarget(search), never to the live Mars selection.
+ */
+function ResearchComparison() {
   const search = useApp((s) => s.search);
   const candidateId = useApp((s) => s.candidateId);
+  const phone = useLayout() === "phone";
+  const c = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
+  const targets = useMemo(() => (search && c ? compareTargets(search, c) : null), [search, c]);
+  const t1 = useMemo(() => (search && c ? tier1Rows(search, c) : null), [search, c]);
+  const rows = useMemo(() => (t1 ? t1.rows.map((r) => ratioRow(r.key, r.mars, r.earth, r.s, r.label, r.unit)) : []), [t1]);
+  const verdict = useMemo(() => (search && c ? verdictFor(search, c) : null), [search, c]);
+
+  useEffect(() => {
+    if (!targets || !verdict || !c) return;
+    useApp.getState().announce(`Comparing ${targets.mars.name} on Mars with ${targets.earth.name} on Earth. ${verdict.headline}. Similarity ${c.score === null ? "not available" : c.score.toFixed(3)}, ${basisFor(c, search)}.`);
+  }, [targets, verdict, c]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!search || !c || !targets || !verdict) return <>{phone && <PhoneScale />}<NoCandidate hasSearch={!!search} phone={phone} /></>;
+
+  const cellKm = screenCellKm(search);
+  const winKm = researchWindowKm(search, c.t2);
+  return (
+    <CompareStrip c={c} basis={keepFigures(basisFor(c, search))} targets={targets} verdict={verdict} pairLink
+      why={(onClose) => <WhyDrawer key="why" search={search} c={c} rows={rows} phone={phone} onClose={onClose} />}
+      renderMode={(mode, header) => (
+        <>
+          {mode === "measurements" && (
+            <>
+              {/* A research window's S is not computed from these (they are context); a screening cell's S is. */}
+              {header(keepFigures(`Global-screen descriptors${cellKm !== null ? `, ${cellKm} km` : ""}, as measured — ${c.tier === 2 ? "context, not the research score" : "the descriptors this screening S was computed from"}`), t1 && <>
+                {c.tier === 2 && <>Global-screen <SFigure value={t1.S} className="text-num text-ink/90" /> for this pair {keepFigures(`(the ${cellKm !== null ? `${cellKm} km ` : "screening "}cell under the window centre)`)}. </>}
+                {keepFigures(`Mars: median of the zone’s ${cellKm !== null ? `${cellKm} km ` : "screening "}cells from ${molaGridText(search)}; Earth: GMTED2010.`)}
+              </>)}
+              {rows.length ? <RatioChart rows={rows} compact={!phone} /> : <p className="text-body text-muted">Global-screen descriptors are not available for this candidate.</p>}
+            </>
+          )}
+          {mode === "evidence" && (
+            <>
+              {header(keepFigures(c.tier === 2 ? `Research comparison${winKm !== null ? ` · ${winKm} km windows` : ""} · research record` : `Global screen${cellKm !== null ? ` · ${cellKm} km cell` : ""} · Earth as measured`))}
+              <EvidenceMode search={search} c={c} />
+            </>
+          )}
+          {mode === "relevance" && (
+            <>
+              {header("What the comparison does and does not cover")}
+              <RelevanceMode c={c} gate={search.tier2.landcover_gate} />
+            </>
+          )}
+          {mode === "relief" && ReliefViewer && (
+            <>
+              {header()}
+              <ReliefViewer search={search} c={c} targets={targets} phone={phone} />
+            </>
+          )}
+        </>
+      )} />
+  );
+}
+
+export interface CompareStripProps {
+  c: CandidateView;
+  basis: string;
+  targets: CompareTargets;
+  verdict: Verdict;
+  /** The open mode's content; `header` draws its numbered section rule with an optional basis and note. */
+  renderMode: (mode: CompareMode, header: (basis?: string, note?: ReactNode) => ReactNode) => ReactNode;
+  /** The Why brief, given its close action. */
+  why: (onClose: () => void) => ReactNode;
+  /** Whether a relief viewer is offered (the "3D relief" mode). */
+  relief?: boolean;
+  /** Draw the pair link between the halves (the research record's score card). */
+  pairLink?: boolean;
+}
+
+/**
+ * The comparison strip: a title bar (back, what is compared, the square mode switch), the readout cells (score
+ * with its basis, the decision, the footprints) and the scope line; a mode other than Spatial expands it. Plates
+ * and dimension lines label each footprint on its globe; the Why drawer is the technical brief.
+ */
+export function CompareStrip({ c, basis, targets, verdict, renderMode, why, relief = ReliefViewer !== null, pairLink = false }: CompareStripProps) {
   const whyOpen = useApp((s) => s.whyOpen);
   const set = useApp((s) => s.set);
-  const layout = useLayout();
-  const phone = layout === "phone";
-  const modes = useMemo(() => visibleModes({ relief: ReliefViewer !== null }), []);
+  const phone = useLayout() === "phone";
+  const modes = useMemo(() => visibleModes({ relief }), [relief]);
   const [modeState, setModeState] = useState<CompareMode>("spatial");
   const mode: CompareMode = modes.some((m) => m.value === modeState) ? modeState : "spatial";
   const stripRef = useRef<HTMLElement>(null);
@@ -72,18 +154,8 @@ export function ComparisonPanel() {
     setModeState(m);
     requestAnimationFrame(() => stripRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')?.focus({ preventScroll: true }));
   }, []);
-  const c = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
-  const targets = useMemo(() => (search && c ? compareTargets(search, c) : null), [search, c]);
-  const t1 = useMemo(() => (search && c ? tier1Rows(search, c) : null), [search, c]);
-  const rows = useMemo(() => (t1 ? t1.rows.map((r) => ratioRow(r.key, r.mars, r.earth, r.s, r.label, r.unit)) : []), [t1]);
-  const verdict = useMemo(() => (search && c ? verdictFor(search, c) : null), [search, c]);
   const expanded = mode !== "spatial";
   const stageW = useCompareStage((s) => s.w);
-
-  useEffect(() => {
-    if (!targets || !verdict || !c) return;
-    useApp.getState().announce(`Comparing ${targets.mars.name} on Mars with ${targets.earth.name} on Earth. ${verdict.headline}. Similarity ${c.score === null ? "not available" : c.score.toFixed(3)}, ${basisFor(c, search)}.`);
-  }, [targets, verdict, c]);
 
   // Escape collapses an expanded mode before it leaves the comparison. The shell routes Escape from
   // the page and from a focused globe through closeTopmost(), so the collapse step is layered onto
@@ -104,20 +176,14 @@ export function ComparisonPanel() {
 
   // Height of the strip, so a narrowed strip can still mark the full bottom band as covered (below).
   const [stripH, setStripH] = useState(0);
-  const hasStrip = !!(search && c && targets && verdict);
   useEffect(() => {
     const el = stripRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => setStripH(el.offsetHeight));
     ro.observe(el);
     return () => ro.disconnect();
-  }, [hasStrip, phone]);
+  }, [phone]);
 
-  if (!search || !c || !targets || !verdict) return <>{phone && <PhoneScale />}<NoCandidate hasSearch={!!search} phone={phone} /></>;
-
-  const cellKm = screenCellKm(search);
-  const winKm = researchWindowKm(search, c.t2);
-  const basis = keepFigures(basisFor(c, search));
   const onWhy = () => set({ whyOpen: true });
   // With the Why drawer open, the strip reflows into the width the drawer leaves free (so the G5 scope
   // line is never hidden under it), as long as that leaves a usable strip; otherwise the modal brief
@@ -127,44 +193,15 @@ export function ComparisonPanel() {
   const narrow = stripRight !== null;
   const behindBrief = whyOpen && !narrow;
   const modeIndex = modes.findIndex((m) => m.value === mode) + 1;
-  const modeSpec = modes.find((m) => m.value === mode)!;
+  const modeSpec: ModeSpec = modes.find((m) => m.value === mode)!;
   const readout = { c, basis, targets, verdict, onWhy };
+  const header = (b?: string, note?: ReactNode) => <ModeHeader index={modeIndex} title={modeSpec.title} basis={b}>{note}</ModeHeader>;
 
   const panel = expanded && (
     <div role="tabpanel" id={MODE_PANEL_ID} aria-labelledby={modeTabId(mode)} className="relative flex min-h-0 flex-1 flex-col border-t border-line">
       <motion.div key={mode} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
         className="scroll-thin fade-edges min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-4 max-md:px-4">
-        {mode === "measurements" && (
-          <>
-            {/* A research window's S is not computed from these (they are context); a screening cell's S is. */}
-            <ModeHeader index={modeIndex} title={modeSpec.title}
-              basis={keepFigures(`Global-screen descriptors${cellKm !== null ? `, ${cellKm} km` : ""}, as measured — ${c.tier === 2 ? "context, not the research score" : "the descriptors this screening S was computed from"}`)}>
-              {t1 && <>
-                {c.tier === 2 && <>Global-screen <SFigure value={t1.S} className="text-num text-ink/90" /> for this pair {keepFigures(`(the ${cellKm !== null ? `${cellKm} km ` : "screening "}cell under the window centre)`)}. </>}
-                {keepFigures(`Mars: median of the zone’s ${cellKm !== null ? `${cellKm} km ` : "screening "}cells from ${molaGridText(search)}; Earth: GMTED2010.`)}
-              </>}
-            </ModeHeader>
-            {rows.length ? <RatioChart rows={rows} compact={!phone} /> : <p className="text-body text-muted">Global-screen descriptors are not available for this candidate.</p>}
-          </>
-        )}
-        {mode === "evidence" && (
-          <>
-            <ModeHeader index={modeIndex} title={modeSpec.title} basis={keepFigures(c.tier === 2 ? `Research comparison${winKm !== null ? ` · ${winKm} km windows` : ""} · research record` : `Global screen${cellKm !== null ? ` · ${cellKm} km cell` : ""} · Earth as measured`)} />
-            <EvidenceMode search={search} c={c} />
-          </>
-        )}
-        {mode === "relevance" && (
-          <>
-            <ModeHeader index={modeIndex} title={modeSpec.title} basis="What the comparison does and does not cover" />
-            <RelevanceMode c={c} gate={search.tier2.landcover_gate} />
-          </>
-        )}
-        {mode === "relief" && ReliefViewer && (
-          <>
-            <ModeHeader index={modeIndex} title={modeSpec.title} />
-            <ReliefViewer search={search} c={c} targets={targets} phone={phone} />
-          </>
-        )}
+        {renderMode(mode, header)}
       </motion.div>
     </div>
   );
@@ -173,7 +210,7 @@ export function ComparisonPanel() {
     <>
       <StageProbe />
       {!phone && <ComparePlates targets={targets} planets={["mars", "earth"]} whyOpen={whyOpen} compact={expanded} />}
-      {!phone && !whyOpen && <PairLink c={c} />}
+      {pairLink && !phone && !whyOpen && <PairLink c={c} />}
       {phone && !expanded && <PhoneScale />}
       {/* Phones: the shell's Mars|Earth switch sits over the top of the frame; mark that band as covered
           so the globe frames the compared window below it (the switch itself is not an occluder). */}
@@ -225,7 +262,7 @@ export function ComparisonPanel() {
         )}
       </motion.section>
       <AnimatePresence>
-        {whyOpen && <WhyDrawer key="why" search={search} c={c} rows={rows} phone={phone} onClose={() => set({ whyOpen: false })} />}
+        {whyOpen && why(() => set({ whyOpen: false }))}
       </AnimatePresence>
     </>
   );
@@ -241,8 +278,8 @@ function ModeHeader({ index, title, basis, children }: { index: number; title: s
   );
 }
 
-function NoCandidate({ hasSearch, phone }: { hasSearch: boolean; phone: boolean }) {
-  const go = useApp((s) => s.go);
+/** The strip's frame with a heading, a line and an action: no candidate, or a live window that cannot be shown. */
+export function CompareNotice({ title, body, action, phone }: { title: string; body: ReactNode; action?: { label: string; earth: boolean; onClick: () => void }; phone: boolean }) {
   return (
     <section aria-label="Mars–Earth comparison" data-occludes="both"
       className={cx("surface frame no-print absolute z-20", phone ? "inset-x-0 bottom-0 [padding-bottom:env(safe-area-inset-bottom)]" : "inset-x-3 bottom-3 rounded-surface")}>
@@ -250,12 +287,21 @@ function NoCandidate({ hasSearch, phone }: { hasSearch: boolean; phone: boolean 
         <span className="kicker">Comparison</span>
       </div>
       <div className="px-4 pb-4 pt-3">
-        <h2 data-stage-heading="compare" tabIndex={-1} style={NO_RING} className="toponym text-toponym-sm text-ink">No Earth candidate selected</h2>
-        <p className="mt-1.5 max-w-[640px] text-body text-muted">{hasSearch ? "Choose a research window or a screening cell in the Earth results to compare it with the Mars target." : "Run Find Earth Analogs on a Mars research zone first."}</p>
-        <Button variant={hasSearch ? "primary-earth" : "primary-mars"} className="mt-3" onClick={() => go(hasSearch ? "earth" : "mars")}>
-          {hasSearch ? "Back to Earth results" : "Back to Mars"}
-        </Button>
+        <h2 data-stage-heading="compare" tabIndex={-1} style={NO_RING} className="toponym text-toponym-sm text-ink">{title}</h2>
+        <div className="mt-1.5 max-w-[640px] text-body text-muted">{body}</div>
+        {action && (
+          <Button variant={action.earth ? "primary-earth" : "primary-mars"} className="mt-3" onClick={action.onClick}>{action.label}</Button>
+        )}
       </div>
     </section>
+  );
+}
+
+function NoCandidate({ hasSearch, phone }: { hasSearch: boolean; phone: boolean }) {
+  const go = useApp((s) => s.go);
+  return (
+    <CompareNotice phone={phone} title="No Earth candidate selected"
+      body={hasSearch ? "Choose a research window or a screening cell in the Earth results to compare it with the Mars target." : "Run Find Earth Analogs on a Mars research zone first."}
+      action={{ label: hasSearch ? "Back to Earth results" : "Back to Mars", earth: hasSearch, onClick: () => go(hasSearch ? "earth" : "mars") }} />
   );
 }

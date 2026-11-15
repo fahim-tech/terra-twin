@@ -7,7 +7,9 @@ import { destination, R_EARTH_MEAN_M, R_MARS_M } from "../../lib/geodesy";
 import { OBLIQUE_PITCH_DEG, flightPitchDeg } from "../../globes/camera";
 import { aimEastForShift, type CompareSide, type ComparedSquare, type HalfFrame, matchedDepthKm } from "./framing";
 import { useCompareFraming, useCompareStage, WHY_SLIVER_MARGIN_PX, whyLayout } from "./layout";
+import { liveTargets } from "./live";
 import { type CompareTargets, compareTargets } from "./model";
+import { useLiveCompare } from "./useLive";
 import type { Planet } from "../../globes/protocol";
 
 const PLANETS = ["mars", "earth"] as const;
@@ -61,7 +63,11 @@ export function CompareGlobeSync() {
   const insets = useGlobes((s) => s.insets);
   const tilt = useGlobes((s) => s.tilt);
   const current = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
-  const targets = useMemo(() => (search && current ? compareTargets(search, current) : null), [search, current]);
+  // A live discovery window (when Compare describes one) or the research record's candidate.
+  const live = useLiveCompare();
+  const pair = live.state === "ready" ? live.pair : null;
+  const targets = useMemo(() => (live.state === "off" ? (search && current ? compareTargets(search, current) : null) : pair ? liveTargets(pair) : null),
+    [live.state, pair, search, current]);
   const active = stage === "compare" && !!targets;
 
   // Footprints on both planets (kind "window" = identical white outline), cleared on leaving.
@@ -85,6 +91,10 @@ export function CompareGlobeSync() {
       bus.send("mars", { t: "setGroupShown", kind: "footprints", group: "aoi", on });
       bus.send("mars", { t: "setGroupShown", kind: "footprints", group: "zones", on });
       bus.send("earth", { t: "setGroupShown", kind: "footprints", group: "cand", on });
+      // The live discovery run's windows and markers (EarthGlobeSync) are hidden the same way.
+      bus.send("earth", { t: "setGroupShown", kind: "footprints", group: "live", on });
+      bus.send("earth", { t: "setGroupShown", kind: "footprints", group: "livecand", on });
+      bus.send("earth", { t: "setGroupShown", kind: "markers", group: "live", on });
     };
     show(false);
     return () => show(true);

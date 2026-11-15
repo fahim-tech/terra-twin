@@ -24,33 +24,6 @@ const FOCUSABLE = 'button:not([disabled]), [href], input, select, textarea, [tab
  * focus and restores it on close. Enters and leaves along the same edge (right on desktop, bottom on phones).
  */
 export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogSearch; c: CandidateView; rows: RatioRow[]; phone: boolean; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const titleId = useId();
-  const stageW = useCompareStage((s) => s.w);
-  useEffect(() => {
-    const prev = document.activeElement as HTMLElement | null;
-    const el = ref.current;
-    el?.querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Tab" || !el) return;
-      const items = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((x) => x.offsetParent !== null);
-      if (!items.length) return;
-      const first = items[0], last = items[items.length - 1];
-      if (e.shiftKey && (document.activeElement === first || !el.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
-      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      // The strip drops its Why button while it shares the width with the drawer, so the element that had
-      // focus may be gone (and the drawer can be opened from the Earth results). Return focus to the Why
-      // trigger, back in the strip by now; else to what had focus; else to the stage heading.
-      const trigger = document.querySelector<HTMLElement>("[data-why-trigger] button");
-      const back = trigger ?? (prev && prev !== document.body && document.contains(prev) ? prev : document.querySelector<HTMLElement>('[data-stage-heading="compare"]'));
-      back?.focus({ preventScroll: true });
-    };
-  }, []);
-
   const v = verdictFor(search, c);
   const name = earthName(c);
   const g = groupRows(rows);
@@ -59,36 +32,13 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
   const winKm = researchWindowKm(search, c.t2);
   const t1Basis = keepFigures(`Global-screen descriptors${cellKm !== null ? ` · ${cellKm} km` : ""} · as measured`);
   const reasons = notLoadedReasons(c);
-  const off = phone ? { y: 24, x: 0 } : { x: 24, y: 0 };
   const footprint = c.tier === 2 ? (winKm !== null ? `${winKm} km research window` : "research window") : (cellKm !== null ? `${cellKm} km screening cell` : "screening cell");
   let n = 0;
   const next = () => ++n;
 
   return (
-    <motion.div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId}
-      initial={{ ...off, opacity: 0 }} animate={{ x: 0, y: 0, opacity: 1 }} exit={{ ...off, opacity: 0 }} transition={SPRING}
-      style={phone ? undefined : { width: stageW > 0 ? whyDrawerWidth(stageW) : WHY_DRAWER_WIDTH_CSS }}
-      className={cx("surface-solid frame no-print absolute z-40 flex flex-col overflow-hidden",
-        phone ? "inset-0 [padding-bottom:env(safe-area-inset-bottom)]" : "bottom-3 right-3 top-3 rounded-surface")}>
-      <header className="relative shrink-0 border-b border-line px-5 pb-4 pt-3.5">
-        <div className="flex items-center gap-2.5 pr-10">
-          <span className="kicker !text-ink/80">Brief</span>
-          <span aria-hidden className="h-px w-4 bg-line-strong" />
-          <span className="kicker">Why this analog?</span>
-        </div>
-        <PlanetLabel planet="earth" role={c.tier === 2 ? "Research window" : "Screening cell"} className="mt-4" />
-        <h2 id={titleId} tabIndex={-1} style={NO_RING} className="toponym mt-2 pr-10 text-[22px] leading-[1.04] tracking-[0.04em] text-ink">{name.name}</h2>
-        {/* The record's own precision (2 dp for named controls), the same as the strip and the plates. */}
-        <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
-          <span className="num whitespace-nowrap text-num-sm text-ink/90">{formatLat(c.lat, recordDigits(c.lat, c.lon))}&ensp;{formatLon(c.lon, recordDigits(c.lat, c.lon))}</span>
-          <span aria-hidden className="text-faint">·</span>
-          <span>{keepFigures(footprint)}</span>
-        </p>
-        {name.sub && <p className="mt-1 text-caption text-faint">{name.sub}</p>}
-        <IconButton label="Close" onClick={onClose} className="absolute right-2 top-2"><X className="h-4 w-4" strokeWidth={1.75} /></IconButton>
-      </header>
-
-      <div className="scroll-thin min-h-0 flex-1 space-y-6 overflow-y-auto px-5 pb-10 pt-5 text-body [mask-image:linear-gradient(to_bottom,transparent_0,black_14px,black_calc(100%-36px),transparent_100%)]">
+    <BriefShell phone={phone} onClose={onClose} role={c.tier === 2 ? "Research window" : "Screening cell"} name={name.name} sub={name.sub}
+      lat={c.lat} lon={c.lon} footprint={footprint}>
         <Section index={next()} title="Decision" basis="research record">
           <div className="border border-line-strong bg-space/50">
             <div className="flex items-center justify-between gap-4 border-b border-line px-3.5 py-2.5">
@@ -103,7 +53,6 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
             </div>
           </div>
         </Section>
-
         <Section index={next()} title="What produced S" basis={c.tier === 2 ? "research descriptors" : "global-screen descriptors"}>
           {c.tier === 2 ? (
             <>
@@ -155,12 +104,78 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
             <Pair term="Method">{documentationLine(c)}</Pair>
           </dl>
         </Section>
+    </BriefShell>
+  );
+}
+
+/**
+ * The brief's dialog frame: kicker, the Earth unit's role, name, coordinates (the record's own precision) and
+ * footprint, then the numbered sections. Traps focus and returns it on close.
+ */
+export function BriefShell({ phone, onClose, role, name, sub, lat, lon, footprint, children }: {
+  phone: boolean; onClose: () => void; role: string; name: string; sub: string | null; lat: number; lon: number; footprint: string; children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const stageW = useCompareStage((s) => s.w);
+  useEffect(() => {
+    const prev = document.activeElement as HTMLElement | null;
+    const el = ref.current;
+    el?.querySelector<HTMLElement>("h2")?.focus({ preventScroll: true });
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || !el) return;
+      const items = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((x) => x.offsetParent !== null);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !el.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      // The strip drops its Why button while it shares the width with the drawer, so the element that had
+      // focus may be gone (and the drawer can be opened from the Earth results). Return focus to the Why
+      // trigger, back in the strip by now; else to what had focus; else to the stage heading.
+      const trigger = document.querySelector<HTMLElement>("[data-why-trigger] button");
+      const back = trigger ?? (prev && prev !== document.body && document.contains(prev) ? prev : document.querySelector<HTMLElement>('[data-stage-heading="compare"]'));
+      back?.focus({ preventScroll: true });
+    };
+  }, []);
+
+  const off = phone ? { y: 24, x: 0 } : { x: 24, y: 0 };
+
+  return (
+    <motion.div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId}
+      initial={{ ...off, opacity: 0 }} animate={{ x: 0, y: 0, opacity: 1 }} exit={{ ...off, opacity: 0 }} transition={SPRING}
+      style={phone ? undefined : { width: stageW > 0 ? whyDrawerWidth(stageW) : WHY_DRAWER_WIDTH_CSS }}
+      className={cx("surface-solid frame no-print absolute z-40 flex flex-col overflow-hidden",
+        phone ? "inset-0 [padding-bottom:env(safe-area-inset-bottom)]" : "bottom-3 right-3 top-3 rounded-surface")}>
+      <header className="relative shrink-0 border-b border-line px-5 pb-4 pt-3.5">
+        <div className="flex items-center gap-2.5 pr-10">
+          <span className="kicker !text-ink/80">Brief</span>
+          <span aria-hidden className="h-px w-4 bg-line-strong" />
+          <span className="kicker">Why this analog?</span>
+        </div>
+        <PlanetLabel planet="earth" role={role} className="mt-4" />
+        <h2 id={titleId} tabIndex={-1} style={NO_RING} className="toponym mt-2 pr-10 text-[22px] leading-[1.04] tracking-[0.04em] text-ink">{name}</h2>
+        {/* The record's own precision (2 dp for named controls), the same as the strip and the plates. */}
+        <p className="mt-1.5 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
+          <span className="num whitespace-nowrap text-num-sm text-ink/90">{formatLat(lat, recordDigits(lat, lon))}&ensp;{formatLon(lon, recordDigits(lat, lon))}</span>
+          <span aria-hidden className="text-faint">·</span>
+          <span>{keepFigures(footprint)}</span>
+        </p>
+        {sub && <p className="mt-1 text-caption text-faint">{sub}</p>}
+        <IconButton label="Close" onClick={onClose} className="absolute right-2 top-2"><X className="h-4 w-4" strokeWidth={1.75} /></IconButton>
+      </header>
+
+      <div className="scroll-thin min-h-0 flex-1 space-y-6 overflow-y-auto px-5 pb-10 pt-5 text-body [mask-image:linear-gradient(to_bottom,transparent_0,black_14px,black_calc(100%-36px),transparent_100%)]">
+        {children}
       </div>
     </motion.div>
   );
 }
 
-function Section({ index, title, basis, children }: { index: number; title: string; basis: string; children: ReactNode }) {
+export function Section({ index, title, basis, children }: { index: number; title: string; basis: string; children: ReactNode }) {
   return (
     <section>
       <SectionRule index={index} title={title} />
@@ -171,7 +186,7 @@ function Section({ index, title, basis, children }: { index: number; title: stri
 }
 
 /** Descriptor rows: name on the left, the relation as a mono figure and words on the right. */
-function Rows({ rows }: { rows: RatioRow[] }) {
+export function Rows({ rows }: { rows: RatioRow[] }) {
   return (
     <ul className="border-y border-line">
       {rows.map((r) => {
@@ -190,7 +205,7 @@ function Rows({ rows }: { rows: RatioRow[] }) {
   );
 }
 
-function Pair({ term, children }: { term: string; children: ReactNode }) {
+export function Pair({ term, children }: { term: string; children: ReactNode }) {
   return (
     <div className="grid grid-cols-[84px_minmax(0,1fr)] gap-x-3">
       <dt className="kicker pt-px">{term}</dt>
@@ -199,13 +214,13 @@ function Pair({ term, children }: { term: string; children: ReactNode }) {
   );
 }
 
-function List({ children }: { children: ReactNode }) {
+export function List({ children }: { children: ReactNode }) {
   return <ul className="space-y-1.5">{children}</ul>;
 }
 /** Square bullet: a 4 px outlined square, never a round dot. */
-function Li({ children }: { children: ReactNode }) {
+export function Li({ children }: { children: ReactNode }) {
   return <li className="relative pl-4 text-caption text-muted before:absolute before:left-0 before:top-[0.55em] before:h-1 before:w-1 before:border before:border-faint">{children}</li>;
 }
-function Note({ children }: { children: ReactNode }) {
+export function Note({ children }: { children: ReactNode }) {
   return <p className="mt-1.5 text-caption text-muted">{children}</p>;
 }

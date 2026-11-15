@@ -146,7 +146,7 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
 export const ReliefViewer: ComponentType<ReliefViewerProps> | null = CompareRelief;
 
 /** One planet's column: a strip naming it (with its real elevation range once loaded), then the view. */
-function Half({ planet, name, kind, relief, children }: { planet: "mars" | "earth"; name: string; kind: string; relief: Relief | null; children: ReactNode }) {
+export function Half({ planet, name, kind, relief, children }: { planet: "mars" | "earth"; name: string; kind: string; relief: Relief | null; children: ReactNode }) {
   const range = relief && relief.z_min !== null && relief.z_max !== null ? relief.z_max - relief.z_min : null;
   const m = (v: number) => v.toLocaleString("en-US", { maximumFractionDigits: 0 }).replace("-", "−");
   return (
@@ -172,7 +172,7 @@ function Half({ planet, name, kind, relief, children }: { planet: "mars" | "eart
 }
 
 /** Phones: one planet at a time, as the shell's Mars / Earth switch does for the globes. */
-function PlanetSwitch({ value, onChange }: { value: "mars" | "earth"; onChange: (v: "mars" | "earth") => void }) {
+export function PlanetSwitch({ value, onChange }: { value: "mars" | "earth"; onChange: (v: "mars" | "earth") => void }) {
   const planets = ["mars", "earth"] as const;
   return (
     // Labelled as the relief's own switch, so it never reads as the shell's Mars / Earth globe switch above it.
