@@ -8,24 +8,29 @@ export interface Insets { top: number; right: number; bottom: number; left: numb
 /**
  * Compute how much of a globe frame is covered along each edge by shell UI.
  * Elements opt in with data-occludes="mars" | "earth" | "both". A rect is assigned to the edge it
- * hugs: tall rects to left/right, wide rects to top/bottom.
+ * hugs, by proportional coverage: a rect that covers more of the frame's height than of its width is a
+ * side panel (left/right), the opposite is a top/bottom strip. A full-height panel on a portrait tablet
+ * (380 px of a 768 px frame) is therefore a side inset, not a top inset covering the whole frame.
+ * No single inset may take more than 60 % of the frame along its axis, so the globe keeps a free area.
  */
 export function computeInsets(frame: DOMRect, occluders: DOMRect[]): Insets {
   const out: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+  const maxX = frame.width * 0.6, maxY = frame.height * 0.6;
   for (const r of occluders) {
     const ix = Math.min(r.right, frame.right) - Math.max(r.left, frame.left);
     const iy = Math.min(r.bottom, frame.bottom) - Math.max(r.top, frame.top);
     if (ix <= 0 || iy <= 0) continue;
-    const tall = iy >= frame.height * 0.45;
-    const wide = ix >= frame.width * 0.45;
+    const fx = ix / frame.width, fy = iy / frame.height;
+    const tall = fy >= 0.45;
+    const wide = fx >= 0.45;
     const leftGap = r.left - frame.left, rightGap = frame.right - r.right;
     const topGap = r.top - frame.top, bottomGap = frame.bottom - r.bottom;
-    if (tall && !wide) {
-      if (leftGap <= rightGap) out.left = Math.max(out.left, r.right - frame.left);
-      else out.right = Math.max(out.right, frame.right - r.left);
+    if (tall && (!wide || fy >= fx)) {
+      if (leftGap <= rightGap) out.left = Math.max(out.left, Math.min(maxX, r.right - frame.left));
+      else out.right = Math.max(out.right, Math.min(maxX, frame.right - r.left));
     } else if (wide) {
-      if (topGap <= bottomGap) out.top = Math.max(out.top, r.bottom - frame.top);
-      else out.bottom = Math.max(out.bottom, frame.bottom - r.top);
+      if (topGap <= bottomGap) out.top = Math.max(out.top, Math.min(maxY, r.bottom - frame.top));
+      else out.bottom = Math.max(out.bottom, Math.min(maxY, frame.bottom - r.top));
     }
   }
   return {
