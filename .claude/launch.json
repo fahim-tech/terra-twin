@@ -2,6 +2,8 @@
   "version": "0.0.1",
   "configurations": [
     { "name": "web", "runtimeExecutable": "npm", "runtimeArgs": ["--prefix", "apps/web", "run", "dev"], "port": 5180 },
-    { "name": "api", "runtimeExecutable": "uv", "runtimeArgs": ["run", "--project", "apps/api", "--directory", "apps/api", "uvicorn", "terratwin_api.main:app", "--port", "8000"], "port": 8000 }
+    { "name": "api", "runtimeExecutable": "uv", "runtimeArgs": ["run", "--project", "apps/api", "--directory", "apps/api", "uvicorn", "terratwin_api.main:app", "--port", "8000"], "port": 8000 },
+    { "name": "api-redesign", "runtimeExecutable": "uv", "runtimeArgs": ["run", "--project", "apps/api", "--directory", "apps/api", "uvicorn", "terratwin_api.main:app", "--port", "8001", "--reload"], "port": 8001 },
+    { "name": "web-redesign", "runtimeExecutable": "/usr/bin/env", "runtimeArgs": ["VITE_API_BASE_URL=http://127.0.0.1:8001", "npm", "--prefix", "apps/web", "run", "dev", "--", "--port", "5182"], "port": 5182 }
   ]
 }
