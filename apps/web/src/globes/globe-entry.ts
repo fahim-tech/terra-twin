@@ -32,6 +32,7 @@ import {
   LabelStyle,
   Math as CMath,
   NearFarScalar,
+  PerspectiveFrustum,
   PolygonHierarchy,
   Rectangle,
   SceneTransforms,
@@ -139,6 +140,8 @@ let lastAnchors = "";
 let lastTelemetry = "";
 let lastTelemetryAt = 0;
 const meanR = planet === "mars" ? R_MARS_M : R_EARTH_MEAN_M;
+let insets = { top: 0, right: 0, bottom: 0, left: 0 };
+let occluder: EllipsoidalOccluder | null = null;
 
 // Latitude conversion between the API convention (planetocentric) and the rendering ellipsoid.
 function toRender(lat: number) {
@@ -221,10 +224,14 @@ function setMarkers(group: string, markers: GlobeMarker[], opts: MarkerGroupOpti
     const st = STYLE[m.kind];
     const id = m.id;
     const isSel = () => selectedId === id;
+    const world = pos(m.lat, m.lon);
+    // Drawn over the imagery (no depth test) but hidden, and unpickable, when behind the planet.
+    const visible = () => !occluder || occluder.isPointVisible(world);
     ds.entities.add({
       id: `${group}::${id}`,
-      position: pos(m.lat, m.lon),
+      position: world,
       point: {
+        show: new CallbackProperty(visible, false),
         pixelSize: new CallbackProperty(() => (isSel() ? st.size + 5 : st.size), false),
         color: st.color,
         outlineColor: new CallbackProperty(() => (isSel() ? Color.WHITE : st.outline), false),
@@ -243,7 +250,7 @@ function setMarkers(group: string, markers: GlobeMarker[], opts: MarkerGroupOpti
         verticalOrigin: VerticalOrigin.BOTTOM,
         pixelOffset: new Cartesian2(0, -12),
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        show: labels === "all" ? true : new CallbackProperty(() => isSel() || m.kind === "selection" || m.kind === "leader", false),
+        show: new CallbackProperty(() => visible() && (labels === "all" || isSel() || m.kind === "selection" || m.kind === "leader"), false),
       } : undefined,
     });
   }
@@ -332,10 +339,52 @@ async function setOverlay(id: string, url: string | null, alpha = 1) {
   }
 }
 
+/** Centre of the frame area not covered by shell UI, in CSS pixels. */
+function focusPoint() {
+  const c = viewer!.scene.canvas;
+  const freeW = Math.max(40, c.clientWidth - insets.left - insets.right);
+  const freeH = Math.max(40, c.clientHeight - insets.top - insets.bottom);
+  return { x: insets.left + freeW / 2, y: insets.top + freeH / 2, freeW, freeH, w: c.clientWidth, h: c.clientHeight };
+}
+
 function currentCenter(): { lat: number; lon: number } | null {
   if (!viewer) return null;
-  const c = viewer.scene.canvas;
-  return pickCarto(new Cartesian2(c.clientWidth / 2, c.clientHeight / 2));
+  const f = focusPoint();
+  return pickCarto(new Cartesian2(f.x, f.y));
+}
+
+/** Ground metres per CSS pixel at nadir for a camera at heightM. */
+function mppAtHeight(heightM: number) {
+  const fr = viewer!.camera.frustum as PerspectiveFrustum;
+  const fovy = fr.fovy ?? CMath.toRadians(60);
+  return (2 * heightM * Math.tan(fovy / 2)) / viewer!.scene.canvas.clientHeight;
+}
+
+/** Camera nadir point that puts (lat, lon) at the focus point of the free area (heading 0). */
+function aimFor(lat: number, lon: number, heightM: number) {
+  const f = focusPoint();
+  const m = mppAtHeight(heightM);
+  const north = (f.y - f.h / 2) * m;
+  const east = -(f.x - f.w / 2) * m;
+  const dLat = (north / meanR) * (180 / Math.PI);
+  const dLon = (east / (meanR * Math.max(Math.cos((lat * Math.PI) / 180), 0.05))) * (180 / Math.PI);
+  return { lat: Math.max(-89.5, Math.min(89.5, lat + dLat)), lon: normLon(lon + dLon) };
+}
+
+function fitBounds(west: number, south: number, east: number, north: number, padding = 0.18, minKm = 30, maxKm?: number, durationS?: number) {
+  if (!viewer) return;
+  const span = ((east - west) % 360 + 360) % 360 || 360;
+  const lat = (south + north) / 2;
+  const lon = normLon(west + span / 2);
+  const groundW = (span * Math.PI / 180) * meanR * Math.max(Math.cos((lat * Math.PI) / 180), 0.05);
+  const groundH = ((north - south) * Math.PI / 180) * meanR;
+  const f = focusPoint();
+  const mpp = Math.max(groundW / f.freeW, groundH / f.freeH) * (1 + 2 * padding);
+  const fr = viewer.camera.frustum as PerspectiveFrustum;
+  const fovy = fr.fovy ?? CMath.toRadians(60);
+  let heightKm = (mpp * viewer.scene.canvas.clientHeight) / (2 * Math.tan(fovy / 2)) / 1000;
+  heightKm = Math.max(minKm, Math.min(maxKm ?? (planet === "mars" ? 30_000 : 60_000), heightKm));
+  flyTo(lat, lon, heightKm, durationS);
 }
 
 /** Flight duration grows with angular distance and altitude change; reduced motion jumps. */
@@ -351,8 +400,9 @@ function autoDuration(lat: number, lon: number, heightKm: number) {
 function flyTo(lat: number, lon: number, heightKm = planet === "mars" ? 1_400 : 2_200, durationS?: number) {
   if (!viewer) return;
   spinning = false;
+  const aim = aimFor(lat, lon, heightKm * 1000);
   viewer.camera.flyTo({
-    destination: pos(lat, lon, heightKm * 1000),
+    destination: pos(aim.lat, aim.lon, heightKm * 1000),
     orientation: { heading: 0, pitch: -CMath.PI_OVER_TWO, roll: 0 },
     duration: durationS ?? autoDuration(lat, lon, heightKm),
     easingFunction: EasingFunction.QUADRATIC_IN_OUT,
@@ -419,10 +469,9 @@ function resetHeading() {
 
 function metersPerPixel(): number | null {
   if (!viewer) return null;
-  const c = viewer.scene.canvas;
-  const y = c.clientHeight / 2;
-  const a = viewer.camera.pickEllipsoid(new Cartesian2(c.clientWidth / 2 - 50, y), ellipsoid);
-  const b = viewer.camera.pickEllipsoid(new Cartesian2(c.clientWidth / 2 + 50, y), ellipsoid);
+  const f = focusPoint();
+  const a = viewer.camera.pickEllipsoid(new Cartesian2(f.x - 50, f.y), ellipsoid);
+  const b = viewer.camera.pickEllipsoid(new Cartesian2(f.x + 50, f.y), ellipsoid);
   if (!a || !b) return null;
   const g = new EllipsoidGeodesic(Cartographic.fromCartesian(a, ellipsoid), Cartographic.fromCartesian(b, ellipsoid), ellipsoid);
   const d = g.surfaceDistance;
@@ -560,6 +609,8 @@ async function init(ionToken: string | null) {
   scene.backgroundColor = css("#05070A");
   scene.light = new DirectionalLight({ direction: new Cartesian3(1, 0, 0), intensity: 2.2 });
   scene.postUpdate.addEventListener(updateLight);
+  occluder = new EllipsoidalOccluder(ellipsoid, viewer.camera.positionWC);
+  scene.preUpdate.addEventListener(() => { if (occluder && viewer) occluder.cameraPosition = viewer.camera.positionWC; });
   scene.postRender.addEventListener(() => { emitTelemetry(); emitAnchors(); });
   (viewer.cesiumWidget.creditContainer as HTMLElement).style.cssText =
     "font:10px 'IBM Plex Sans',system-ui;opacity:.5;filter:grayscale(1) invert(1);";
@@ -665,6 +716,7 @@ async function init(ionToken: string | null) {
     ellipsoid: planet === "earth" ? "WGS84" : ionToken ? `Mars IAU 2000 (${MARS_IAU2000.a}/${MARS_IAU2000.b} m)` : `Mars sphere R = ${R_MARS_M} m`,
   });
   emitTelemetry(true);
+  if (import.meta.env.DEV) Object.assign(window, { __globe: { viewer, groups, occluder: () => occluder, pos } });
 }
 
 function pickCarto(p: Cartesian2): { lat: number; lon: number } | null {
@@ -688,17 +740,14 @@ window.addEventListener("message", (ev: MessageEvent) => {
     switch (m.t) {
       case "init": void init(m.ionToken); break;
       case "flyTo": flyTo(m.lat, m.lon, m.heightKm, m.durationS); break;
+      case "fitBounds": fitBounds(m.west, m.south, m.east, m.north, m.padding, m.minHeightKm, m.maxHeightKm, m.durationS); break;
+      case "setInsets": insets = { top: m.top, right: m.right, bottom: m.bottom, left: m.left }; lastTelemetry = ""; break;
       case "setView":
         viewer?.camera.setView({ destination: pos(m.lat, m.lon, m.heightKm * 1000), orientation: { heading: 0, pitch: -CMath.PI_OVER_TWO, roll: 0 } });
         break;
       case "reset":
         spinning = false;
-        viewer?.camera.flyTo({
-          destination: pos(HOME.lat, HOME.lon, HOME.heightKm * 1000),
-          orientation: { heading: 0, pitch: -CMath.PI_OVER_TWO, roll: 0 },
-          duration: reducedMotion ? 0 : m.durationS ?? autoDuration(HOME.lat, HOME.lon, HOME.heightKm),
-          easingFunction: EasingFunction.QUADRATIC_IN_OUT,
-        });
+        flyTo(HOME.lat, HOME.lon, HOME.heightKm, reducedMotion ? 0 : m.durationS);
         break;
       case "setMarkers": setMarkers(m.group, m.markers, m.options); break;
       case "setFootprints": setFootprints(m.group, m.footprints); break;

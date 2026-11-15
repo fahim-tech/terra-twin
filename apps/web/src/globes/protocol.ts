@@ -80,6 +80,10 @@ export interface CameraTelemetry {
 export type ParentToGlobe =
   | { t: "init"; ionToken: string | null }
   | { t: "flyTo"; lat: number; lon: number; heightKm?: number; durationS?: number }
+  /** Fit a geographic box into the unobstructed part of the frame (see setInsets). */
+  | { t: "fitBounds"; west: number; south: number; east: number; north: number; padding?: number; minHeightKm?: number; maxHeightKm?: number; durationS?: number }
+  /** CSS-pixel insets covered by shell UI; framing, the reticle point and telemetry use the free area. */
+  | { t: "setInsets"; top: number; right: number; bottom: number; left: number }
   | { t: "setView"; lat: number; lon: number; heightKm: number }
   | { t: "reset"; durationS?: number }
   | { t: "setMarkers"; group: string; markers: GlobeMarker[]; options?: MarkerGroupOptions }
