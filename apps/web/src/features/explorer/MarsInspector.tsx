@@ -65,9 +65,10 @@ export function MarsInspector() {
   const run = () => {
     find.mutate({ lat: selection.lat, lon: selection.lon, footprint_km: footprintKm, mission }, {
       onSuccess: (res) => {
-        const t2 = res.tier2.candidates[0]?.id;
-        const t1 = res.tier1?.candidates[0]?.region_id;
-        const first = t2 ? `t2:${t2}` : t1 ? `t1:${t1}` : null;
+        // Only a stable named leader is pre-selected. A tied set is never reduced to one member
+        // on the user's behalf; tier-1 cells are a screening list, so nothing is pre-selected there either.
+        const leader = res.tier2.decision.type === "named_leader" ? res.tier2.candidates[0]?.id : undefined;
+        const first = leader ? `t2:${leader}` : null;
         set({ search: res, candidateId: first, tier: res.tier2.candidates.length || !res.tier1 ? 2 : 1 });
         go("earth");
       },
