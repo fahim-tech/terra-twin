@@ -220,6 +220,17 @@ export function buildModel(e: unknown, opts: { poolSize?: number | null } = {}):
   };
 }
 
+/**
+ * The metre value written just before a noun in a payload sentence ("… about 31% of 463 m cells contain …"
+ * with "cells" → "463"), or null when the sentence does not state it. Used to label drawings with the
+ * payload's own figure for the thing drawn, never a default.
+ */
+export function metresBefore(text: string | null | undefined, noun: string): string | null {
+  if (!text) return null;
+  const esc = noun.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text.match(new RegExp(`(\\d+(?:\\.\\d+)?)\\s*m\\s+${esc}\\b`))?.[1] ?? null;
+}
+
 /** Fixed-precision formatters (spec §3): fractions as % 0 dp, MRR 3 dp in rows, 2 dp in headlines. */
 export const fmtPct = (v: number | null | undefined, d = 0) => (v === null || v === undefined ? "—" : `${(v * 100).toFixed(d)}%`);
 export const fmtNum = (v: number | null | undefined, d = 3) => (v === null || v === undefined ? "—" : v.toFixed(d));

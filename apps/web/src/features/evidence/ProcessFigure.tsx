@@ -5,7 +5,7 @@ import { G5 } from "../../lib/glossary";
 import { FigTitle } from "./chartKit";
 import { Gloss } from "./Gloss";
 import { jumpTo } from "./jump";
-import { fmtNum, fmtPct, type EvidenceModel } from "./model";
+import { fmtNum, fmtPct, metresBefore, type EvidenceModel } from "./model";
 import { BINS, binCentres, binKey, blend, delaunay, observedBins, TRACKS, type Pt } from "./schematic";
 import { sectionLabel, sectionNo, type SectionId } from "./sections";
 
@@ -247,12 +247,15 @@ export function ProcessFigure({ m, fig }: { m: EvidenceModel; fig?: string }) {
   const linShift = m.interp.rows.find((r) => r.interpolator === "linear" && r.halfshift);
   const linNo = m.interp.rows.find((r) => r.interpolator === "linear" && !r.halfshift);
   const gridM = st[3]?.detail.match(/(\d+(?:\.\d+)?)\s*m\b/)?.[1] ?? null;
+  // The plan views draw native MEGDR bins, so their scale bar takes the bin size the payload states for the
+  // Mars cells, not the AEQD window grid of stage W (equal today, but a different quantity).
+  const binM = metresBefore(m.method.operatorNote, "cells");
   const [lit, setLit] = useState<number | null>(null);
   const missing = (what: string) => <span className="text-faint">{what} not in payload</span>;
 
   const stages: Stage[] = [
     {
-      letter: st[0]?.letter || "S", title: st[0]?.title ?? "Sampling", chain: st[0]?.raw ?? null, art: <Sampling binM={gridM} />,
+      letter: st[0]?.letter || "S", title: st[0]?.title ?? "Sampling", chain: st[0]?.raw ?? null, art: <Sampling binM={binM} />,
       caption: <>Laser shots fall along near north–south ground tracks. Only <Gloss k="megdr" /> bins hit by at least one shot hold a measurement.</>,
       value: m.support.rows.length
         ? <><span className="num text-ink">{fmtPct(m.support.median)}</span> of bins observed · median of <span className="num">{m.support.rows.length}</span> zones</>
@@ -260,7 +263,7 @@ export function ProcessFigure({ m, fig }: { m: EvidenceModel; fig?: string }) {
       evidence: "ev-support",
     },
     {
-      letter: st[1]?.letter || "I", title: st[1]?.title ?? "Interpolation", chain: st[1]?.raw ?? null, art: <Interpolation binM={gridM} />,
+      letter: st[1]?.letter || "I", title: st[1]?.title ?? "Interpolation", chain: st[1]?.raw ?? null, art: <Interpolation binM={binM} />,
       caption: "Empty bins are filled by linear interpolation across a Delaunay triangulation of the observed bins.",
       value: sel
         ? <>{sel.label} · paired error <span className="num text-ink">{fmtNum(sel.error)}</span> · lowest of <span className="num">{m.interp.rows.length}</span></>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixture from "./evidence.fixture.json";
-import { buildModel, fmtStamp, niceTicks, parseStage, zoomedTicks } from "./model";
+import { buildModel, fmtStamp, metresBefore, niceTicks, parseStage, zoomedTicks } from "./model";
 
 describe("evidence model", () => {
   const m = buildModel(fixture);
@@ -48,6 +48,15 @@ describe("evidence model", () => {
     expect(m.limitations).toEqual(fixture.limitations);
     expect(m.support.rows).toHaveLength(39);
     expect(Math.round(m.support.median! * 100)).toBe(31);
+  });
+
+  it("reads the MEGDR bin size from the payload's own sentence about the Mars cells", () => {
+    expect(metresBefore(m.method.operatorNote, "cells")).toBe("463");
+    expect(metresBefore("about 31% of 463.09 m cells contain a return", "cells")).toBe("463.09");
+    // The warp step's window grid is a different quantity and is not read as a bin size.
+    expect(metresBefore("bilinear warp to 463 m AEQD window", "cells")).toBeNull();
+    expect(metresBefore(null, "cells")).toBeNull();
+    expect(buildModel({}).method.operatorNote).toBeNull();
   });
 
   it("parses all four documented stages", () => {
