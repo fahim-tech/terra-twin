@@ -279,6 +279,7 @@ function RunView({ run }: { run: DiscoveryRun }) {
   const selected = r.candidates.find((c) => c.id === liveCandidate) ?? null;
   const label = decisionG5Label(d);
   const excluded = r.excluded ? r.excluded.length : null;
+  const gateBefore = ((r.shortlist_selection as { skipped?: Record<string, unknown> } | undefined)?.skipped?.gate_excluded) as number | undefined;
   const rot = (d as { rotations_checked?: number }).rotations_checked;
   const disclaimers = r.disclaimers.map(disclaimerText);
   let n = 0;
@@ -320,7 +321,9 @@ function RunView({ run }: { run: DiscoveryRun }) {
         <>
           <SectionHead index={idx.others} className="mt-6" aside={others.length}>Other refined windows</SectionHead>
           <p className="mt-1.5 text-caption text-muted">
-            Context, not part of the decision{excluded !== null && <> · <span className="num">{excluded}</span> excluded by the land-cover filter</>}.
+            Context, not part of the decision
+            {typeof gateBefore === "number" && <> · land-cover filter removed <span className="num">{gateBefore}</span> shortlisted cells before extraction</>}
+            {excluded !== null && <> · <span className="num">{excluded}</span> refined windows excluded</>}.
           </p>
           <ul aria-label="Other refined windows, context only" className="mt-2 divide-y divide-line border-y border-line">
             {others.slice(0, shown).map((c) => <CandRow key={c.id} c={c} on={liveCandidate === c.id} onPick={() => pick(c.id)} />)}
