@@ -30,6 +30,15 @@ def test_jezero_gated_matches_g5_sample(client):
 
 
 @requires_data
+def test_robustness_diagnostics_state_their_ungated_scope(client):
+    """The 50/25 km and as-measured diagnostics are computed on the ungated terrain-only ranking."""
+    d = client.post("/v1/compare", json={"site": "Jezero", "mission": "landing_site"}).json()
+    assert d["diagnostics"]["scope"] == "ungated"
+    assert "before any land-cover exclusion" in d["diagnostics"]["basis"]
+    assert "working assumptions" in d["candidate_pool"]["ranked_basis"]
+
+
+@requires_data
 def test_report_mode_returns_tied_set_without_forcing_winner(client):
     d = client.post("/v1/compare", json={"site": "Jezero", "mission": "terrain_geometry_only"}).json()
     assert d["decision"]["type"] == "tied_set" and len(d["decision"]["members"]) == 3

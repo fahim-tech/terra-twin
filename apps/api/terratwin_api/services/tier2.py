@@ -157,12 +157,16 @@ def research_record(site: str, mission_id: str) -> dict:
             "footprint_leader_same_50_vs_25km": bool(per.footprint_leader_same_OOM),
             "footprint_spearman_50_vs_25km": _f(per.footprint_spearman_OOM),
             "note": "Ungated diagnostics from oom_real_mars_per_ez.csv; leaders change between 50 km and 25 km windows.",
+            # The diagnostics describe the terrain-only ranking of all pool windows, before any land-cover
+            # exclusion; they are not statements about a gated record's leader or about a tied set.
+            "scope": "ungated",
+            "basis": "terrain-only research ranking of all pool windows, before any land-cover exclusion",
         },
         "candidate_pool": {"scope": "fixed_research_pool", "n_windows": 230, "n_random_stratified": 213,
                            "n_named_controls": 17, "window_km": 50,
                            "n_ranked": _n_ranked(gated),
                            "ranked_basis": ("windows passing the land-cover gate (bare-like ≥ 0.50, vegetated ≤ 0.20; "
-                                            "working hypotheses)") if gated else "all pool windows (land cover reported, not used)",
+                                            "working assumptions)") if gated else "all pool windows (land cover reported, not used)",
                            "note": "Stratified research sample. Demonstrates the method; not a worldwide high-resolution search."},
         "weights": "equal (mission-neutral) — mission affects only the land-cover gate mode at tier 2",
         "method_version": OOM_METHOD_VERSION,
