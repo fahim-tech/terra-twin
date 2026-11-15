@@ -357,7 +357,8 @@ const chunks = (s: string, n: number) => Array.from({ length: Math.ceil(s.length
 /** "01  METHOD ───────── [tag]" over the section title. The section box starts at this rule, so jumps and the index line up with it. */
 function Section({ id, title, tag, children }: { id: SectionId; title: string; tag?: ReactNode; children: ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-h`} className="mt-24 scroll-mt-[76px] first:mt-20 xl:mt-28 xl:scroll-mt-10 xl:first:mt-24">
+    // Section spacing is a brief's rhythm, not a landing page's: tighter on phones, where every screen counts.
+    <section id={id} aria-labelledby={`${id}-h`} className="mt-16 scroll-mt-[76px] first:mt-14 sm:mt-20 sm:first:mt-16 xl:mt-24 xl:scroll-mt-10 xl:first:mt-20">
       {/* Wraps on phones so a long tag drops below the rule instead of running off the page. */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
         <span aria-hidden className="num text-[12px] leading-none text-faint">{sectionNo(id)}</span>
@@ -365,7 +366,8 @@ function Section({ id, title, tag, children }: { id: SectionId; title: string; t
         <span aria-hidden className="h-px min-w-6 flex-1 bg-line-strong" />
         {tag}
       </div>
-      <h2 id={`${id}-h`} className="toponym m-0 mt-4 text-[26px] leading-[1.04] tracking-[0.03em] text-ink sm:text-[34px]">{title}</h2>
+      {/* w-fit: a keyboard jump focuses the heading, and its focus outline should hug the words, not the row. */}
+      <h2 id={`${id}-h`} className="toponym m-0 mt-4 w-fit text-[26px] leading-[1.04] tracking-[0.03em] text-ink sm:text-[34px]">{title}</h2>
       <div className="mt-9">{children}</div>
     </section>
   );
