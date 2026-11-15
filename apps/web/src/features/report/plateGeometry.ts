@@ -103,6 +103,55 @@ export function nadirKmPerPx(cam: PlateCamera): number {
   return (2 * cam.heightKm * cam.tanX) / cam.width;
 }
 
+/**
+ * The size a snapshot comes back at for a globe canvas of the given aspect (w / h): the whole canvas, scaled
+ * down to `maxWidth` (globe-entry `snapshot()`). Lets a plate draw its final frame and ticks before the image.
+ */
+export function shotSize(aspect: number, maxWidth: number): { width: number; height: number } {
+  const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 16 / 10;
+  return { width: maxWidth, height: Math.round(maxWidth / a) };
+}
+
+/**
+ * Camera height above the surface (km) at which the whole planet, seen straight down, spans `fill` of the
+ * shorter side of a snapshot of the given canvas aspect (w / h). The limb of a sphere of radius R seen from
+ * distance d lies asin(R / d) off the view axis.
+ */
+export function wholeDiskHeightKm(body: Body, aspect: number, fill = 0.84, fovDeg = 60): number {
+  const t = Math.tan((fovDeg * D2R) / 2);
+  const a = Number.isFinite(aspect) && aspect > 0 ? aspect : 16 / 10;
+  const tanShort = a >= 1 ? t / a : t * a;
+  const alpha = Math.atan(fill * tanShort);
+  const R = body.a / 1000;
+  return R / Math.sin(alpha) - R;
+}
+
+/**
+ * Apparent radius of the planet's disk in a nadir snapshot, image px, from the camera's distance to the
+ * planet centre (equatorial radius, so the limb is never cut on an oblate body).
+ */
+export function diskRadiusPx(cam: PlateCamera): number {
+  const d = Math.hypot(cam.pos[0], cam.pos[1], cam.pos[2]);
+  const alpha = Math.asin(Math.min(1, cam.body.a / d));
+  return (Math.tan(alpha) * (cam.width / 2)) / cam.tanX;
+}
+
+/**
+ * How to show a nadir whole-disk snapshot in a square box: the image placed (as % of the box) so the planet is
+ * centred with `margin` × its diameter across the box, the disk radius, and the plate's ground footprint at the
+ * centre — all in box units (0..100), from the same camera model as the plates.
+ */
+export function diskCrop(cam: PlateCamera, plateKm: { w: number; h: number }, margin = 1.1) {
+  const r = diskRadiusPx(cam);
+  const k = 100 / (2 * r * margin);
+  const kmPerPx = nadirKmPerPx(cam);
+  return {
+    img: { left: 50 - (cam.width / 2) * k, top: 50 - (cam.height / 2) * k, width: cam.width * k, height: cam.height * k },
+    radius: r * k,
+    plate: { w: (plateKm.w / kmPerPx) * k, h: (plateKm.h / kmPerPx) * k },
+  };
+}
+
 export interface Rect { x: number; y: number; w: number; h: number }
 
 /** The part of a w × h snapshot that a plate of the given aspect shows (object-fit: cover, centred), in snapshot pixels. */

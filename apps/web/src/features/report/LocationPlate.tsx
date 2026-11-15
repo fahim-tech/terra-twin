@@ -10,7 +10,8 @@ import { useGlobes } from "../../store/globes";
 import { fmtLat, fmtLon } from "./model";
 import { DISPLAY } from "./parts";
 import { withCleanGlobe } from "./plateCapture";
-import { type EdgeTick, formatTick, groundAt, nadirKmPerPx, plateBody, plateCamera, type PlateTicks, plateTicks, visibleRect } from "./plateGeometry";
+import { DiskLocator } from "./DiskLocator";
+import { type EdgeTick, formatTick, groundAt, nadirKmPerPx, plateBody, plateCamera, type PlateTicks, plateTicks, shotSize, visibleRect } from "./plateGeometry";
 import { splitDesignation } from "./typeset";
 
 /** Plates are rendered top-down from this altitude (spec §12/§17). */
@@ -20,6 +21,20 @@ const PLATE_ASPECT = 4 / 3;
 /** Same rule as GlobeFrame/globe init: with an ion token the Mars globe renders on the IAU 2000 ellipsoid. */
 const ION_TOKEN = (import.meta.env.VITE_CESIUM_ION_TOKEN || "").trim() || null;
 
+/** The ellipsoid the planet's globe renders on (and so the one its snapshots show). */
+export const bodyFor = (planet: Planet) => plateBody(planet, ION_TOKEN);
+
+/**
+ * Aspect (w / h) of the globe canvases: on a full page both globes still fill the stage (`main`), and every
+ * snapshot is the whole canvas, so this is the shape a snapshot will come back in.
+ */
+export function stageAspect(): number {
+  const el = typeof document !== "undefined" ? document.querySelector("main") : null;
+  const w = el?.clientWidth || window.innerWidth;
+  const h = el?.clientHeight || window.innerHeight;
+  return w > 0 && h > 0 ? w / h : 16 / 10;
+}
+
 type Shot = { dataUrl: string; width: number; height: number };
 export type SnapshotState = { status: "loading" } | { status: "ok"; shot: Shot } | { status: "failed" };
 type State = SnapshotState;
@@ -27,16 +42,26 @@ type State = SnapshotState;
 // Snapshots are expensive (the globe re-renders off-view); keep them for the session.
 const cache = new Map<string, Promise<Shot | null>>();
 
+// A snapshot moves its globe's camera until the image is taken, so two captures on one globe must never
+// overlap: they run one after another, in the order they were asked for (the plate, then its locator).
+const queue: Record<Planet, Promise<unknown>> = { mars: Promise.resolve(), earth: Promise.resolve() };
+function inTurn<T>(planet: Planet, job: () => Promise<T>): Promise<T> {
+  const run = queue[planet].then(job, job);
+  queue[planet] = run.catch(() => undefined);
+  return run;
+}
+
 /**
- * Real imagery from the planet's own globe, or a failure that the plate shows honestly.
- * Waits for the globe to be ready; gives up after a bounded time.
+ * Real imagery from the planet's own globe, or a failure that the plate shows honestly: the view straight down
+ * on (lat, lon) from `heightKm`. Waits for the globe to be ready; gives up after a bounded time. `announce`
+ * names the product in the polite live region when it is ready (or not).
  */
-export function useSnapshot(planet: Planet, lat: number, lon: number, enabled = true): State {
+export function useSnapshot(planet: Planet, lat: number, lon: number, enabled = true, heightKm = PLATE_HEIGHT_KM, announce: string | null = "location plate"): State {
   const bus = useGlobeBus();
   const qc = useQueryClient();
   const ready = useGlobes((s) => s.ready[planet]);
   const [state, setState] = useState<State>({ status: "loading" });
-  const key = `${planet}:${lat.toFixed(5)}:${lon.toFixed(5)}:${PLATE_HEIGHT_KM}`;
+  const key = `${planet}:${lat.toFixed(5)}:${lon.toFixed(5)}:${heightKm}`;
 
   useEffect(() => {
     let live = true;
@@ -50,9 +75,9 @@ export function useSnapshot(planet: Planet, lat: number, lon: number, enabled = 
     if (!p) {
       const h = bus.handles[planet].current;
       p = h
-        ? waitForStillCamera(planet)
+        ? inTurn(planet, () => waitForStillCamera(planet)
           // A camera that never settles means the capture could show another place: no imagery rather than wrong imagery.
-          .then((ok) => (ok ? withCleanGlobe(bus, qc, planet, () => h.snapshot(lat, lon, PLATE_HEIGHT_KM, PLATE_MAX_WIDTH)) : null))
+          .then((ok) => (ok ? withCleanGlobe(bus, qc, planet, () => h.snapshot(lat, lon, heightKm, PLATE_MAX_WIDTH)) : null)))
           .catch(() => null)
         : Promise.resolve(null);
       cache.set(key, p);
@@ -62,10 +87,10 @@ export function useSnapshot(planet: Planet, lat: number, lon: number, enabled = 
       if (!live) return;
       setState(r ? { status: "ok", shot: r } : { status: "failed" });
       const name = planet === "mars" ? "Mars" : "Earth";
-      useApp.getState().announce(r ? `${name} location plate ready` : `${name} imagery unavailable; the plate shows coordinates only`);
+      if (announce) useApp.getState().announce(r ? `${name} ${announce} ready` : `${name} imagery unavailable; the ${announce} shows coordinates only`);
     });
     return () => { live = false; };
-  }, [bus, qc, planet, lat, lon, ready, key, enabled]);
+  }, [bus, qc, planet, lat, lon, ready, key, enabled, heightKm, announce]);
 
   return state;
 }
@@ -106,16 +131,21 @@ const MARGIN = 22;
  * a scale bar and a north arrow. `snapshot` comes from the caller so a pair of plates can be revealed
  * together: while `held`, the plate keeps its rendering state even if its own image is ready.
  */
-export function LocationPlate({ planet, plate, lat, lon, frame, kicker, name, imagery, snapshot, held = false }: {
+export function LocationPlate({ planet, plate, lat, lon, frame, kicker, name, imagery, snapshot, held = false, aspect, disk = null }: {
   planet: Planet; plate: string; lat: number; lon: number; frame: PlateFrame; kicker: string; name: string; imagery: string;
   snapshot: SnapshotState; held?: boolean;
+  /** Globe canvas aspect: before the image arrives, the frame, ticks and scale bar are drawn for the snapshot to come. */
+  aspect: number;
+  /** Whole-disk locator from the same globe, centred on the plate. */
+  disk?: { snapshot: SnapshotState; heightKm: number } | null;
 }) {
   const title = splitDesignation(name);
   const snap: State = held && snapshot.status === "ok" ? { status: "loading" } : snapshot;
-  const w = snap.status === "ok" ? snap.shot.width : PLATE_MAX_WIDTH;
-  const h = snap.status === "ok" ? snap.shot.height : PLATE_MAX_WIDTH / PLATE_ASPECT;
+  const expected = shotSize(aspect, PLATE_MAX_WIDTH);
+  const w = snap.status === "ok" ? snap.shot.width : expected.width;
+  const h = snap.status === "ok" ? snap.shot.height : expected.height;
   const geo = useMemo(() => {
-    const cam = plateCamera(plateBody(planet, ION_TOKEN), lat, lon, PLATE_HEIGHT_KM, w, h);
+    const cam = plateCamera(bodyFor(planet), lat, lon, PLATE_HEIGHT_KM, w, h);
     const rect = visibleRect(w, h, PLATE_ASPECT);
     const kmPerPx = nadirKmPerPx(cam);
     return { cam, rect, kmPerPx, ticks: plateTicks(cam, rect), bar: niceScale(kmPerPx * 1000, rect.w * 0.3) };
@@ -172,19 +202,25 @@ export function LocationPlate({ planet, plate, lat, lon, frame, kicker, name, im
         {geo.ticks && <Neatline ticks={geo.ticks} probe={probe} />}
       </div>
 
-      <figcaption className="mt-1">
-        <div className={cx(DISPLAY, "text-[20px] leading-tight tracking-[0.04em] text-ink")}>
-          {title.name}
-          {title.detail && <span className="ml-2 text-[14px] font-medium tracking-[0.08em] text-muted"><span className="sr-only">, </span>{title.detail}</span>}
+      <figcaption className="mt-1 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className={cx(DISPLAY, "text-[20px] leading-tight tracking-[0.04em] text-ink")}>
+            {title.name}
+            {title.detail && <span className="ml-2 text-[14px] font-medium tracking-[0.08em] text-muted"><span className="sr-only">, </span>{title.detail}</span>}
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <span className="num text-num text-muted">{coord}</span>
+            <span className="text-caption text-faint">{frame.label}</span>
+          </div>
+          <div className="mt-1.5 flex items-center gap-2 text-caption text-faint">
+            <span aria-hidden className={cx("h-1.5 w-1.5 shrink-0", onImagery ? "bg-faint" : "ring-1 ring-inset ring-faint")} />
+            {onImagery ? `${imagery} — visualization only` : snap.status === "loading" ? "Rendering imagery…" : "No imagery snapshot — coordinate plate"}
+          </div>
         </div>
-        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-          <span className="num text-num text-muted">{coord}</span>
-          <span className="text-caption text-faint">{frame.label}</span>
-        </div>
-        <div className="mt-1.5 flex items-center gap-2 text-caption text-faint">
-          <span aria-hidden className={cx("h-1.5 w-1.5 shrink-0", onImagery ? "bg-faint" : "ring-1 ring-inset ring-faint")} />
-          {onImagery ? `${imagery} — visualization only` : snap.status === "loading" ? "Rendering imagery…" : "No imagery snapshot — coordinate plate"}
-        </div>
+        {disk && disk.snapshot.status !== "failed" && (
+          <DiskLocator planet={planet} body={bodyFor(planet)} lat={lat} lon={lon} heightKm={disk.heightKm} snapshot={disk.snapshot}
+            plateKm={{ w: geo.rect.w * geo.kmPerPx, h: geo.rect.h * geo.kmPerPx }} className="-mt-2.5 shrink-0" />
+        )}
       </figcaption>
     </figure>
   );

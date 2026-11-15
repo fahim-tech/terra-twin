@@ -1,4 +1,4 @@
-import { useMemo, useRef, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Term } from "../../components/primitives";
 import { Button, cx } from "../../components/ui";
 import { useEvidence, useMissions } from "../../services/api";
@@ -9,9 +9,10 @@ import { screenCellKm } from "../analogs/candidates";
 import { DossierHeader } from "./DossierHeader";
 import { DossierIndex, useDossierNav } from "./DossierIndex";
 import { KeyFigures } from "./KeyFigures";
-import { LocationPlate, PLATE_HEIGHT_KM, type PlateFrame, useSnapshot } from "./LocationPlate";
+import { bodyFor, LocationPlate, PLATE_HEIGHT_KM, type PlateFrame, stageAspect, useSnapshot } from "./LocationPlate";
 import { candidateRole, type DossierSection as Sec, dossierSections, generatedStamp, resolveCandidate, type ReportCandidate, type SectionId } from "./model";
 import { DISPLAY, DossierSection } from "./parts";
+import { wholeDiskHeightKm } from "./plateGeometry";
 import { dossierPrintCss } from "./print";
 import { ReliefSnapshotSlot } from "./ReliefSlot";
 import {
@@ -85,6 +86,15 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
   const marsSnap = useSnapshot("mars", marsLat, marsLon);
   const earthSnap = useSnapshot("earth", c?.lat ?? 0, c?.lon ?? 0, !!(c && earthFrame));
   const platesHeld = marsSnap.status === "loading" || (!!(c && earthFrame) && earthSnap.status === "loading");
+  // Whole-disk locators: the same globes from far enough out to show the planet whole, framed for the canvas
+  // shape (read once). Asked for after the plates, so on each globe they are captured after the plate.
+  const [aspect] = useState(stageAspect);
+  const diskKm = useMemo(() => ({
+    mars: Math.round(wholeDiskHeightKm(bodyFor("mars"), aspect) / 100) * 100,
+    earth: Math.round(wholeDiskHeightKm(bodyFor("earth"), aspect) / 100) * 100,
+  }), [aspect]);
+  const marsDisk = useSnapshot("mars", marsLat, marsLon, true, diskKm.mars, null);
+  const earthDisk = useSnapshot("earth", c?.lat ?? 0, c?.lon ?? 0, !!(c && earthFrame), diskKm.earth, null);
 
   const sections = useMemo(() => dossierSections(search, c), [search, c]);
   const root = useRef<HTMLDivElement>(null);
@@ -109,11 +119,13 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
           <div className="grid gap-8 md:grid-cols-2 md:gap-7 print:grid-cols-2 print:gap-5">
             <LocationPlate planet="mars" plate="A" lat={marsLat} lon={marsLon} frame={marsFrame}
               kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"} name={target.siteId ? target.label : "Search target"}
-              imagery="NASA Mars Trek imagery" snapshot={marsSnap} held={platesHeld} />
+              imagery="NASA Mars Trek imagery" snapshot={marsSnap} held={platesHeld} aspect={aspect}
+              disk={{ snapshot: marsDisk, heightKm: diskKm.mars }} />
             {c && earthFrame ? (
               <LocationPlate planet="earth" plate="B" lat={c.lat} lon={c.lon} frame={earthFrame}
                 kicker={c.tier === 1 ? "Earth · Screening cell" : role === "tie_member" ? "Earth · Tie member" : "Earth · Research window"}
-                name={c.tier === 1 && !c.t1?.known_analog.name ? "Screening cell" : c.label} imagery="NASA GIBS imagery" snapshot={earthSnap} held={platesHeld} />
+                name={c.tier === 1 && !c.t1?.known_analog.name ? "Screening cell" : c.label} imagery="NASA GIBS imagery" snapshot={earthSnap} held={platesHeld}
+                aspect={aspect} disk={{ snapshot: earthDisk, heightKm: diskKm.earth }} />
             ) : (
               <NoCandidatePlate hasCandidates={search.tier2.candidates.some((x) => x.lat !== null && x.lon !== null) || (search.tier1?.candidates.length ?? 0) > 0} screenRan={!!search.tier1} decision={t2.decision.type} />
             )}
@@ -123,7 +135,9 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
           <p className="mt-5 max-w-[86ch] text-caption text-faint">
             Rendered from the planet globes at <span className="num">{PLATE_HEIGHT_KM}</span> km, nadir, north up. Frames and scale bars use the scale at the plate
             centre and are approximate; neatline ticks mark where parallels and meridians cross the plate edge (planetocentric on Mars, geodetic WGS84 on Earth).
-            Imagery is never used in any measurement.
+            Whole-disk locators look straight down on the plate centre from <span className="num">{diskKm.mars.toLocaleString("en-US")}</span> km (Mars)
+            {c && earthFrame ? <> and <span className="num">{diskKm.earth.toLocaleString("en-US")}</span> km (Earth)</> : null}; the small square is the plate.
+            Lighting is set for legibility, not the Sun&apos;s position. Imagery is never used in any measurement.
           </p>
         </Section>
 

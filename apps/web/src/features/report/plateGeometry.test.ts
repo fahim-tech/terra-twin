@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { distanceKm, R_MARS_M } from "../../lib/geodesy";
 import {
-  EARTH_WGS84, edgeTicks, formatTick, groundAt, MARS_IAU2000_BODY, MARS_SPHERE, minorDivisions, nadirKmPerPx, plateBody, plateCamera, plateTicks, tickStep,
-  visibleRect,
+  diskCrop, diskRadiusPx, EARTH_WGS84, edgeTicks, formatTick, groundAt, MARS_IAU2000_BODY, MARS_SPHERE, minorDivisions, nadirKmPerPx, plateBody, plateCamera,
+  plateTicks, shotSize, tickStep, visibleRect, wholeDiskHeightKm,
 } from "./plateGeometry";
 
 const W = 800;
@@ -127,5 +127,58 @@ describe("plate ticks", () => {
     expect(values.slice(0, i).every((v) => v > 0 && v < 180)).toBe(true);
     expect(values.slice(i + 1).every((v) => v < 0)).toBe(true);
     for (let j = 1; j < ticks.length; j++) expect(ticks[j].at).toBeGreaterThan(ticks[j - 1].at);
+  });
+});
+
+describe("whole-disk locator", () => {
+  it("predicts the snapshot size from the globe canvas aspect", () => {
+    expect(shotSize(1440 / 848, 800)).toEqual({ width: 800, height: 471 });
+    expect(shotSize(390 / 792, 800)).toEqual({ width: 800, height: 1625 });
+    expect(shotSize(Number.NaN, 800)).toEqual({ width: 800, height: 500 });
+  });
+
+  it("frames the whole planet in the shorter side of the snapshot, landscape and portrait", () => {
+    for (const [body, w, h] of [[MARS_SPHERE, W, H], [EARTH_WGS84, W, H], [MARS_SPHERE, 400, 812], [EARTH_WGS84, 400, 812]] as const) {
+      const cam = plateCamera(body, 17.6756, 77.0127, wholeDiskHeightKm(body, w / h), w, h);
+      expect(diskRadiusPx(cam) / (Math.min(w, h) / 2)).toBeCloseTo(0.84, 2);
+    }
+  });
+
+  it("puts the disk edge where rays stop hitting the planet", () => {
+    const cam = plateCamera(MARS_SPHERE, -60, 10, wholeDiskHeightKm(MARS_SPHERE, W / H), W, H);
+    const r = diskRadiusPx(cam);
+    expect(groundAt(cam, W / 2 + r - 0.5, H / 2)).not.toBeNull();
+    expect(groundAt(cam, W / 2 + r + 0.5, H / 2)).toBeNull();
+    expect(groundAt(cam, W / 2, H / 2 - r + 0.5)).not.toBeNull();
+    expect(groundAt(cam, W / 2, H / 2 - r - 0.5)).toBeNull();
+  });
+
+  it("centres the disk in a square box with a margin and marks the plate to scale", () => {
+    const km = wholeDiskHeightKm(MARS_SPHERE, W / H);
+    const cam = plateCamera(MARS_SPHERE, 17.6756, 77.0127, km, W, H);
+    const plateCam = plateCamera(MARS_SPHERE, 17.6756, 77.0127, 420, W, H);
+    const rect = visibleRect(W, H);
+    const plateKm = { w: rect.w * nadirKmPerPx(plateCam), h: rect.h * nadirKmPerPx(plateCam) };
+    const c = diskCrop(cam, plateKm);
+    expect(c.radius).toBeCloseTo(50 / 1.1, 6);
+    // The image centre (the nadir point) lands on the box centre.
+    expect(c.img.left + c.img.width / 2).toBeCloseTo(50, 6);
+    expect(c.img.top + c.img.height / 2).toBeCloseTo(50, 6);
+    expect(c.img.width / c.img.height).toBeCloseTo(W / H, 6);
+    // In perspective the nadir is nearer than the limb: the plate spans s / (2·h·tan α) of the disk's width,
+    // with α = asin(R / (R + h)) the limb angle — a few percent here — and stays 4:3 like the plate.
+    const R = R_MARS_M / 1000;
+    const alpha = Math.asin(R / (R + km));
+    expect(c.plate.w / (2 * c.radius)).toBeCloseTo(plateKm.w / (2 * km * Math.tan(alpha)), 6);
+    expect(c.plate.w / (2 * c.radius)).toBeLessThan(0.1);
+    expect(c.plate.w / c.plate.h).toBeCloseTo(4 / 3, 6);
+  });
+
+  it("moves the camera further out for the larger planet", () => {
+    const mars = wholeDiskHeightKm(MARS_SPHERE, W / H);
+    const earth = wholeDiskHeightKm(EARTH_WGS84, W / H);
+    expect(earth / mars).toBeCloseTo(EARTH_WGS84.a / MARS_SPHERE.a, 6);
+    // Far enough out that the disk is whole: thousands of km, not plate altitude.
+    expect(mars).toBeGreaterThan(5_000);
   });
 });
