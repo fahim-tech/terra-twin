@@ -833,31 +833,87 @@ export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: nu
 }
 
 /**
- * Closest zoom (at most 1) at which one fixed view still shows the whole block and the anchor of every scale label
- * it draws, `pad` CSS px inside the frame. For stills: a view the reader can orbit keeps `camera`'s framing for every
- * side (zoom 1), while a still only has to frame the side it shows.
+ * The same camera with its picture moved (dx, dy) CSS px on screen, like a shifted lens: the view direction, the
+ * perspective and the sides that carry the scales stay as they are. Stills use it to centre what they draw.
  */
-export function fitZoom(m: Model, pose: Pose, width: number, height: number, pad = 18): number {
+export function shiftCamera(cam: Camera, dx: number, dy: number, width: number, height: number): Camera {
+  const sx = (2 * dx) / Math.max(1, width), sy = (-2 * dy) / Math.max(1, height);
+  const m = Float32Array.from(cam.viewProj);
+  // Column-major: clip x += sx · w and clip y += sy · w, so after the divide every point moves by (sx, sy) in NDC.
+  for (let c = 0; c < 4; c++) {
+    m[4 * c] += sx * m[4 * c + 3];
+    m[4 * c + 1] += sy * m[4 * c + 3];
+  }
+  return { ...cam, viewProj: m };
+}
+
+/** How a still frames its one view: the camera zoom (as `Pose.zoom`) and the shift of the picture (CSS px, `shiftCamera`). */
+export interface StillFrame { zoom: number; dx: number; dy: number }
+
+/**
+ * Framing of one fixed view for a still. A view the reader can orbit keeps `camera`'s framing, which fits the block
+ * from every side around the orbit centre; a still shows one side, so it is framed on what it draws: the block and
+ * the anchors of its scale labels (kept `pad` CSS px inside the frame), and the labels' text and the north letter
+ * (kept `inset` px inside; `gap`: how far the still sets left- or right-aligned text off its anchor). Everything drawn
+ * is centred, at the closest zoom (at most 1) that keeps these margins without losing north or a scale's end.
+ */
+export function fitFrame(m: Model, pose: Pose, width: number, height: number, pad = 18, inset = Math.max(6, pad / 2), gap = 0): StillFrame {
   const anchors = labelAnchors(m);
-  const inside = (zoom: number) => {
+  type Box = { left: number; right: number; top: number; bottom: number };
+  const grow = (b: Box, r: Box) => {
+    b.left = Math.min(b.left, r.left); b.right = Math.max(b.right, r.right);
+    b.top = Math.min(b.top, r.top); b.bottom = Math.max(b.bottom, r.bottom);
+  };
+  const measure = (zoom: number) => {
     const cam = camera(m, { ...pose, zoom }, width, height);
     const place = axisPlacement(cam);
     const top = (m.zMax - m.zBase) * cam.ys;
     const pts: Vec3[] = [];
     for (const [x, z] of corners(m.hx, m.hz)) pts.push([x, 0, z], [x, top, z]);
     for (const a of anchors) if (anchorShown(a, place)) pts.push([a.p[0], worldY(m, a.p[1], cam.ys), a.p[2]]);
-    return pts.every((p) => {
+    const geom: Box = { left: Infinity, right: -Infinity, top: Infinity, bottom: -Infinity };
+    for (const p of pts) {
       const s = project(cam.viewProj, p, width, height);
-      return s.visible && s.x >= pad && s.x <= width - pad && s.y >= pad && s.y <= height - pad;
-    });
+      if (!s.visible) return null;
+      grow(geom, { left: s.x, right: s.x, top: s.y, bottom: s.y });
+    }
+    // Lay the labels out with the block centred (so none is pushed in from an edge it would not reach in the still),
+    // each box at its own anchor, and measure them back in the unshifted frame.
+    const dx = width / 2 - (geom.left + geom.right) / 2, dy = height / 2 - (geom.top + geom.bottom) / 2;
+    const shifted = shiftCamera(cam, dx, dy, width, height);
+    const labels = layoutLabels(m, anchors, shifted, width, height);
+    const all: Box = { ...geom };
+    for (const l of labels) {
+      const a = l.kind === "north" ? null : anchors.find((x) => x.key === l.key);
+      const s = a ? project(shifted.viewProj, [a.p[0], worldY(m, a.p[1], cam.ys), a.p[2]], width, height) : l;
+      const r = labelRect({ ...l, x: s.x + (l.align === "left" ? gap : l.align === "right" ? -gap : 0), y: s.y });
+      grow(all, { left: r.left - dx, right: r.right - dx, top: r.top - dy, bottom: r.bottom - dy });
+    }
+    // North and the scales' ends and units ("0", "50 km E", "2,000 m") must stay; intermediate ticks come and go with
+    // their spacing.
+    const keys = new Set(labels.filter((l) => l.kind === "north" || l.text === "0" || l.text.includes(" ")).map((l) => l.key));
+    const shift = { dx: width / 2 - (all.left + all.right) / 2, dy: height / 2 - (all.top + all.bottom) / 2 };
+    return { geom, all, keys, shift };
   };
-  if (!inside(1)) return 1;
-  let lo = 0.3, hi = 1; // hi: inside
+  const home = measure(1);
+  if (!home) return { zoom: 1, dx: 0, dy: 0 };
+  const fits = (r: ReturnType<typeof measure>): boolean => {
+    if (!r || ![...home.keys].every((k) => r.keys.has(k))) return false;
+    const { geom: g, all: a, shift: { dx, dy } } = r;
+    return a.left + dx >= inset && a.right + dx <= width - inset && a.top + dy >= inset && a.bottom + dy <= height - inset
+      && g.left + dx >= pad && g.right + dx <= width - pad && g.top + dy >= pad && g.bottom + dy <= height - pad;
+  };
+  // A small frame whose labels already reach past the margin at the orbit framing keeps that framing (its outermost
+  // labels are then held inside by `layoutLabels`, clear of the block): stepping back would only shrink the terrain.
+  // It is centred only up and down; across, the orbit framing already centres the block between its side labels.
+  if (!fits(home)) return { zoom: 1, dx: 0, dy: home.shift.dy };
+  let lo = 0.3, hi = 1, best = home; // hi: fits
   for (let i = 0; i < 24; i++) {
     const mid = (lo + hi) / 2;
-    if (inside(mid)) hi = mid; else lo = mid;
+    const r = measure(mid);
+    if (r && fits(r)) { hi = mid; best = r; } else lo = mid;
   }
-  return hi;
+  return { zoom: hi, ...best.shift };
 }
 
 // ---------------------------------------------------------------- shading shared by WebGL and 2D

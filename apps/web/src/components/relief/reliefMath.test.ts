@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  anchorShown, ariaSummary, axisPlacement, baseElevation, boxEdges, buildModel, camera, contourInterval, contourSegments, fitZoom, gradients, gridStats,
-  fitDistance, fmtHeading, fmtPitch, hillshade, homePose, labelAnchors, labelBox, layoutLabels, meshElevation, niceStep, niceTicks, NORTH_ARROW, pickCell, project, representationNote, sunVector, TINT,
-  toGrid, worldY, type Grid,
+  anchorShown, ariaSummary, axisPlacement, baseElevation, boxEdges, buildModel, camera, contourInterval, contourSegments, fitFrame, gradients, gridStats,
+  fitDistance, fmtHeading, fmtPitch, hillshade, homePose, labelAnchors, labelBox, labelRect, layoutLabels, meshElevation, niceStep, niceTicks, NORTH_ARROW, pickCell, project, representationNote,
+  shiftCamera, sunVector, TINT, toGrid, worldY, type Grid,
 } from "./reliefMath";
 
 /** Plane z = a·east + b·north on a north-up grid (row 0 = north). */
@@ -406,24 +406,75 @@ describe("scale labels from every side", () => {
 describe("still framing", () => {
   const real = buildModel(plane(108, 108, 463.0935415503709, 0.004, 0.012))!;
   const anchors = labelAnchors(real);
-  const shownInside = (zoom: number, w: number, h: number, pad: number) => {
-    const cam = camera(real, { ...homePose(4), zoom }, w, h);
+  /** What a still at this framing draws: the block with the shown anchors (`geom`), and that with the label boxes (`all`). */
+  const drawn = (f: { zoom: number; dx: number; dy: number }, w: number, h: number, pose = homePose(4)) => {
+    const cam = shiftCamera(camera(real, { ...pose, zoom: f.zoom }, w, h), f.dx, f.dy, w, h);
     const place = axisPlacement(cam);
-    return anchors.filter((a) => anchorShown(a, place)).every((a) => {
-      const s = project(cam.viewProj, [a.p[0], worldY(real, a.p[1], cam.ys), a.p[2]], w, h);
-      return s.visible && s.x >= pad - 1e-6 && s.x <= w - pad + 1e-6 && s.y >= pad - 1e-6 && s.y <= h - pad + 1e-6;
-    });
+    const top = (real.zMax - real.zBase) * cam.ys;
+    const xs: number[] = [], ys: number[] = [];
+    const pts: [number, number, number][] = [];
+    for (const [x, z] of [[-real.hx, -real.hz], [real.hx, -real.hz], [real.hx, real.hz], [-real.hx, real.hz]]) pts.push([x, 0, z], [x, top, z]);
+    for (const a of anchors) if (anchorShown(a, place)) pts.push([a.p[0], worldY(real, a.p[1], cam.ys), a.p[2]]);
+    for (const p of pts) { const s = project(cam.viewProj, p, w, h); xs.push(s.x); ys.push(s.y); }
+    const box = () => ({ left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) });
+    const geom = box();
+    const labels = layoutLabels(real, anchors, cam, w, h);
+    for (const l of labels) { const r = labelRect(l); xs.push(r.left, r.right); ys.push(r.top, r.bottom); }
+    return { geom, all: box(), labels };
   };
 
-  it("frames one fixed view closer than an orbiting view, keeping every scale it draws in the frame", () => {
-    for (const [w, h] of [[1000, 500], [358, 268], [960, 600]]) {
-      const z = fitZoom(real, homePose(4), w, h);
-      expect(z).toBeLessThan(1);
-      expect(shownInside(z, w, h, 18)).toBe(true);
-      expect(shownInside(z * 0.97, w, h, 18)).toBe(false); // as close as it can be
-      const placed = layoutLabels(real, anchors, camera(real, { ...homePose(4), zoom: z }, w, h), w, h);
-      for (const text of ["0", "50 km E", "50 km N", "N"]) expect(placed.some((l) => l.text === text)).toBe(true);
+  it("moves the whole picture by the shift and nothing else", () => {
+    const cam = camera(real, homePose(4), 640, 360);
+    const moved = shiftCamera(cam, 37, -21, 640, 360);
+    for (const p of [[0, 0, 0], [real.hx, 0.1, -real.hz], [-real.hx, 0, real.hz]] as [number, number, number][]) {
+      const a = project(cam.viewProj, p, 640, 360), b = project(moved.viewProj, p, 640, 360);
+      expect(b.x - a.x).toBeCloseTo(37, 3);
+      expect(b.y - a.y).toBeCloseTo(-21, 3);
     }
+    expect(axisPlacement(moved)).toEqual(axisPlacement(cam)); // the same sides carry the scales
+  });
+
+  it("frames one fixed view centred, the block inside its margin and every label it draws inside the frame", () => {
+    for (const [w, h, pad] of [[1000, 500, 23], [1036, 518, 23], [960, 600, 27]]) {
+      const inset = Math.max(6, pad / 2);
+      const f = fitFrame(real, homePose(4), w, h, pad);
+      expect(f.zoom).toBeLessThan(1); // closer than the orbit framing
+      const { geom: g, all: a, labels } = drawn(f, w, h);
+      for (const [lo, hi, size] of [[g.left, g.right, w], [g.top, g.bottom, h]]) {
+        expect(lo).toBeGreaterThanOrEqual(pad - 0.5);
+        expect(size - hi).toBeGreaterThanOrEqual(pad - 0.5);
+      }
+      for (const [lo, hi, size] of [[a.left, a.right, w], [a.top, a.bottom, h]]) {
+        expect(lo).toBeGreaterThanOrEqual(inset - 0.5);
+        expect(size - hi).toBeGreaterThanOrEqual(inset - 0.5);
+        expect(Math.abs(lo - (size - hi))).toBeLessThan(1.5); // centred across and up and down
+      }
+      // As close as it can be: some side of the picture is at its margin.
+      expect(Math.min(a.left - inset, a.top - inset, g.left - pad, g.top - pad, w - g.right - pad, h - g.bottom - pad)).toBeLessThan(2);
+      for (const text of ["0", "50 km E", "50 km N", "N"]) expect(labels.some((l) => l.text === text)).toBe(true);
+    }
+  });
+
+  it("keeps the orbit framing in a frame too small for its labels, never shrinking the terrain", () => {
+    const [w, h] = [358, 268];
+    const f = fitFrame(real, homePose(4), w, h, 16);
+    expect(f.zoom).toBe(1);
+    expect(f.dx).toBe(0); // across, the orbit framing already centres the block between its side labels
+    const { all: a, labels } = drawn(f, w, h);
+    expect(Math.abs(a.top - (h - a.bottom))).toBeLessThan(1.5); // centred up and down
+    for (const l of labels) {
+      const r = labelRect(l);
+      expect(r.left).toBeGreaterThanOrEqual(4 - 1e-6);
+      expect(r.right).toBeLessThanOrEqual(w - 4 + 1e-6);
+    }
+    for (const text of ["0", "50 km E", "50 km N", "N"]) expect(labels.some((l) => l.text === text)).toBe(true);
+  });
+
+  it("fills more of the frame than framing the orbit centre does", () => {
+    const [w, h] = [1036, 518];
+    const area = (b: { left: number; right: number; top: number; bottom: number }) => (b.right - b.left) * (b.bottom - b.top);
+    const still = drawn(fitFrame(real, homePose(4), w, h, 23), w, h).geom;
+    expect(area(still)).toBeGreaterThan(area(drawn({ zoom: 1, dx: 0, dy: 0 }, w, h).geom) * 1.3);
   });
 });
 

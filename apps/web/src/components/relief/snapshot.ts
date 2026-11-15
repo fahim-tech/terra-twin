@@ -8,7 +8,7 @@
 import type { Relief } from "../../types/contracts";
 import { drawFlat, FONT_MONO, FONT_SANS } from "./flat";
 import { ReliefRenderer, reliefContext } from "./reliefGl";
-import { axisPlacement, buildModel, camera, fitZoom, fmtNum, homePose, labelAnchors, layoutLabels, representationNote, toGrid } from "./reliefMath";
+import { axisPlacement, buildModel, camera, fitFrame, fmtNum, homePose, labelAnchors, layoutLabels, representationNote, shiftCamera, toGrid } from "./reliefMath";
 
 export interface SnapshotOptions {
   planet: "earth" | "mars";
@@ -21,7 +21,7 @@ export interface SnapshotOptions {
   /** Camera azimuth (from the block to the camera) and elevation in degrees. */
   azDeg?: number;
   elDeg?: number;
-  /** Camera distance as a multiple of the every-side framing; "fit" frames this one view as closely as its scales allow. */
+  /** Camera distance as a multiple of the every-side framing; "fit" frames this one view, centred, as closely as its scales allow. */
   zoom?: number | "fit";
   /** Force the 2D hillshade. */
   mode?: "auto" | "2d";
@@ -34,6 +34,8 @@ export interface SnapshotOptions {
 export interface Snapshot { dataUrl: string; width: number; height: number; mode: "3d" | "2d" }
 
 const GROUND = { dark: "#030405", paper: "#ffffff" } as const;
+/** CSS px between a left- or right-aligned scale label and its anchor in a still. */
+const TEXT_GAP = 4;
 /** Label ink per ground: [elevation and north, km scale, caption title, caption detail]. */
 const LABEL = {
   dark: ["rgba(242,244,245,0.95)", "rgba(242,244,245,0.75)", "rgba(242,244,245,0.92)", "rgba(166,174,182,0.95)"],
@@ -71,8 +73,11 @@ export async function renderReliefSnapshot(relief: Relief, o: SnapshotOptions): 
         r.setModel(model);
         const home = homePose(ve);
         const base = { az: o.azDeg !== undefined ? (o.azDeg * Math.PI) / 180 : home.az, el: o.elDeg !== undefined ? (o.elDeg * Math.PI) / 180 : home.el, zoom: home.zoom, ve };
-        const pose = { ...base, zoom: o.zoom === "fit" ? fitZoom(model, base, W, sceneH) : o.zoom ?? home.zoom };
-        const cam = camera(model, pose, W, sceneH);
+        // "fit": framed on what this one view draws, centred, with a margin that grows with the picture.
+        const pad = Math.round(Math.max(14, 0.045 * Math.min(W, sceneH)));
+        const frame = o.zoom === "fit" ? fitFrame(model, base, W, sceneH, pad, Math.max(6, pad / 2), TEXT_GAP)
+          : { zoom: o.zoom ?? home.zoom, dx: 0, dy: 0 };
+        const cam = shiftCamera(camera(model, { ...base, zoom: frame.zoom }, W, sceneH), frame.dx, frame.dy, W, sceneH);
         r.draw({ cam, ve, planet: o.planet, place: axisPlacement(cam), dpr: s, ground }, glCanvas.width, glCanvas.height);
         ctx.drawImage(glCanvas, 0, 0);
         ctx.save();
@@ -82,7 +87,7 @@ export async function renderReliefSnapshot(relief: Relief, o: SnapshotOptions): 
           ctx.font = l.kind === "north" ? `600 12px ${FONT_SANS}` : `${l.kind === "km" ? 10.5 : 11}px ${FONT_MONO}`;
           ctx.fillStyle = l.kind === "km" ? ink[1] : ink[0];
           ctx.textAlign = l.align;
-          ctx.fillText(l.text, l.x + (l.align === "right" ? -4 : l.align === "left" ? 4 : 0), l.y);
+          ctx.fillText(l.text, l.x + (l.align === "right" ? -TEXT_GAP : l.align === "left" ? TEXT_GAP : 0), l.y);
         }
         ctx.restore();
         mode = "3d";
