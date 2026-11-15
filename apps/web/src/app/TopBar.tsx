@@ -4,7 +4,7 @@ import { cx } from "../components/ui";
 import { formatLat, formatLon } from "../lib/geodesy";
 import { clock, marsTime } from "../lib/instruments";
 import { useDatasets, useHealth } from "../services/api";
-import { type Stage, useApp } from "../store/app";
+import { liveCompareActive, type Stage, useApp } from "../store/app";
 import { useGlobes } from "../store/globes";
 import { searchTarget } from "../store/searchTarget";
 import { useGisStatus } from "../services/gis";
@@ -47,13 +47,19 @@ const DECISION_TINY: Record<string, string> = {
  * 1024 px every step shows its detail. The full detail always stays in the accessible name.
  */
 function Trail({ compact }: { compact: boolean }) {
-  const { stage, selection, search, candidateId, go, liveRunId } = useApp();
+  const { stage, selection, search, candidateId, go, liveRunId, liveOpen, liveCandidate } = useApp();
   const t = searchTarget(search);
+  // With the Live discovery tab open, Compare follows its selected refined window (liveCompareActive).
+  const liveTab = liveOpen && !!liveRunId;
+  const live = liveCompareActive({ liveOpen, liveRunId, liveCandidate });
+  const compareDetail = live ? "discovery window" : t && candidateId ? t.label : null;
+  const compareTiny = live ? "live" : t && candidateId ? (t.siteId ? t.label : "point") : null;
+  const compareLocked = liveTab ? (live ? null : "Choose a refined window first") : !search ? "Run Find Earth Analogs first" : !candidateId ? "Choose an Earth candidate first" : null;
   const outcome = search ? (search.status === "available" ? search.tier2.decision.type : "unavailable") : null;
   const steps: { id: Stage; planet: string; detail: string | null; tiny: string | null; locked: string | null }[] = [
     { id: "mars", planet: "Mars", detail: selection?.label ?? null, tiny: selection ? (selection.siteId ? selection.label : "point") : null, locked: null },
     { id: "earth", planet: "Earth", detail: outcome ? DECISION_SHORT[outcome] : null, tiny: outcome ? DECISION_TINY[outcome] : null, locked: search || liveRunId ? null : "Run Find Earth Analogs first" },
-    { id: "compare", planet: "Compare", detail: t && candidateId ? t.label : null, tiny: t && candidateId ? (t.siteId ? t.label : "point") : null, locked: !search ? "Run Find Earth Analogs first" : !candidateId ? "Choose an Earth candidate first" : null },
+    { id: "compare", planet: "Compare", detail: compareDetail, tiny: compareTiny, locked: compareLocked },
   ];
   const visible = compact ? steps.filter((s) => s.id === (stage === "evidence" || stage === "report" ? "mars" : stage)) : steps;
   return (
@@ -187,6 +193,9 @@ function GisRailItem() {
 
 export function TopBar({ compact }: { compact: boolean }) {
   const { stage, go, back, search } = useApp();
+  // A report describes the research search, or the selected live discovery window when Compare follows one.
+  const live = useApp(liveCompareActive);
+  const canReport = !!search || live;
   const fullPage = stage === "evidence" || stage === "report";
   // Phones: tighter cells so the current step keeps room for its name and detail (and tighter still below
   // 380 px, where "03 COMPARE" would otherwise run into "Evidence").
@@ -206,8 +215,8 @@ export function TopBar({ compact }: { compact: boolean }) {
         {!compact && <MissionClock />}
         <button type="button" onClick={() => go("evidence")} aria-current={stage === "evidence" ? "page" : undefined}
           className={cx("hit label-caps rounded-control py-1 transition-colors hover:text-ink active:bg-white/[0.08] active:duration-0", cell, stage === "evidence" ? "text-ink" : "text-muted")}>Evidence</button>
-        <button type="button" onClick={() => search && go("report")} aria-disabled={!search} title={search ? undefined : "Run Find Earth Analogs to build a report"}
-          className={cx("hit label-caps rounded-control py-1 transition-colors", cell, !search ? "cursor-default text-faint/70" : stage === "report" ? "text-ink active:bg-white/[0.08] active:duration-0" : "text-muted hover:text-ink active:bg-white/[0.08] active:duration-0")}>Report</button>
+        <button type="button" onClick={() => canReport && go("report")} aria-disabled={!canReport} title={canReport ? undefined : "Run Find Earth Analogs to build a report"}
+          className={cx("hit label-caps rounded-control py-1 transition-colors", cell, !canReport ? "cursor-default text-faint/70" : stage === "report" ? "text-ink active:bg-white/[0.08] active:duration-0" : "text-muted hover:text-ink active:bg-white/[0.08] active:duration-0")}>Report</button>
         <MoreMenu />
       </div>
     </header>
