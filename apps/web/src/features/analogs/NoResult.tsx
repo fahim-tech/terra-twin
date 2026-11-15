@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { Disclosure, Kicker } from "../../components/primitives";
+import { Disclosure } from "../../components/primitives";
 import { Button } from "../../components/ui";
 import { zoneName } from "../../lib/glossary";
 import { nearestSite } from "../../lib/instruments";
@@ -8,16 +8,19 @@ import { useApp } from "../../store/app";
 import { KmFigure } from "../explorer/OutsideZone";
 import type { SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
+import { Readout, Readouts, SectionHead, StatusMark } from "./instruments";
 
-/** "USGS MOLA 463 m mosaic (TERRATWIN_MOLA_MOSAIC)" → plain name + env name in mono. */
+/** "USGS MOLA 463 m mosaic (TERRATWIN_MOLA_MOSAIC)" → plain name + env name in mono, marked not connected. */
 function MissingInput({ text }: { text: string }) {
   // Env names and function names are technical details: set them in mono after the plain name.
   const m = /^(.*?)\s*\(([A-Z0-9_]+)\)\s*$/.exec(text) ?? /^(.*?)\s*([a-z_]+\(\))\s*$/.exec(text);
   return (
-    <li className="flex flex-wrap items-baseline gap-x-2 py-1 text-caption text-ink">
-      <span aria-hidden className="text-faint">○</span>
-      <span>{m ? m[1] : text}</span>
-      {m && <code className="font-mono text-num-sm text-muted">{m[2]}</code>}
+    <li className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-2.5 py-2">
+      <StatusMark state="off" className="translate-y-[-1px]" />
+      <span className="min-w-0">
+        <span className="block text-caption text-ink">{m ? m[1] : text}<span className="sr-only"> — not connected</span></span>
+        {m && <code className="mt-0.5 block break-all font-mono text-num-sm text-muted">{m[2]}</code>}
+      </span>
     </li>
   );
 }
@@ -42,6 +45,8 @@ export function NoResult({ search, target }: { search: AnalogSearch; target: Sea
   const missing = missingInputs(search);
   const owner = search.mars.unavailable?.owner ?? (search.tier2.live_refinement as { owner?: string }).owner;
   const offZone = !search.mars.site;
+  // The zone count comes from the zone list itself; until it loads the sentence names no number.
+  const nZones = sites.data?.length;
 
   const goNearest = () => {
     if (!near) return;
@@ -52,31 +57,51 @@ export function NoResult({ search, target }: { search: AnalogSearch; target: Sea
   };
 
   return (
-    <section aria-labelledby="no-result-title" className="pb-2 pt-2">
-      <Kicker>Not enough evidence</Kicker>
-      <h3 id="no-result-title" className="mt-2 text-title text-ink">No Earth comparison for this point</h3>
-      <p className="mt-2 text-body text-muted">
-        {offZone
-          ? "TerraTwin measures Mars terrain only inside 39 research zones for now, so there is nothing here to compare Earth against. Your point is kept."
-          : "The research data for this target cannot support a comparison, so no similarity score is shown."}
-      </p>
-      <div className="mt-4">
-        {near ? (
-          <Button variant="primary-mars" className="w-full justify-between" onClick={goNearest}>
-            <span>Go to nearest research zone</span>
-            <span className="flex items-center gap-2 font-normal">
-              {zoneName(near.site.id)} · <KmFigure km={near.km} /><ArrowRight className="h-3.5 w-3.5" aria-hidden />
-            </span>
-          </Button>
-        ) : (
-          <Button variant="primary-mars" className="w-full" onClick={() => useApp.getState().go("mars")} disabled={sites.isLoading}>
-            {sites.isLoading ? "Finding the nearest research zone…" : "Back to Mars"}
-          </Button>
-        )}
+    <section aria-labelledby="no-result-title" className="pb-2">
+      <SectionHead index="01">Status</SectionHead>
+      <div className="mt-2.5 border border-line-strong">
+        <div className="flex min-h-[40px] items-center gap-2.5 bg-bad/[0.07] px-3 py-2">
+          <StatusMark state="fault" />
+          <span className="label-caps text-ink">Not enough evidence</span>
+        </div>
+        <div className="border-t border-line px-3 py-3">
+          <h3 id="no-result-title" className="text-title text-ink">No Earth comparison for this point</h3>
+          <p className="mt-1.5 text-caption text-muted">
+            {offZone
+              ? `TerraTwin measures Mars terrain only inside ${nZones ? `the ${nZones}` : "its"} research zones for now, so there is nothing here to compare Earth against. Your point is kept.`
+              : "The research data for this target cannot support a comparison, so no similarity score is shown."}
+          </p>
+        </div>
       </div>
-      <Disclosure className="mt-4" summary="What's missing">
-        {reason && <p className="mb-2 text-caption text-muted">{reason}</p>}
-        {missing.length > 0 && <ul aria-label="Missing inputs">{missing.map((x) => <MissingInput key={x} text={x} />)}</ul>}
+
+      <SectionHead index="02" className="mt-6">Next step</SectionHead>
+      {near ? (
+        <>
+          <Readouts className="mt-2.5" label="Nearest research zone">
+            <Readout label="Nearest zone">
+              <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+                <span className="toponym text-[15px] tracking-[0.04em] text-ink">{zoneName(near.site.id)}</span>
+                <span className="text-caption text-muted"><KmFigure km={near.km} /> to its centre</span>
+              </span>
+            </Readout>
+          </Readouts>
+          <Button variant="primary-mars" className="mt-3 w-full" onClick={goNearest}>
+            Go to nearest research zone <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+          </Button>
+        </>
+      ) : (
+        <Button variant="primary-mars" className="mt-3 w-full" onClick={() => useApp.getState().go("mars")} disabled={sites.isLoading}>
+          {sites.isLoading ? "Finding the nearest research zone…" : "Back to Mars"}
+        </Button>
+      )}
+
+      <Disclosure className="mt-5" summary="What's missing">
+        {reason && <p className="text-caption text-muted">{reason}</p>}
+        {missing.length > 0 && (
+          <ul aria-label="Missing inputs, not connected" className="mt-2 divide-y divide-line border-y border-line">
+            {missing.map((x) => <MissingInput key={x} text={x} />)}
+          </ul>
+        )}
         {owner && <p className="mt-2 text-caption text-faint">Owner: {owner}. No comparison is substituted in the meantime.</p>}
       </Disclosure>
     </section>

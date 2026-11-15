@@ -1,7 +1,7 @@
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useMemo, useRef } from "react";
 import { useLayout } from "../../app/useLayout";
-import { Disclosure, PanelBody, PanelFooter, PanelHeader, Tabs, Term } from "../../components/primitives";
+import { Disclosure, PanelBody, PanelFooter, PanelHeader, Tabs, Tag, Term } from "../../components/primitives";
 import { Button, cx, Spinner } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { zoneName } from "../../lib/glossary";
@@ -12,7 +12,9 @@ import type { AnalogSearch } from "../../types/contracts";
 import { type CandidateView, candidateList, decisionMembers, measuresOf, prettyWindow, researchWindowKm, screenCellKm, selectedCandidate, T1_MEASURES, T2_MEASURES, unorderedMembers } from "./candidates";
 import { EarthLookup } from "./EarthLookup";
 import { GlobalStage } from "./GlobalStage";
+import { Readout, Readouts, StatusMark } from "./instruments";
 import { NoResult } from "./NoResult";
+import { sText } from "./readout";
 import { ResearchStage } from "./ResearchStage";
 import { switchTier } from "./tierMemory";
 import { useSheetFit } from "./useSheetFit";
@@ -29,37 +31,31 @@ function SearchScope({ search }: { search: AnalogSearch }) {
   const pool = t2.candidate_pool as (NonNullable<typeof t2.candidate_pool> & { n_random_stratified?: number; n_named_controls?: number }) | null;
   return (
     <Disclosure summary="Search scope">
-      <dl className="space-y-3 pb-2 text-caption">
-        <div>
-          <dt className="text-label text-ink"><Term k="globalScreen">Global screen</Term></dt>
-          <dd className="mt-0.5 text-muted">
-            {t1 ? <>
-              <span className="num text-num-sm text-ink">{t1.candidate_pool.n_cells_searched.toLocaleString()}</span> land cells of ≈{t1.candidate_pool.cell_size_km} km,
-              latitudes {formatLat(t1.candidate_pool.lat_range[0], 0)} to {formatLat(t1.candidate_pool.lat_range[1], 0)}. {t1.candidate_pool.coverage_note}
-            </> : "Not run for this target."}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-label text-ink"><Term k="researchComparison">Research comparison</Term></dt>
-          <dd className="mt-0.5 text-muted">
-            {pool ? <>
-              Fixed pool of <span className="num text-num-sm text-ink">{pool.n_windows}</span> windows
-              {pool.n_random_stratified !== undefined && pool.n_named_controls !== undefined && <> (<span className="num text-num-sm">{pool.n_random_stratified}</span> stratified random, <span className="num text-num-sm">{pool.n_named_controls}</span> named controls)</>}
-              , {pool.window_km} km each. {pool.note}
-            </> : "No research record for this target."}
-          </dd>
-        </div>
+      <Readouts className="mb-2" label="Search scope">
+        <Readout label={<Term k="globalScreen">Global screen</Term>}>
+          {t1 ? <>
+            <span className="num text-ink">{t1.candidate_pool.n_cells_searched.toLocaleString("en-US")}</span> land cells
+            {screenCellKm(search) !== null && <> of ≈<span className="num">{screenCellKm(search)}</span> km</>}, latitudes{" "}
+            <span className="num">{formatLat(t1.candidate_pool.lat_range[0], 0)}</span> to <span className="num">{formatLat(t1.candidate_pool.lat_range[1], 0)}</span>.{" "}
+            <span className="text-muted">{t1.candidate_pool.coverage_note}</span>
+          </> : <span className="text-muted">Not run for this target.</span>}
+        </Readout>
+        <Readout label={<Term k="researchComparison">Research comparison</Term>}>
+          {pool ? <>
+            Fixed pool of <span className="num text-ink">{pool.n_windows}</span> windows
+            {pool.n_random_stratified !== undefined && pool.n_named_controls !== undefined && <> (<span className="num">{pool.n_random_stratified}</span> stratified random, <span className="num">{pool.n_named_controls}</span> named controls)</>}
+            , <span className="num">{pool.window_km}</span> km each. <span className="text-muted">{pool.note}</span>
+          </> : <span className="text-muted">No research record for this target.</span>}
+        </Readout>
         {t2.live_refinement.status !== "available" && (
-          <div>
-            <dt className="text-label text-ink">Not connected yet</dt>
-            <dd className="mt-0.5 text-muted">Live refinement of new shortlists needs {t2.live_refinement.missing_inputs.map((x) => x.replace(/\s*\(.*\)$/, "")).join(", ")}.</dd>
-          </div>
+          <Readout label="Not connected">
+            <span className="text-muted">Live refinement of new shortlists needs {t2.live_refinement.missing_inputs.map((x) => x.replace(/\s*\(.*\)$/, "")).join(", ")}.</span>
+          </Readout>
         )}
-        <div>
-          <dt className="text-label text-ink">Reference set</dt>
-          <dd className="mt-0.5 text-muted">Documented analogs in the research pool. Being outside it is not evidence of novelty; no site here is claimed to be newly discovered.</dd>
-        </div>
-      </dl>
+        <Readout label="Reference set">
+          <span className="text-muted">Documented analogs in the research pool. Being outside it is not evidence of novelty; no site here is claimed to be newly discovered.</span>
+        </Readout>
+      </Readouts>
     </Disclosure>
   );
 }
@@ -74,28 +70,40 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
       ? d.type === "tied_set" ? `Choose one of the ${d.members.length} tied windows to compare it with ${targetName(target)} — none is preferred.`
         : search.tier2.candidates.length ? `Select a research window to compare it with ${targetName(target)}.` : null
       : `Select a cell to compare it with ${targetName(target)}.`;
-    return hint ? <PanelFooter><p className="text-caption text-muted">{hint}</p></PanelFooter> : null;
+    return hint ? (
+      <PanelFooter className="border-t border-line">
+        <p className="flex items-baseline gap-2.5 text-caption text-muted"><StatusMark state="off" className="translate-y-[-1px]" />{hint}</p>
+      </PanelFooter>
+    ) : null;
   }
   const isT2 = current.tier === 2;
   // Position in the west-to-east listing, never in the API order (which is by S and would read as a rank).
   const tieIdx = isT2 && d.type === "tied_set" ? unorderedMembers(decisionMembers(search.tier2)).findIndex((m) => m.id === current.t2!.id) : -1;
   const n = isT2 ? measuresOf(current.coverage, T2_MEASURES) : current.t1?.n_features_used ?? null;
   const total = isT2 ? T2_MEASURES : T1_MEASURES;
+  const winKm = isT2 ? researchWindowKm(search, current.t2) : null;
+  const cellKm = isT2 ? null : screenCellKm(search);
   return (
-    <PanelFooter className="shadow-[0_-1px_0_rgb(255_255_255/0.06)]">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className={cx("truncate text-earth", isT2 ? "text-label" : "num text-num")}>{isT2 ? prettyWindow(current.t2!.id) : `${formatLat(current.lat, 2)} ${formatLon(current.lon, 2)}`}</span>
-        <span className="num shrink-0 text-num text-ink">S {current.score === null ? "—" : current.score.toFixed(3)} <span className="text-faint">· {n ?? "—"}/{total}</span></span>
+    <PanelFooter className="border-t border-line pt-3.5">
+      <div className="kicker mb-2 flex items-center justify-between gap-3">
+        <span>Selected</span>
+        {tieIdx >= 0 && <span className="!text-ink/80">Tie member {tieIdx + 1} of {d.members.length}</span>}
       </div>
-      {/* The representation is the basis of S: never truncated; phones drop the stage name instead. */}
-      <p className="mt-0.5 text-caption text-muted">
-        {isT2
-          ? `${phone ? "" : "Research comparison · "}${researchWindowKm(search, current.t2) !== null ? `${researchWindowKm(search, current.t2)} km ` : ""}window · as MOLA would observe it`
-          : `${phone ? "" : "Global screen · "}${screenCellKm(search) !== null ? `${screenCellKm(search)} km ` : ""}cell · as measured`}
-        {tieIdx >= 0 && <> · <span className="text-ink">member of a tie ({tieIdx + 1} of {d.members.length})</span></>}
-      </p>
+      <div className="relative pl-3">
+        <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-earth" />
+        <div className="flex items-baseline justify-between gap-3">
+          <span className={cx("truncate text-earth", isT2 ? "text-label" : "num text-num")}>{isT2 ? prettyWindow(current.t2!.id) : `${formatLat(current.lat, 2)} ${formatLon(current.lon, 2)}`}</span>
+          <span className="num shrink-0 text-num text-ink">S {sText(current.score)} <span className="text-faint">· {n ?? "—"}/{total}</span></span>
+        </div>
+        {/* The representation is the basis of S: never truncated; phones drop the stage name instead. */}
+        <p className="mt-0.5 text-caption text-muted">
+          {isT2
+            ? `${phone ? "" : "Research comparison · "}${winKm !== null ? `${winKm} km ` : ""}window · as MOLA would observe it`
+            : `${phone ? "" : "Global screen · "}${cellKm !== null ? `${cellKm} km ` : ""}cell · as measured`}
+        </p>
+      </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button variant="outline" onClick={() => { go("compare"); set({ whyOpen: true }); }}><Sparkles className="h-3.5 w-3.5" aria-hidden /> Why this analog?</Button>
+        <Button variant="outline" onClick={() => { go("compare"); set({ whyOpen: true }); }}>Why this analog?</Button>
         <Button variant="primary-earth" onClick={() => go("compare")}>Compare <ArrowRight className="h-3.5 w-3.5" aria-hidden /></Button>
       </div>
     </PanelFooter>
@@ -128,21 +136,20 @@ export function AnalogResults() {
 
   return (
     <div ref={root} className={cx("flex min-h-0 flex-col", phone && "h-full")} style={fit ? { height: fit } : undefined}>
-      <PanelHeader className="pb-1 max-sm:pt-2">
+      <PanelHeader className="pb-0 max-md:pt-2">
         {/* Focus lands here after a stage change (screen readers announce it); the heading is not interactive, so no ring. */}
-        <h2 data-stage-heading="earth" tabIndex={-1} style={{ outline: "none" }}>
-          <span className="mr-2 text-caption text-muted sm:mr-0 sm:block">Results for</span>
+        <h2 data-stage-heading="earth" tabIndex={-1} style={{ outline: "none" }} className="flex items-baseline gap-x-2.5 md:block">
+          <span className="kicker flex shrink-0 items-center gap-2"><StatusMark state="on" tone="mars" />Results for</span>
           {/* A toponym is a place name: an off-zone point is "Selected point", its coordinates stay in mono below. */}
-          <span className="toponym mt-0.5 text-toponym-sm text-ink sm:block sm:text-toponym">{target.siteId ? zoneName(target.siteId) : "Selected point"}</span>
+          <span className="toponym text-toponym-sm text-ink md:mt-1.5 md:block md:text-toponym">{target.siteId ? zoneName(target.siteId) : "Selected point"}</span>
         </h2>
-        <p className="mt-1 flex flex-wrap items-baseline gap-x-2 text-caption text-muted">
-          <span className="text-ink">{mission?.label ?? target.mission.replace(/_/g, " ")}</span>
-          <span aria-hidden>·</span>
-          <span className="num text-num-sm">{formatLat(target.lat, 3)} {formatLon(target.lon, 3)}</span>
-        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <Tag>{mission?.label ?? target.mission.replace(/_/g, " ")}</Tag>
+          <span className="num text-num-sm text-muted">{formatLat(target.lat, 3)}  {formatLon(target.lon, 3)}</span>
+        </div>
         {stale && selection && (
-          <div role="status" className="mt-3 rounded-control bg-warn/10 px-3 py-2 text-caption text-ink">
-            <span aria-hidden className="mr-1 text-warn">⚠</span>
+          <div role="status" className="mt-3 border border-warn/45 bg-warn/[0.06] px-3 py-2.5 text-caption text-ink">
+            <span className="kicker mb-1 flex items-center gap-2 !text-warn"><StatusMark state="caution" />Caution · results for an earlier target</span>
             Your selection moved to <span className="text-warn">{selection.label}</span>. These results are still for {targetName(target)}.{" "}
             <button type="button" onClick={() => go("mars")} className="hit inline-flex items-center gap-1 text-ink underline decoration-warn/60 underline-offset-2 hover:decoration-warn">
               Find Earth Analogs for the new point <ArrowRight className="h-3 w-3" aria-hidden />
@@ -150,7 +157,7 @@ export function AnalogResults() {
           </div>
         )}
         {!noResult && (
-          <Tabs ariaLabel="Result stage" className="mt-3 shadow-[inset_0_-1px_0_rgb(255_255_255/0.06)]" value={String(activeTier) as "1" | "2"} onChange={(v) => switchTier(Number(v) as 1 | 2)}
+          <Tabs ariaLabel="Result stage" className="mt-3 shadow-[inset_0_-1px_0_var(--color-line)]" value={String(activeTier) as "1" | "2"} onChange={(v) => switchTier(Number(v) as 1 | 2)}
             options={[
               { value: "2", label: <span><span className="num mr-1.5 text-num-sm text-faint">1</span>Research comparison</span> },
               { value: "1", label: <span><span className="num mr-1.5 text-num-sm text-faint">2</span>Global screen</span>, disabled: !t1 },
@@ -165,7 +172,7 @@ export function AnalogResults() {
             {activeTier === 2 ? <ResearchStage search={search} candidateId={candidateId} /> : <GlobalStage search={search} candidateId={candidateId} />}
           </div>
         )}
-        <div className="mt-2 space-y-1 pb-3">
+        <div className="mt-3 space-y-1 border-t border-line pb-3 pt-2">
           <EarthLookup search={search} />
           <SearchScope search={search} />
         </div>

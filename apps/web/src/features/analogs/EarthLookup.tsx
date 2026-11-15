@@ -5,13 +5,15 @@ import { Button, cx } from "../../components/ui";
 import { useApp } from "../../store/app";
 import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, Tier1Candidate } from "../../types/contracts";
-import { coord, measuresOf, T1_MEASURES } from "./candidates";
+import { coord, T1_MEASURES } from "./candidates";
 import { EarthRegion, getJson, innerBox, parseLatLon, regionPath } from "./earthApi";
 import { useEarthLocal } from "./earthLocal";
+import { CAPS, Readout, Readouts, StatusMark } from "./instruments";
+import { measuresText, sText } from "./readout";
 import { chooseCandidate } from "./tierMemory";
 import { mergeByRank, tier1InView } from "./viewQuery";
 
-const inputCls = "num h-9 w-full min-w-0 rounded-control bg-elevated px-2.5 text-num text-ink ring-1 ring-inset ring-line-strong outline-none placeholder:text-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-earth/70";
+const inputCls = "num h-9 w-full min-w-0 bg-space/70 px-2.5 text-num text-ink ring-1 ring-inset ring-line-strong outline-none transition-shadow placeholder:text-faint hover:ring-ink/40 focus-visible:outline-none focus-visible:ring-earth/80";
 
 const DESCRIPTORS: { key: string; label: string; unit: string; digits: number }[] = [
   { key: "mean_slope_deg", label: "Mean slope", unit: "deg", digits: 1 },
@@ -21,7 +23,7 @@ const DESCRIPTORS: { key: string; label: string; unit: string; digits: number }[
 ];
 
 /**
- * "Inspect an Earth point": the nearest 25 km global-screen cell to any typed coordinate (/api/earth/region),
+ * "Inspect an Earth point": the nearest global-screen cell to any typed coordinate (/api/earth/region),
  * with its rank and similarity for this search's Mars target when the screen ranked it. Selecting it makes
  * it the active cell, so it can be compared like any listed cell.
  */
@@ -84,59 +86,69 @@ export function EarthLookup({ search }: { search: AnalogSearch }) {
   return (
     <Disclosure summary="Inspect an Earth point">
       <p className="text-caption text-muted">Any coordinate → the nearest {km !== null ? `${km} km ` : ""}cell of the <Term k="globalScreen">global screen</Term>, Earth as measured.</p>
-      <form onSubmit={submit} noValidate className="mt-2 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
-        <label htmlFor={ids.lat} className="text-caption text-muted">Latitude
+      <form onSubmit={submit} noValidate className="mt-2.5 grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+        <label htmlFor={ids.lat} className="kicker">Latitude
           <input id={ids.lat} inputMode="decimal" autoComplete="off" placeholder="−24.10" value={lat} onChange={(e) => setLat(e.target.value)}
-            aria-invalid={!!error} aria-describedby={error ? ids.err : undefined} className={cx(inputCls, "mt-1")} />
+            aria-invalid={!!error} aria-describedby={error ? ids.err : undefined} className={cx(inputCls, "mt-1.5 normal-case tracking-normal")} />
         </label>
-        <label htmlFor={ids.lon} className="text-caption text-muted">Longitude
+        <label htmlFor={ids.lon} className="kicker">Longitude
           <input id={ids.lon} inputMode="decimal" autoComplete="off" placeholder="−70.00" value={lon} onChange={(e) => setLon(e.target.value)}
-            aria-invalid={!!error} aria-describedby={error ? ids.err : undefined} className={cx(inputCls, "mt-1")} />
+            aria-invalid={!!error} aria-describedby={error ? ids.err : undefined} className={cx(inputCls, "mt-1.5 normal-case tracking-normal")} />
         </label>
         <Button type="submit" variant="outline" className="h-9" disabled={r.isFetching}>{r.isFetching ? "Looking…" : "Look up"}</Button>
       </form>
-      {error && <p id={ids.err} className="mt-1.5 text-caption text-ink"><span aria-hidden className="mr-1 text-warn">⚠</span>{error}</p>}
-      {r.isError && <p className="mt-2 text-caption text-ink"><span aria-hidden className="mr-1 text-bad">⊘</span>Lookup failed: {(r.error as Error).message}</p>}
+      {error && <p id={ids.err} className="mt-2 flex items-baseline gap-2 text-caption text-ink"><StatusMark state="caution" className="translate-y-[-1px]" />{error}</p>}
+      {r.isError && <p className="mt-2 flex items-baseline gap-2 text-caption text-ink"><StatusMark state="fault" className="translate-y-[-1px]" />Lookup failed: {(r.error as Error).message}</p>}
 
       {data && (
-        <div className="mt-3 rounded-control bg-elevated px-3 py-2.5">
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="text-caption text-muted">Nearest cell</span>
-            <span className="num text-num-sm text-ink">{coord(data.region.lat, data.region.lon)}</span>
+        <div className="mt-3 border border-line-strong">
+          <div className="flex items-baseline justify-between gap-3 bg-white/[0.035] px-3 py-2">
+            <span className="kicker !text-ink/85">Nearest cell</span>
+            <span className={cx("num text-num-sm", on ? "text-earth" : "text-ink")}>{coord(data.region.lat, data.region.lon)}</span>
           </div>
-          {data.region.describes_requested_point
-            ? <p className="mt-0.5 text-caption text-faint"><span className="num text-num-sm">{data.region.distance_km.toFixed(1)}</span> km from <span className="num text-num-sm">{coord(data.region.requested.lat, data.region.requested.lon)}</span></p>
-            : <p className="mt-1 text-caption text-ink"><span aria-hidden className="mr-1 text-warn">⚠</span>
-                {coord(data.region.requested.lat, data.region.requested.lon)} is not covered by a screened land cell. The nearest one is <span className="num text-num-sm">{data.region.distance_km.toFixed(0)}</span> km away.</p>}
+          <Readouts className="border-b-0" label="Nearest screened cell">
+            <Readout className="px-3" label="Distance">
+              {data.region.describes_requested_point
+                ? <><span className="num">{data.region.distance_km.toFixed(1)}</span> km from <span className="num">{coord(data.region.requested.lat, data.region.requested.lon)}</span></>
+                : <span className="flex items-baseline gap-2"><StatusMark state="caution" className="translate-y-[-1px]" />
+                    <span>{coord(data.region.requested.lat, data.region.requested.lon)} is not covered by a screened land cell. The nearest one is <span className="num">{data.region.distance_km.toFixed(0)}</span> km away.</span></span>}
+            </Readout>
+            {cell ? (
+              <>
+                <Readout className="px-3" label="Rank">
+                  <span className="num text-ink">{cell.rank.toLocaleString("en-US")}</span> of <span className="num">{t1!.candidate_pool.n_cells_searched.toLocaleString("en-US")}</span> for {target.label}
+                </Readout>
+                <Readout className="px-3" label={<Term k="similarity">S</Term>}>
+                  <span className="num text-num text-ink">{sText(cell.similarity)}</span>
+                  <span className="num text-num-sm text-faint"> · {measuresText(cell.coverage, T1_MEASURES)}</span>
+                  <span className="text-muted"> · {km !== null ? `${km} km ` : ""}cell, as measured</span>
+                </Readout>
+              </>
+            ) : (
+              <Readout className="px-3" label="Rank"><span className="text-muted">{t1 ? `Not ranked for ${target.label}: the global screen leaves out cells with too few valid measures.` : "The global screen did not run for this target, so the cell has no rank or similarity."}</span></Readout>
+            )}
+          </Readouts>
 
-          {cell ? (
-            <div className="mt-2 flex items-end justify-between gap-3">
-              <div>
-                <div className="text-caption text-muted">Rank <span className="num text-num-sm text-ink">{cell.rank.toLocaleString()}</span> of <span className="num text-num-sm">{t1!.candidate_pool.n_cells_searched.toLocaleString()}</span> for {target.label}</div>
-                <div className="text-caption text-faint">{km !== null ? `${km} km ` : ""}cell · as measured</div>
-              </div>
-              <span className="num shrink-0 text-num text-ink">S {cell.similarity === null ? "—" : cell.similarity.toFixed(3)} <span className="text-faint">· {measuresOf(cell.coverage, T1_MEASURES) ?? "—"}/{T1_MEASURES}</span></span>
-            </div>
-          ) : (
-            <p className="mt-2 text-caption text-muted">{t1 ? `Not ranked for ${target.label}: the global screen leaves out cells with too few valid measures.` : "The global screen did not run for this target, so the cell has no rank or similarity."}</p>
-          )}
-
-          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
-            {DESCRIPTORS.map((d) => (
-              <div key={d.key} className="flex items-baseline justify-between gap-2">
-                <dt className="text-caption text-muted">{d.label}</dt>
-                <dd><Measure value={data.region.features[d.key] ?? null} unit={d.unit} digits={d.digits} className="text-num-sm text-ink" /></dd>
+          <dl aria-label="Terrain descriptors" className="grid grid-cols-2 border-t border-line">
+            {DESCRIPTORS.map((d, i) => (
+              <div key={d.key} className={cx("px-3 py-2", i % 2 === 1 && "border-l border-line", i >= 2 && "border-t border-line")}>
+                <dt className={CAPS}>{d.label}</dt>
+                <dd className="mt-1"><Measure value={data.region.features[d.key] ?? null} unit={d.unit} digits={d.digits} className="text-num text-ink" /></dd>
               </div>
             ))}
           </dl>
-          <p className="mt-1.5 text-caption text-muted">
-            {data.region.known_analog.status === "near_documented_analog" ? <>◆ Near documented analog {data.region.known_analog.name}</> : "Not in the reference set — not a claim of novelty."}
-          </p>
-          {data.region.quality_flags.filter((f) => f.severity !== "info").map((f) => (
-            <p key={f.code} className="mt-1 text-caption text-ink"><span aria-hidden className="mr-1 text-warn">⚠</span>{f.message}</p>
-          ))}
+          <div className="space-y-1.5 border-t border-line px-3 py-2.5">
+            <p className="text-caption text-muted">
+              {data.region.known_analog.status === "near_documented_analog" ? <><span aria-hidden className="mr-1.5 text-muted">◆</span>Near documented analog {data.region.known_analog.name}</> : "Not in the reference set — not a claim of novelty."}
+            </p>
+            {data.region.quality_flags.filter((f) => f.severity !== "info").map((f) => (
+              <p key={f.code} className="flex items-baseline gap-2 text-caption text-ink"><StatusMark state="caution" className="translate-y-[-1px]" />{f.message}</p>
+            ))}
+          </div>
           {cell && (
-            <Button variant="outline" className="mt-2.5 w-full" disabled={on} onClick={() => select(cell)}>{on ? "Selected — compare from the footer" : "Select this cell"}</Button>
+            <div className="border-t border-line p-2">
+              <Button variant="outline" className="w-full" disabled={on} onClick={() => select(cell)}>{on ? "Selected — compare from the footer" : "Select this cell"}</Button>
+            </div>
           )}
         </div>
       )}
