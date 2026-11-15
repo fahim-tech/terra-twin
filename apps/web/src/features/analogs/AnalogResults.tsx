@@ -66,8 +66,10 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
   const tier = useApp((s) => s.tier);
   const d = search.tier2.decision;
   if (!current) {
+    // Phones keep the tie hint to one line, so the whole tied set above it stays in view at half height.
     const hint = tier === 2
-      ? d.type === "tied_set" ? `Choose one of the ${d.members.length} tied windows to compare it with ${targetName(target)} — none is preferred.`
+      ? d.type === "tied_set"
+        ? phone ? `Choose one of ${d.members.length} tied windows — none is preferred.` : `Choose one of the ${d.members.length} tied windows to compare it with ${targetName(target)} — none is preferred.`
         : search.tier2.candidates.length ? `Select a research window to compare it with ${targetName(target)}.` : null
       : `Select a cell to compare it with ${targetName(target)}.`;
     return hint ? (
@@ -84,11 +86,15 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
   const winKm = isT2 ? researchWindowKm(search, current.t2) : null;
   const cellKm = isT2 ? null : screenCellKm(search);
   return (
-    <PanelFooter className="border-t border-line pt-3.5">
-      <div className="kicker mb-2 flex items-center justify-between gap-3">
-        <span>Selected</span>
-        {tie && <span className="!text-ink/80">{tie}</span>}
-      </div>
+    <PanelFooter className="border-t border-line pt-3.5 max-md:pt-3">
+      {/* Phones drop the caption row (the word stays for screen readers) so the decision above stays in view at
+          half height; the tie note moves into the basis line. */}
+      {phone ? <span className="sr-only">Selected: </span> : (
+        <div className="kicker mb-2 flex items-center justify-between gap-3">
+          <span>Selected</span>
+          {tie && <span className="!text-ink/80">{tie}</span>}
+        </div>
+      )}
       <div className="relative pl-3">
         <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-earth" />
         <div className="flex items-baseline justify-between gap-3">
@@ -100,6 +106,7 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
           {isT2
             ? `${phone ? "" : "Research comparison · "}${winKm !== null ? `${winKm} km ` : ""}window · as MOLA would observe it`
             : `${phone ? "" : "Global screen · "}${cellKm !== null ? `${cellKm} km ` : ""}cell · as measured`}
+          {phone && tie && <> · <span className="text-ink/85">{tie.toLowerCase()}</span></>}
         </p>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -143,7 +150,7 @@ export function AnalogResults() {
           {/* A toponym is a place name: an off-zone point is "Selected point", its coordinates stay in mono below. */}
           <span className="toponym text-toponym-sm text-ink md:mt-1.5 md:block md:text-toponym">{target.siteId ? zoneName(target.siteId) : "Selected point"}</span>
         </h2>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 max-md:mt-1.5">
           <Tag>{mission?.label ?? target.mission.replace(/_/g, " ")}</Tag>
           <span className="num text-num-sm text-muted">{formatLat(target.lat, 3)}  {formatLon(target.lon, 3)}</span>
         </div>
@@ -157,7 +164,7 @@ export function AnalogResults() {
           </div>
         )}
         {!noResult && (
-          <Tabs ariaLabel="Result stage" className="mt-3 shadow-[inset_0_-1px_0_var(--color-line)]" value={String(activeTier) as "1" | "2"} onChange={(v) => switchTier(Number(v) as 1 | 2)}
+          <Tabs ariaLabel="Result stage" className="mt-3 shadow-[inset_0_-1px_0_var(--color-line)] max-md:mt-2" value={String(activeTier) as "1" | "2"} onChange={(v) => switchTier(Number(v) as 1 | 2)}
             options={[
               { value: "2", label: <span><span className="num mr-1.5 text-num-sm text-faint">1</span>Research comparison</span> },
               { value: "1", label: <span><span className="num mr-1.5 text-num-sm text-faint">2</span>Global screen</span>, disabled: !t1 },
@@ -166,7 +173,7 @@ export function AnalogResults() {
       </PanelHeader>
 
       {/* Keyed on the stage so a tab switch starts at that stage's kicker, not at the old scroll offset. */}
-      <PanelBody key={noResult ? "none" : activeTier} className="pt-3">
+      <PanelBody key={noResult ? "none" : activeTier} className="pt-3 max-md:pt-2">
         {noResult ? <NoResult search={search} target={target} /> : (
           <div role="tabpanel" aria-label={activeTier === 2 ? "Research comparison" : "Global screen"}>
             {activeTier === 2 ? <ResearchStage search={search} candidateId={candidateId} /> : <GlobalStage search={search} candidateId={candidateId} />}

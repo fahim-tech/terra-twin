@@ -71,13 +71,13 @@ function LeaderRow({ c, on, onPick }: { c: Tier2Candidate; on: boolean; onPick: 
     <div className={cx("relative grid grid-cols-[minmax(0,1fr)_auto] border-t border-line transition-colors duration-150",
       on ? "bg-white/[0.06]" : "[&:has(>button:hover)]:bg-white/[0.035] [&:has(>button:active)]:bg-white/[0.08] [&:has(>button:active)]:duration-0")}>
       {on && <SelectionBar layoutId="t2-selection" />}
-      <button type="button" onClick={onPick} aria-pressed={on} className="hit w-full py-3 pl-3 pr-2 text-left"
+      <button type="button" onClick={onPick} aria-pressed={on} className="hit w-full py-3 pl-3 pr-2 text-left max-md:py-2.5"
         aria-label={`${w.name}, ${coord(c.lat, c.lon)}${w.sub ? `, ${w.sub}` : ""}, similarity ${sSpoken(c.S)}, ${measuresOf(c.coverage, T2_MEASURES) ?? "unknown"} of ${T2_MEASURES} measures`}>
         <Toponym as="span" size="sm" className={cx("block", on && "!text-earth")}>{w.name}</Toponym>
-        <span className="num mt-1.5 block text-num-sm text-muted">{coord(c.lat, c.lon)}</span>
+        <span className="num mt-1.5 block text-num-sm text-muted max-md:mt-1">{coord(c.lat, c.lon)}</span>
         {w.sub && <span className="mt-0.5 block text-caption text-faint">{w.sub}</span>}
       </button>
-      <div className="flex flex-col items-end justify-center py-3 pl-2 pr-3">
+      <div className="flex flex-col items-end justify-center py-3 pl-2 pr-3 max-md:py-2.5">
         <span className="num flex items-baseline gap-1.5 whitespace-nowrap leading-none">
           <span className="text-num text-muted"><Term k="similarity">S</Term></span>
           <span className="text-[26px] tracking-[-0.01em] text-ink">{sText(c.S)}</span>
@@ -120,7 +120,7 @@ export function ResearchStage({ search, candidateId, relief: Relief = ReliefSlot
       <SectionHead index="01" className="mt-4 max-md:sr-only">Decision</SectionHead>
       {/* Status block: annunciator, what the decision is about (leader or tied members), then the research
           label (G5 verbatim) and its caveats. */}
-      <div className="mt-2.5 border border-line-strong max-md:mt-3">
+      <div className="mt-2.5 border border-line-strong max-md:mt-2">
         <DecisionHead t2={t2} />
 
         {leader && <LeaderRow c={leader} on={isOn(leader)} onPick={() => pick(leader)} />}

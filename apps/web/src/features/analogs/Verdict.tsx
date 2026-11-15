@@ -52,7 +52,7 @@ export function DecisionHead({ t2, id, as: As = "h4" }: { t2: Tier2Result; id?: 
   // Caution (tie) and fault (no evidence) light their row faintly, like an annunciator; colour is never the only cue.
   const lit = c.mark === "caution" ? "bg-warn/[0.07]" : c.mark === "fault" ? "bg-bad/[0.07]" : "bg-white/[0.035]";
   return (
-    <div className={cx("flex min-h-[40px] items-center justify-between gap-3 px-3 py-2", lit)}>
+    <div className={cx("flex min-h-[40px] items-center justify-between gap-3 px-3 py-2 max-md:min-h-9 max-md:py-1.5", lit)}>
       <As id={id} className="label-caps flex min-w-0 items-center gap-2.5 text-ink [&_button]:text-left [&_button]:uppercase">
         <StatusMark state={c.mark} />
         <span className="min-w-0">
