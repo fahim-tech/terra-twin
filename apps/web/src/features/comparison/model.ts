@@ -90,14 +90,19 @@ export function poolKindLabel(kind: string | null | undefined): string | null {
   return `Named control · ${k}`;
 }
 
-/** Plain place name + secondary line for an Earth candidate (random windows have no toponym). */
+/**
+ * Plain place name + secondary line for an Earth candidate (random windows have no toponym). A screening
+ * cell with no documented analog nearby has no name at all: it is called a screening cell, and its
+ * position stays in the coordinate line (mono), not set as a display toponym.
+ */
 export function earthName(c: CandidateView): { name: string; sub: string | null } {
   if (c.tier === 2) {
     const m = /^rand_d(\d)_(\d+)$/.exec(c.t2?.id ?? "");
     if (m) return { name: windowName(c.t2!.id), sub: `Stratified random window · roughness decile ${m[1]}` };
     return { name: c.label, sub: poolKindLabel(c.t2?.kind) };
   }
-  return { name: c.label, sub: c.t1 ? `Global-screen cell ${c.t1.region_id.split(":")[1] ?? c.t1.region_id}` : null };
+  const named = !!c.t1?.known_analog?.name;
+  return { name: named || !c.t1 ? c.label : "Screening cell", sub: c.t1 ? `Global-screen cell ${c.t1.region_id.split(":")[1] ?? c.t1.region_id}` : null };
 }
 
 export interface CompareTargets {

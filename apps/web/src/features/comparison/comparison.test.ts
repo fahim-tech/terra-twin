@@ -161,4 +161,14 @@ describe("names and footprints", () => {
     expect(t.earth.footprint).toBe("25 km screening cell");
     expect(t.mars.footprint).toContain("zone median");
   });
+
+  it("calls an unnamed screening cell a screening cell instead of setting its coordinates as a name", () => {
+    const cell = {
+      id: "t1:gmted25k:207754", tier: 1, rank: 1, lat: 52.787, lon: -124.883, label: "Cell at 52.79° N 124.88° W", score: 0.909, coverage: 1,
+      t1: { region_id: "gmted25k:207754", known_analog: { status: "none", name: null } },
+    } as unknown as CandidateView;
+    expect(earthName(cell)).toEqual({ name: "Screening cell", sub: "Global-screen cell 207754" });
+    const near = { ...cell, label: "Cell near Atacama", t1: { region_id: "gmted25k:1", known_analog: { status: "documented", name: "Atacama" } } } as unknown as CandidateView;
+    expect(earthName(near).name).toBe("Cell near Atacama");
+  });
 });
