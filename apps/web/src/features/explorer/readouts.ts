@@ -327,6 +327,17 @@ export function clearCallout(a: Pt, start: { side: CalloutSide; dy: number; maxW
   return best ? { side: best.side, dy: best.dy, dx: best.dx, maxW: best.maxW, extra: best.extra, extraX: best.extraX, hits: best.hits } : first;
 }
 
+/**
+ * Whether the intro's copy column lies over the planet. The shell sets the home view of Mars 16 % of the
+ * window right of centre; from the home altitude the disc's radius is about 22 % of the window's width when
+ * it is landscape (more of it when portrait), so its left limb sits near 44 % of the width — clear of the
+ * ~520 px copy column only from about 1,170 px (the desktop layout), and under it on phones, tablets and any
+ * portrait window.
+ */
+export function introOverlapsPlanet(layout: "phone" | "tablet" | "desktop", portrait: boolean): boolean {
+  return layout !== "desktop" || portrait;
+}
+
 const D2R = Math.PI / 180;
 
 /**

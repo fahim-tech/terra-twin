@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MarsSite } from "../../types/contracts";
 import {
-  availabilityItems, baselineFromExplanation, CALLOUT_MIN_W, calloutGeometry, clearCallout, graticulePaths, gridMetres, insideRing,
+  availabilityItems, baselineFromExplanation, CALLOUT_MIN_W, calloutGeometry, clearCallout, graticulePaths, gridMetres, insideRing, introOverlapsPlanet,
   LEADER_DX, nextActive, orthographic, placeCallout, reachFromGlyph, revealDelta, scalesFromEvidence, segmentMeetsBox, underCover,
 } from "./readouts";
 import { zoneRing, zonesNear } from "./zones";
@@ -319,6 +319,15 @@ describe("callout plates keep clear of zone outlines and other glyphs", () => {
     // A ring whose only points are off screen draws no segments, so nothing is avoided.
     const gone = clearCallout(glyph, start, desktop, reaches, plate, { rings: [{ pts: [null, null, null, null], own: false }], marks: [] }, { minDy: 38 });
     expect(gone).toMatchObject({ side: start.side, dy: start.dy, hits: 0 });
+  });
+});
+
+describe("intro over the planet", () => {
+  it("quiets the zone glyphs wherever the intro's copy overlaps the planet", () => {
+    expect(introOverlapsPlanet("phone", true)).toBe(true);
+    expect(introOverlapsPlanet("tablet", false)).toBe(true);
+    expect(introOverlapsPlanet("desktop", true)).toBe(true);
+    expect(introOverlapsPlanet("desktop", false)).toBe(false);
   });
 });
 

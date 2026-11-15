@@ -1,11 +1,18 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useGlobeBus, useGlobeEvents } from "../../app/globeBus";
 import { useLayout } from "../../app/useLayout";
 import { zoneName } from "../../lib/glossary";
 import { useSites } from "../../services/api";
 import { useApp } from "../../store/app";
 import { useExplorer } from "./explorerStore";
+import { introOverlapsPlanet } from "./readouts";
 import { selectionFor, zoneSelection } from "./zones";
+
+const onResize = (cb: () => void) => { window.addEventListener("resize", cb); return () => window.removeEventListener("resize", cb); };
+/** Whether the window is taller than it is wide. */
+function usePortrait(): boolean {
+  return useSyncExternalStore(onResize, () => window.innerHeight > window.innerWidth, () => false);
+}
 
 /**
  * Keeps the Mars globe in step with app state: the 39 research zones (faint footprints + centre
@@ -25,10 +32,12 @@ export function MarsGlobeSync() {
   }, [bus, introOpen]);
 
   // Research zones layer: every zone's footprint drawn faintly, with its centre marker. Names come from
-  // the hover readout and HTML annotations, so Cesium labels stay off. On phones the intro's copy lies over
-  // the planet, and the zone glyphs and outlines would show through the text: they wait until it closes.
-  const phone = useLayout() === "phone";
-  const quietForIntro = introOpen && phone;
+  // the hover readout and HTML annotations, so Cesium labels stay off. Wherever the intro's copy overlaps the
+  // planet — phones, and tablets and portrait windows, where the planet's left limb reaches under the copy
+  // column — the zone glyphs and outlines would show through the text: they wait until it closes.
+  const layout = useLayout();
+  const portrait = usePortrait();
+  const quietForIntro = introOpen && introOverlapsPlanet(layout, portrait);
   useEffect(() => {
     if (!sites.data) return;
     const zones = quietForIntro ? [] : sites.data;
