@@ -139,7 +139,8 @@ export function TelemetryReadout({ c, basis, targets, verdict, onWhy, narrow }: 
 
         <Cell label="Decision" className={cx("col-start-1 row-start-3 border-t border-line @min-[1080px]:col-span-1 @min-[1080px]:col-start-4 @min-[1080px]:row-span-2 @min-[1080px]:row-start-1 @min-[1080px]:border-l @min-[1080px]:border-t-0",
           narrow ? "col-span-3" : "col-span-2")}>
-          <div className="mt-2"><VerdictLine verdict={verdict} /></div>
+          {/* The outcome carries the cell: a step up from the label size, so it reads before its explanation. */}
+          <div className="mt-1.5"><VerdictLine verdict={verdict} className="!text-[16px] !leading-snug" /></div>
           <p className="mt-1 text-caption text-muted">{verdict.detail}</p>
         </Cell>
 
