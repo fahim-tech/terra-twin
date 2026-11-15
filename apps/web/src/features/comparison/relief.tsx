@@ -65,7 +65,8 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
           wheel="modifier" exaggeration={ve} onExaggerationChange={setVe} exaggerationControl={!both} />
       ) : (
         <ReliefNotice planet="mars" title="No Mars elevation grid" height={noticeH}>
-          Mars relief is requested per Exploration Zone, and this target is a free point, so no Mars grid is shown.
+          <p className="text-body text-ink">Mars relief is served per Exploration Zone, and this target is a free point.</p>
+          <p className="mt-1.5">No other surface is shown in its place.</p>
         </ReliefNotice>
       )}
     </Half>
@@ -78,9 +79,10 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
         <div className="grid place-items-center border border-line-strong bg-[#030405]" style={{ height: noticeH }}><Spinner label="Loading the research pool" /></div>
       ) : (
         <ReliefNotice planet="earth" title="No relief grid" height={noticeH}>
-          {c.tier === 1
-            ? "Relief grids exist for the research pool's windows only; a global-screen cell is not one of them. No other terrain is shown in its place."
-            : pool.isError ? "The research pool could not be loaded, so no relief grid is shown." : "This window is not in the research pool, so there is no relief grid for it."}
+          <p className="text-body text-ink">
+            {c.tier === 1 ? "A global-screen cell has no relief grid." : pool.isError ? "The research pool could not be loaded." : "This window is not in the research pool, so it has no relief grid."}
+          </p>
+          <p className="mt-1.5">{c.tier === 1 ? "Relief grids exist only for the research pool's windows. " : ""}No other terrain is shown in its place.</p>
         </ReliefNotice>
       )}
     </Half>
@@ -98,8 +100,9 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
         <>
           {both && (
             <div className="mb-2.5 flex items-center justify-end gap-3">
-              <span className="text-caption text-muted">Same vertical exaggeration on both halves</span>
-              <ExaggerationSwitch value={ve} onChange={setVe} label="V.E." />
+              <span aria-hidden className="text-caption text-muted">Same vertical exaggeration on both halves</span>
+              <ExaggerationSwitch value={ve} onChange={setVe}
+                label={<><span aria-hidden>V.E.</span><span className="sr-only">Vertical exaggeration, the same on both halves</span></>} />
             </div>
           )}
           <div className="grid grid-cols-2 gap-4">
@@ -128,7 +131,7 @@ function Half({ planet, name, kind, relief, children }: { planet: "mars" | "eart
           <span aria-hidden className={cx("h-1.5 w-1.5 shrink-0 translate-y-[-1px]", planet === "mars" ? "bg-mars" : "bg-earth")} />
           <span className={cx("kicker shrink-0", planet === "mars" ? "!text-mars" : "!text-earth")}>{planet === "mars" ? "Mars" : "Earth"}</span>
           <span className="toponym truncate text-[15px] leading-none tracking-[0.05em] text-ink">{name}</span>
-          <span className="kicker hidden truncate lg:inline">{kind}</span>
+          {kind.toLowerCase() !== name.toLowerCase() && <span className="kicker hidden truncate lg:inline">{kind}</span>}
         </span>
         {relief && relief.z_min !== null && relief.z_max !== null && (
           <span className="num shrink-0 text-num-sm text-muted">
