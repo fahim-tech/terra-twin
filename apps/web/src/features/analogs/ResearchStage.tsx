@@ -98,8 +98,9 @@ export function ResearchStage({ search, candidateId, relief: Relief = ReliefSlot
       {/* The tab above names the stage; this line states only its basis. */}
       <p className="text-caption text-faint"><span id="stage-research" className="sr-only">Research comparison: </span>{winKm !== null ? `${winKm} km windows · ` : ""}Earth as MOLA would observe it</p>
 
-      {/* Phones drop the rule: the status block below is self-evidently the decision, and the members must fit at half height. */}
-      <SectionHead index="01" className="mt-4 max-md:hidden">Decision</SectionHead>
+      {/* Phones hide the rule (kept for screen readers): the status block is self-evidently the decision, and the
+          members must fit at half height. */}
+      <SectionHead index="01" className="mt-4 max-md:sr-only">Decision</SectionHead>
       {/* Status block: annunciator, what the decision is about (leader or tied members), then the research
           label (G5 verbatim) and its caveats. */}
       <div className="mt-2.5 border border-line-strong max-md:mt-3">

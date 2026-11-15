@@ -65,7 +65,7 @@ export function NoResult({ search, target }: { search: AnalogSearch; target: Sea
           <span className="label-caps text-ink">Not enough evidence</span>
         </div>
         <div className="border-t border-line px-3 py-3">
-          <h3 id="no-result-title" className="text-title text-ink">No Earth comparison for this point</h3>
+          <h4 id="no-result-title" className="text-title text-ink">No Earth comparison for this point</h4>
           <p className="mt-1.5 text-caption text-muted">
             {offZone
               ? `TerraTwin measures Mars terrain only inside ${nZones ? `the ${nZones}` : "its"} research zones for now, so there is nothing here to compare Earth against. Your point is kept.`
