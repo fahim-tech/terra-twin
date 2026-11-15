@@ -6,6 +6,8 @@
  */
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
+import { useApp, type NRefine } from "../store/app";
+import { Relief } from "../types/contracts";
 import { API_BASE, ApiError } from "./api";
 
 const num = z.number().nullable();
@@ -156,7 +158,7 @@ export const gisApi = {
   marsFeatures: (lat: number, lon: number) => get(`/api/gis/mars/features?${q(lat, lon)}`, MarsFeatureRecord),
   /** app mission id (e.g. "landing_site"); the API maps it to the GIS mission. */
   tier1: (lat: number, lon: number, mission: string, topN = 50) => get(`/api/gis/tier1?${q(lat, lon)}&mission=${encodeURIComponent(mission)}&top_n=${topN}`, GisTier1Search),
-  submitDiscovery: (b: { lat: number; lon: number; mission: string; n_refine?: 20 | 40; site?: string | null }) =>
+  submitDiscovery: (b: { lat: number; lon: number; mission: string; n_refine?: NRefine; include_research_pool?: boolean; site?: string | null }) =>
     get("/api/gis/discovery", DiscoveryJob, { method: "POST", body: JSON.stringify(b) }),
   job: (id: string) => get(`/api/gis/jobs/${encodeURIComponent(id)}`, DiscoveryJob),
   runs: () => get("/api/gis/runs", z.object({ runs: z.array(DiscoveryRunSummary) })).then((r) => r.runs),
@@ -164,6 +166,11 @@ export const gisApi = {
   gridInfo: (planet: "mars" | "earth") => get(`/api/gis/grid/${planet}/info`, GridInfo),
   gridPoint: (planet: "mars" | "earth", lat: number, lon: number) => get(`/api/gis/grid/${planet}/point?${q(lat, lon)}`, GridPoint),
   contextPoint: (planet: "mars" | "earth", lat: number, lon: number) => get(`/api/gis/context/${planet}/point?${q(lat, lon)}`, ContextPoint),
+  /**
+   * Elevation grid of a refined discovery window (Earth as measured: the run's Copernicus GLO-90 window), in the
+   * research pool's Relief shape. 404 when the server holds no cached window at that centre.
+   */
+  windowRelief: (lat: number, lon: number) => get(`/api/gis/windows/relief?${q(lat, lon)}`, Relief),
   /** Absolute tile URL template for a Cesium UrlTemplateImageryProvider ({z}/{x}/{y} kept). */
   tileUrl: (info: GridInfo, layer: string) => `${API_BASE}${info.tile_url.replace("{layer}", encodeURIComponent(layer))}`,
 };
@@ -174,7 +181,14 @@ export const useMarsFeatures = (p: { lat: number; lon: number } | null) =>
   useQuery({ queryKey: ["gis", "mars", p?.lat, p?.lon], queryFn: () => gisApi.marsFeatures(p!.lat, p!.lon), enabled: !!p, ...base });
 export const useGisTier1 = (p: { lat: number; lon: number; mission: string } | null, topN = 50) =>
   useQuery({ queryKey: ["gis", "tier1", p?.lat, p?.lon, p?.mission, topN], queryFn: () => gisApi.tier1(p!.lat, p!.lon, p!.mission, topN), enabled: !!p, ...base });
-export const useSubmitDiscovery = () => useMutation({ mutationFn: gisApi.submitDiscovery });
+/**
+ * Submits a discovery. When the caller does not say, the research-pool choice is read from the store, so every
+ * submit path sends the parameter set the Discovery action shows (the published runs also refine the pool).
+ */
+export const useSubmitDiscovery = () => useMutation({
+  mutationFn: (b: Parameters<typeof gisApi.submitDiscovery>[0]) =>
+    gisApi.submitDiscovery({ ...b, include_research_pool: b.include_research_pool ?? useApp.getState().discoveryPool }),
+});
 /** Polls every 4 s while the job is queued or running; stops when done or failed. */
 export const useDiscoveryJob = (id: string | null) =>
   useQuery({
@@ -188,5 +202,16 @@ export const useGridInfo = (planet: "mars" | "earth", enabled = true) =>
   useQuery({ queryKey: ["gis", "grid", planet], queryFn: () => gisApi.gridInfo(planet), enabled, ...base, staleTime: Infinity });
 export const useGridPoint = (planet: "mars" | "earth", p: { lat: number; lon: number } | null) =>
   useQuery({ queryKey: ["gis", "gridPoint", planet, p?.lat, p?.lon], queryFn: () => gisApi.gridPoint(planet, p!.lat, p!.lon), enabled: !!p, ...base });
-export const useContextPoint = (planet: "mars" | "earth", p: { lat: number; lon: number } | null) =>
+/**
+ * Relief-cache id of a discovery window. The relief views key grids by id (["relief", id]); a discovery window
+ * gets its own namespace, so it never collides with a research-pool window name.
+ */
+export const windowReliefId = (lat: number, lon: number) => `gis-window:${lat.toFixed(4)},${lon.toFixed(4)}`;
+/** The grid of a refined discovery window; a 404 (not cached on this server) is a state and is not retried. */
+export const useWindowRelief = (p: { lat: number; lon: number } | null) =>
+  useQuery<Relief, Error>({
+    queryKey: ["relief", p ? windowReliefId(p.lat, p.lon) : null], queryFn: () => gisApi.windowRelief(p!.lat, p!.lon), enabled: !!p,
+    retry: noRetry503, retryOnMount: false, staleTime: Infinity,
+  });
+export const useContextPoint =(planet: "mars" | "earth", p: { lat: number; lon: number } | null) =>
   useQuery({ queryKey: ["gis", "context", planet, p?.lat, p?.lon], queryFn: () => gisApi.contextPoint(planet, p!.lat, p!.lon), enabled: !!p, ...base });

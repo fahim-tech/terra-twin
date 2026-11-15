@@ -4,13 +4,15 @@ import type { AnalogSearch } from "../types/contracts";
 
 export type Stage = "mars" | "earth" | "compare" | "evidence" | "report";
 export type Tier = 1 | 2;
+/** Windows a discovery run can refine (the API's accepted values; the status payload says which it offers). */
+export type NRefine = 20 | 30 | 40;
 
 /**
  * A live discovery submitted from the Mars inspector (services/gis.ts). `job` is the payload the submission
  * returned (a cached run comes back `done` at once); polling then follows `job.job_id`.
  */
 export interface DiscoveryState {
-  request: { lat: number; lon: number; site: string | null; label: string; mission: string; nRefine: 20 | 40 };
+  request: { lat: number; lon: number; site: string | null; label: string; mission: string; nRefine: NRefine; includePool?: boolean };
   job: DiscoveryJob;
 }
 
@@ -53,7 +55,9 @@ interface AppState {
   /** Selected window of the shown discovery run (its candidate id), or none. */
   liveCandidate: string | null;
   /** Windows the next discovery refines (the API's choices). */
-  discoveryWindows: 20 | 40;
+  discoveryWindows: NRefine;
+  /** The next discovery also refines the fixed research pool (the published runs' parameter set). */
+  discoveryPool: boolean;
 
   set: (p: Partial<AppState>) => void;
   go: (stage: Stage) => void;
@@ -89,6 +93,7 @@ export const useApp = create<AppState>((set, get) => ({
   liveOpen: false,
   liveCandidate: null,
   discoveryWindows: 20,
+  discoveryPool: false,
 
   set: (p) => set(p),
   go: (stage) => set({ previousStage: get().stage, stage, whyOpen: false }),
@@ -105,3 +110,11 @@ export const useApp = create<AppState>((set, get) => ({
     return false;
   },
 }));
+
+/**
+ * Compare and Report follow what the Earth stage shows: with the Live discovery tab open and one of its
+ * refined windows selected, they describe that window of that run; otherwise the research record's candidate.
+ */
+export function liveCompareActive(s: { liveOpen: boolean; liveRunId: string | null; liveCandidate: string | null }): boolean {
+  return s.liveOpen && !!s.liveRunId && !!s.liveCandidate;
+}

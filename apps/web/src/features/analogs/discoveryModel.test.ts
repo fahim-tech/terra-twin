@@ -85,8 +85,9 @@ describe("job progress comes only from the payload", () => {
     expect(elapsedText(187)).toBe("3 min 07 s");
     expect(elapsedText(null)).toBe("—");
   });
-  it("offers only the server's 20/40 choices", () => {
-    expect(windowChoices([20, 40, 30])).toEqual([20, 40]);
+  it("offers only the server's choices the API accepts (20, 30, 40)", () => {
+    expect(windowChoices([20, 40, 30])).toEqual([20, 40, 30]);
+    expect(windowChoices([20, 25, 40, 60])).toEqual([20, 40]);
     expect(windowChoices(undefined)).toEqual([]);
   });
 });
