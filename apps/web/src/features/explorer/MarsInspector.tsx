@@ -1,6 +1,6 @@
 import { ArrowRight, ChevronDown, CornerUpLeft } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { Kicker, PanelBody, PanelFooter, PanelHeader, Term, Toponym } from "../../components/primitives";
+import { Kicker, PanelBody, PanelFooter, PanelHeader, radioGroupKeys, Term, Toponym } from "../../components/primitives";
 import { Button, cx, Note, Segmented } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { zoneName } from "../../lib/glossary";
@@ -104,8 +104,10 @@ export function MarsInspector() {
               </div>
             </Section>
             <Section n={3} title="Footprint">
-              {/* The selector spans the panel like the grid above it: equal cells, one per footprint. */}
-              <div className="[&>[role=radiogroup]]:flex [&>[role=radiogroup]]:w-full [&_[role=radio]]:flex-1">
+              {/* The selector spans the panel like the grid above it: equal cells, one per footprint. Arrow keys
+                  and Home/End move the selection, as in every radio group (the shared Segmented has no keys). */}
+              <div className="[&>[role=radiogroup]]:flex [&>[role=radiogroup]]:w-full [&_[role=radio]]:flex-1"
+                onKeyDown={radioGroupKeys<number>(FOOTPRINTS, footprintKm, (v) => useApp.getState().set({ footprintKm: v }))}>
                 <Segmented ariaLabel="Requested footprint" accent="mars" value={footprintKm}
                   onChange={(v) => useApp.getState().set({ footprintKm: v })}
                   options={FOOTPRINTS.map((k) => ({ value: k, label: <span className="num">{k} km</span> }))} />
