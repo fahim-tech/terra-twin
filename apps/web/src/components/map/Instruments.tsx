@@ -18,6 +18,15 @@ export function ScaleBar({ planet, maxPx = 120, className }: { planet: Planet; m
   const mpp = useGlobes((s) => s.camera[planet]?.metersPerPixel ?? null);
   const tilted = useGlobes((s) => isTilted(s.camera[planet]?.pitchDeg));
   const s = niceScale(mpp, maxPx);
+  // At whole-planet altitudes no single ground scale holds across the view: say so instead of drawing a bar.
+  if (!s) {
+    return (
+      <div role="img" aria-label="Scale varies at this altitude" className={cx("flex flex-col gap-1", className)}>
+        <span className="kicker !text-ink/65">Scale</span>
+        <span className="whitespace-nowrap text-num-sm text-ink/85">Varies at this altitude</span>
+      </div>
+    );
+  }
   return (
     <div role="img" className={cx("flex flex-col gap-1", className)}
       aria-label={s ? `Scale bar ${s.label}${tilted ? ", true at the centre of the 3D view" : ""}` : "Scale unavailable"}>

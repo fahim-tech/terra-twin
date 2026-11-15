@@ -232,7 +232,26 @@ export function insideRing(p: Pt, ring: Pt[]): boolean {
  * point is not on screen, which breaks the ring there); `own` marks the outline of the zone the label names,
  * which the plate may sit inside but not across. `marks` are other glyphs the plate must not cover.
  */
-export interface CalloutObstacles { rings: { pts: (Pt | null)[]; own: boolean }[]; marks: Pt[] }
+export interface CalloutObstacles {
+  rings: { pts: (Pt | null)[]; own: boolean }[];
+  marks: Pt[];
+  /** Instruments over the frame that are not measured insets (the phone scale bar, the data-layers panel): the plate keeps off them. */
+  boxes?: Box[];
+}
+
+/** Whether two boxes overlap. */
+export function boxesMeet(a: Box, b: Box): boolean {
+  return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+}
+
+/**
+ * The size a plate is placed with: its natural (one-line) width, and the taller of its natural height and the
+ * height it was last drawn at — a long name wraps when the placement caps the plate's width, and a wrapped plate
+ * placed by its one-line height slides under whatever is above or below it.
+ */
+export function plateSize(natural: { w: number; h: number }, drawn: { w: number; h: number } | undefined): { w: number; h: number } {
+  return { w: natural.w, h: Math.max(natural.h, drawn?.h ?? 0) };
+}
 
 /** Clearance between a plate and the lines and marks around it, px (any less and the plate seems to sit on the line). */
 const CLEAR_GAP = 10;
@@ -272,7 +291,8 @@ export function clearCallout(a: Pt, start: { side: CalloutSide; dy: number; maxW
     if (!ring.own && n > 2 && ring.pts.every(Boolean)) foreign.push(ring.pts as Pt[]);
   }
   const first: CalloutChoice = { ...start, dx: LEADER_DX, extra: 0, extraX: 0, hits: 0 };
-  if (!segs.length && !ob.marks.length) return first;
+  const boxes = ob.boxes ?? [];
+  if (!segs.length && !ob.marks.length && !boxes.length) return first;
   const halfH = plate.h / 2;
   const fitsAt = (sy: number, r: number) => (sy < 0 ? a.y - r - halfH >= bounds.top + CALLOUT_EDGE : a.y + r + halfH <= bounds.bottom - CALLOUT_EDGE);
   const prev = opts.prev ? { ...opts.prev, extraX: opts.prev.extraX ?? 0 } : null;
@@ -309,6 +329,9 @@ export function clearCallout(a: Pt, start: { side: CalloutSide; dy: number; maxW
           else if (Math.abs(q.y - p.y) <= 0.36 * Math.abs(q.x - p.x) && segmentMeetsBox(p, q, shelf)) hits++;
         }
         for (const m of ob.marks) if (m.x >= box.x0 && m.x <= box.x1 && m.y >= box.y0 && m.y <= box.y1) hits++;
+        // An instrument under the plate hides it (or its coordinate line) outright: weigh it like several lines.
+        const plateBox = { x0, y0: row - halfH, x1: x0 + w, y1: row + halfH };
+        for (const b of boxes) if (boxesMeet(plateBox, b)) hits += 3;
         const centre = { x: x0 + w / 2, y: row };
         for (const ring of foreign) if (insideRing(centre, ring)) hits++;
         const held = !!prev && prev.side === side && prev.extra === extra && prev.extraX === extraX;

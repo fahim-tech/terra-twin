@@ -3,7 +3,8 @@ import { useGlobeBus } from "../../app/globeBus";
 import { leaderDy } from "../../components/map/Annotations";
 import { anchorPoint } from "../../globes/protocol";
 import { useGlobes } from "../../store/globes";
-import { calloutGeometry, clearCallout, placeCallout, reachFromGlyph, underCover, type CalloutSide, type CalloutStart } from "./readouts";
+import { useDataLayers } from "../../store/dataLayers";
+import { calloutGeometry, clearCallout, placeCallout, plateSize, reachFromGlyph, underCover, type Box, type CalloutSide, type CalloutStart } from "./readouts";
 
 export interface Callout {
   id: string;
@@ -51,6 +52,8 @@ const rounded = (v: number) => v.toFixed(4);
 const NAVIGATOR_BOTTOM = 56;
 /** Phones: the nav column (44 px buttons, 12 px inset) runs down the right edge and is not a measured inset. */
 const PHONE_NAV_W = 60;
+/** Phones: the scale bar's backing (App Instruments: 12 px from the free area's bottom-left, 88 px bar), with air, px. */
+const PHONE_SCALE = { left: 12, bottom: 12, w: 116, h: 46 };
 
 /**
  * Natural sizes of the label plates (unwrapped), by item id, from hidden copies watched by a ResizeObserver:
@@ -152,9 +155,16 @@ export function Callouts({ items }: { items: Callout[] }) {
   useEffect(() => () => bus.send("mars", { t: "trackAnchors", anchors: [] }), [bus]);
 
   const phone = size.w > 0 && size.w < 768;
+  const panel = useDataLayers((s) => s.panelBox.mars);
+  // Instruments over the frame that are not insets: the phone scale bar and the Mars data-layers panel.
+  const boxes: Box[] = [];
+  if (phone) boxes.push({ x0: ins.left + PHONE_SCALE.left - 4, y0: size.h - ins.bottom - PHONE_SCALE.bottom - PHONE_SCALE.h, x1: ins.left + PHONE_SCALE.left + PHONE_SCALE.w, y1: size.h - ins.bottom - PHONE_SCALE.bottom + 4 });
+  // A panel spanning most of the width (phones) is a ceiling for the labels; a narrower one an obstacle beside them.
+  const panelCeiling = panel && panel.x1 - panel.x0 > size.w * 0.5 ? panel.y1 + 4 : 0;
+  if (panel && !panelCeiling) boxes.push({ x0: panel.x0 - 6, y0: panel.y0 - 6, x1: panel.x1 + 6, y1: panel.y1 + 6 });
   const bounds = {
     left: ins.left,
-    top: Math.max(ins.top, NAVIGATOR_BOTTOM),
+    top: Math.max(ins.top, NAVIGATOR_BOTTOM, panelCeiling),
     right: size.w - Math.max(ins.right, phone ? PHONE_NAV_W : 0),
     bottom: size.h - ins.bottom,
   };
@@ -176,7 +186,7 @@ export function Callouts({ items }: { items: Callout[] }) {
         const box = leaderDy(it.boxPx);
         const minDy = stemmed ? Math.max(MIN_REACH, box - stemPx) : box;
         const reaches = stemmed ? reachFromGlyph(dy, stemPx, MIN_REACH) : dy;
-        const placed = placeCallout(p, it.side, bounds, reaches, { minDy });
+        const placed = placeCallout(p, it.side, bounds, reaches, { minDy, halfH: Math.max(21, (plates.sizes[`drawn:${it.id}`]?.h ?? 0) / 2) });
         // Keep the plate off the outlines and other glyphs around the point, as they are on screen now.
         const at = (id: string) => {
           const q = anchors[id];
@@ -185,8 +195,10 @@ export function Callouts({ items }: { items: Callout[] }) {
         const obstacles = {
           rings: (it.outlines ?? []).map((r, k) => ({ own: r.own, pts: r.pts.map((_, i) => at(ringId(it.id, k, i))) })),
           marks: (it.marks ?? []).map((_, k) => at(markId(it.id, k))).filter((q): q is { x: number; y: number } => !!q),
+          boxes,
         };
-        const choice = clearCallout(p, placed, bounds, reaches, plates.sizes[it.id] ?? PLATE_GUESS, obstacles, { minDy, prev: last.current.get(it.id), hold: moving });
+        const plate = plateSize(plates.sizes[it.id] ?? PLATE_GUESS, plates.sizes[`drawn:${it.id}`]);
+        const choice = clearCallout(p, placed, bounds, reaches, plate, obstacles, { minDy, prev: last.current.get(it.id), hold: moving });
         last.current.set(it.id, { side: choice.side, extra: choice.extra, extraX: choice.extraX });
         const { side, maxW, dy: reach, dx: across } = choice;
         const from: CalloutStart = stemmed ? { square: GLYPH_HALF + 2 }
@@ -210,7 +222,7 @@ export function Callouts({ items }: { items: Callout[] }) {
               {sq(g.end)}
             </svg>
             {/* Sized to its content up to the room on its side; a longer name wraps rather than running off the frame. */}
-            <div className="absolute" style={{ left: g.end.x, top: g.end.y, width: "max-content", maxWidth: maxW, transform: `translate(${g.sx > 0 ? `${END / 2}px` : `calc(-100% - ${END / 2}px)`}, -50%)` }}>
+            <div ref={plates.refFor(`drawn:${it.id}`)} className="absolute" style={{ left: g.end.x, top: g.end.y, width: "max-content", maxWidth: maxW, transform: `translate(${g.sx > 0 ? `${END / 2}px` : `calc(-100% - ${END / 2}px)`}, -50%)` }}>
               {typeof it.content === "function" ? it.content(side) : it.content}
             </div>
           </div>
