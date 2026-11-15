@@ -1,15 +1,18 @@
 import { ArrowRight } from "lucide-react";
 import { Disclosure, PanelFooter } from "../../components/primitives";
-import { Button } from "../../components/ui";
+import { Button, cx } from "../../components/ui";
 import { zoneName } from "../../lib/glossary";
 import { nearestSite } from "../../lib/instruments";
 import { useSites } from "../../services/api";
+import { useGisStatus } from "../../services/gis";
 import { useApp } from "../../store/app";
 import { KmFigure } from "../explorer/OutsideZone";
 import type { SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
 import { Readout, Readouts, SectionHead, StatusMark } from "./instruments";
 import { DecisionHead } from "./Verdict";
+import { DiscoveryAction } from "./DiscoveryAction";
+import { GisScreen } from "./GisScreen";
 
 /** "USGS MOLA 463 m mosaic (TERRATWIN_MOLA_MOSAIC)" → plain name + env name in mono, marked not connected. */
 function MissingInput({ text }: { text: string }) {
@@ -51,6 +54,13 @@ function useNearestZone(search: AnalogSearch, target: SearchTarget) {
 /** No Earth comparison is possible for this target: say so plainly; the next step is the footer action. */
 export function NoResult({ search, target }: { search: AnalogSearch; target: SearchTarget }) {
   const { sites, offZone, near } = useNearestZone(search, target);
+  const gis = useGisStatus().data?.status === "available";
+  // No research record at all (off the zones) is a missing-data state, named as the top rail names it — not the
+  // research decision "not enough evidence", which is kept for real abstentions.
+  const noRecord = search.status === "unavailable";
+  let n = 0;
+  const next = () => String(++n).padStart(2, "0");
+  const idx = { status: next(), screen: gis ? next() : "", near: near ? next() : "" };
   const reason = (search.tier2.operator as { reason?: string }).reason ?? search.mars.unavailable?.reason ?? search.tier2.decision.label;
   const missing = missingInputs(search);
   const owner = search.mars.unavailable?.owner ?? (search.tier2.live_refinement as { owner?: string }).owner;
@@ -60,23 +70,33 @@ export function NoResult({ search, target }: { search: AnalogSearch; target: Sea
   return (
     <section aria-labelledby="no-result-title" className="pb-2">
       {/* Phones hide the section rules (kept for screen readers) so the status and the nearest zone fit at half height. */}
-      <SectionHead index="01" className="max-md:sr-only">Status</SectionHead>
-      {/* The annunciator names the decision the record actually made (glossary term on demand), never a fixed label. */}
+      <SectionHead index={idx.status} className="max-md:sr-only">Status</SectionHead>
+      {/* The annunciator names the decision the record actually made (glossary term on demand), never a fixed label;
+          with no record at all it says so, in the top rail's words. */}
       <div className="mt-2.5 border border-line-strong max-md:mt-0">
-        <DecisionHead t2={search.tier2} as="div" />
+        {noRecord ? (
+          <div className="flex min-h-[40px] items-center gap-2.5 bg-white/[0.035] px-3 py-2 max-md:min-h-9 max-md:py-1.5">
+            <StatusMark state="struck" />
+            <span className="label-caps text-ink">No research data here</span>
+          </div>
+        ) : <DecisionHead t2={search.tier2} as="div" />}
         <div className="border-t border-line px-3 py-3">
-          <h4 id="no-result-title" className="text-title text-ink">No Earth comparison for this point</h4>
+          <h4 id="no-result-title" className="text-title text-ink">{noRecord ? "No research record for this point" : "No Earth comparison for this point"}</h4>
           <p className="mt-1.5 text-caption text-muted">
             {offZone
-              ? `TerraTwin measures Mars terrain only inside ${nZones ? `the ${nZones}` : "its"} research zones for now, so there is nothing here to compare Earth against. Your point is kept.`
+              ? gis
+                ? `The research comparison covers only ${nZones ? `the ${nZones}` : "its"} research zones. The GIS global screen below compares this point with Earth's land cells, and a global discovery can refine its shortlist.`
+                : `TerraTwin measures Mars terrain only inside ${nZones ? `the ${nZones}` : "its"} research zones for now, so there is nothing here to compare Earth against. Your point is kept.`
               : "The research data for this target cannot support a comparison, so no similarity score is shown."}
           </p>
         </div>
       </div>
 
+      {gis && <GisScreen lat={target.lat} lon={target.lon} mission={target.mission} index={idx.screen} />}
+
       {near && (
         <>
-          <SectionHead index="02" className="mt-6 max-md:sr-only">Next step</SectionHead>
+          <SectionHead index={idx.near} className={cx("mt-6", !gis && "max-md:sr-only")}>{gis ? "Research record" : "Next step"}</SectionHead>
           <Readouts className="mt-2.5 max-md:mt-3" label="Nearest research zone">
             <Readout label="Nearest zone">
               <span className="flex flex-wrap items-baseline justify-between gap-x-3">
@@ -104,6 +124,7 @@ export function NoResult({ search, target }: { search: AnalogSearch; target: Sea
 /** The sticky footer action of the no-result state: go to the nearest research zone, else back to Mars. */
 export function NoResultFooter({ search, target }: { search: AnalogSearch; target: SearchTarget }) {
   const { sites, offZone, near } = useNearestZone(search, target);
+  const gis = useGisStatus().data?.status === "available";
 
   const goNearest = () => {
     if (!near) return;
@@ -112,6 +133,19 @@ export function NoResultFooter({ search, target }: { search: AnalogSearch; targe
     app.go("mars");
     app.announce(`Moved to ${zoneName(near.site.id)}, the nearest research zone.`);
   };
+
+  if (gis) {
+    return (
+      <PanelFooter className="space-y-2 border-t border-line">
+        <DiscoveryAction caption={false} selection={{ lat: target.lat, lon: target.lon, siteId: target.siteId, label: target.siteId ? zoneName(target.siteId) : target.label }} />
+        {near && (
+          <Button variant="ghost" className="h-9 w-full py-0" onClick={goNearest}>
+            Go to nearest research zone <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+          </Button>
+        )}
+      </PanelFooter>
+    );
+  }
 
   return (
     <PanelFooter className="border-t border-line">

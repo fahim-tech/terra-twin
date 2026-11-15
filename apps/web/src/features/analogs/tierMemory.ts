@@ -24,7 +24,7 @@ export function switchTier(tier: 1 | 2) {
 /** Select a candidate; when it belongs to the other stage, switch the stage too. */
 export function chooseCandidate(id: string | null) {
   const t = tierOf(id);
-  useApp.getState().set(t ? { candidateId: id, tier: t } : { candidateId: id });
+  useApp.getState().set(t ? { candidateId: id, tier: t, liveOpen: false } : { candidateId: id });
 }
 
 /** Records every candidate change into the per-tier memory; resets when a new search arrives. Mount once. */

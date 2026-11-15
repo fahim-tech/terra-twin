@@ -7,12 +7,15 @@ import { Button, cx, Spinner } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { zoneName } from "../../lib/glossary";
 import { useMissions } from "../../services/api";
+import { useDiscoveryRun, useGisStatus } from "../../services/gis";
 import { useApp } from "../../store/app";
 import { resultsAreStale, searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
 import { type CandidateView, candidateList, coord, measuresOf, prettyWindow, researchWindowKm, screenCellKm, selectedCandidate, T1_MEASURES, T2_MEASURES } from "./candidates";
 import { EarthLookup } from "./EarthLookup";
+import { cellLabel } from "./discoveryModel";
 import { GlobalStage } from "./GlobalStage";
+import { LiveDiscovery } from "./LiveDiscovery";
 import { Readout, Readouts } from "./instruments";
 import { NoResult, NoResultFooter } from "./NoResult";
 import { tieNote } from "./readout";
@@ -88,10 +91,26 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
   const total = isT2 ? T2_MEASURES : T1_MEASURES;
   const winKm = isT2 ? researchWindowKm(search, current.t2) : null;
   const cellKm = isT2 ? null : screenCellKm(search);
+  const actions = (
+    <div className={cx("grid grid-cols-2 gap-2", !phone && "mt-3")}>
+      <Button variant="outline" onClick={() => { go("compare"); set({ whyOpen: true }); }}>Why this analog?</Button>
+      <Button variant="primary-earth" onClick={() => go("compare")}>Compare <ArrowRight className="h-3.5 w-3.5" aria-hidden /></Button>
+    </div>
+  );
+  if (phone) {
+    // Phones keep only the two actions: the selected row above already carries the earth bar, its figure and
+    // its place in the set, so the whole decision (a tied set included) stays in view at half height.
+    return (
+      <PanelFooter className="border-t border-line pt-2.5">
+        <p className="sr-only">
+          Selected: {isT2 ? prettyWindow(current.t2!.id) : coord(current.lat, current.lon)}{tie ? `, ${tie}` : ""}
+        </p>
+        {actions}
+      </PanelFooter>
+    );
+  }
   return (
     <PanelFooter className="border-t border-line pt-3.5 max-md:pt-3">
-      {/* Phones drop the caption row (the word stays for screen readers) so the decision above stays in view at
-          half height; the tie note moves under the basis line. */}
       {phone ? <span className="sr-only">Selected: </span> : (
         <div className="kicker mb-2 flex items-center justify-between gap-3">
           <span>Selected</span>
@@ -112,17 +131,40 @@ function Footer({ current, search, target, phone }: { current: CandidateView | n
             ? `${phone ? "" : "Research comparison · "}${winKm !== null ? `${winKm} km ` : ""}window · as MOLA would observe it`
             : `${phone ? "" : "Global screen · "}${cellKm !== null ? `${cellKm} km ` : ""}cell · as measured`}
         </p>
-        {phone && tieLine && <p className="mt-1 text-caption text-ink/85">{tieLine}</p>}
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button variant="outline" onClick={() => { go("compare"); set({ whyOpen: true }); }}>Why this analog?</Button>
-        <Button variant="primary-earth" onClick={() => go("compare")}>Compare <ArrowRight className="h-3.5 w-3.5" aria-hidden /></Button>
-      </div>
+      {actions}
     </PanelFooter>
   );
 }
 
-/** Earth results surface: what the search found for its own Mars target, in two ordered stages. */
+/** Footer of the Live discovery stage: the selected refined window (S beside its validation caveat), or a hint. */
+function LiveFooter() {
+  const liveRunId = useApp((s) => s.liveRunId);
+  const liveCandidate = useApp((s) => s.liveCandidate);
+  const run = useDiscoveryRun(liveRunId);
+  const c = run.data?.refinement?.candidates.find((x) => x.id === liveCandidate) ?? null;
+  if (!run.data?.refinement) return null;
+  return (
+    <PanelFooter className="border-t border-line">
+      {c ? (
+        <div className="relative pl-3">
+          <span aria-hidden className="absolute inset-y-0 left-0 w-[2px] bg-earth" />
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="num truncate text-num text-earth">{cellLabel(c.lat, c.lon)}</span>
+            <SFigure value={c.S} className="shrink-0 text-num text-ink" />
+          </div>
+          <p className="mt-0.5 text-caption text-muted">
+            Live discovery · {run.data.refinement.window_km} km window · as MOLA would observe it · validated on synthetic twins only
+          </p>
+        </div>
+      ) : (
+        <p className="flex items-baseline gap-2.5 text-caption text-muted"><StatusMark state="off" className="translate-y-[-1px]" />Select a refined window to see its descriptors and fly the globe to it.</p>
+      )}
+    </PanelFooter>
+  );
+}
+
+/** Earth results surface: what the search found for its own Mars target, in ordered stages (research, screen, live). */
 export function AnalogResults() {
   const search = useApp((s) => s.search);
   const selection = useApp((s) => s.selection);
@@ -130,6 +172,8 @@ export function AnalogResults() {
   const candidateId = useApp((s) => s.candidateId);
   const go = useApp((s) => s.go);
   const missions = useMissions();
+  const liveOpen = useApp((s) => s.liveOpen);
+  const gis = useGisStatus().data?.status === "available";
   const target = useMemo(() => searchTarget(search), [search]);
   const current = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
   const root = useRef<HTMLDivElement>(null);
@@ -145,6 +189,31 @@ export function AnalogResults() {
   const noResult = search.status === "unavailable" || !any;
   const t1 = search.tier1;
   const activeTier = tier === 1 && t1 ? 1 : 2;
+  const live = liveOpen && gis;
+  const tab: "1" | "2" | "live" = live ? "live" : (String(activeTier) as "1" | "2");
+  // At the phone sheet's peek detent only the header row shows: the tabs would be cut mid-glyph, so they wait.
+  const peek = phone && fit !== null && fit < 150;
+  const onTab = (v: "1" | "2" | "live") => {
+    if (v === "live") { useApp.getState().set({ liveOpen: true }); return; }
+    useApp.getState().set({ liveOpen: false });
+    switchTier(Number(v) as 1 | 2);
+  };
+  // Three stages share one row: their short names (the full name is the tab's accessible name and its panel's label).
+  const tabLabel = (i: number, short: string, full: string) => (
+    <span title={full}><span className="num mr-1.5 text-num-sm text-faint">{i}</span><span aria-hidden>{short}</span><span className="sr-only">{full}</span></span>
+  );
+  const tabs: { value: "1" | "2" | "live"; label: React.ReactNode; disabled?: boolean }[] = noResult
+    ? [{ value: "2", label: tabLabel(1, "This point", "This point") }]
+    : gis
+      ? [
+        { value: "2", label: tabLabel(1, "Research", "Research comparison") },
+        { value: "1", label: tabLabel(2, "Screen", "Global screen"), disabled: !t1 },
+      ]
+      : [
+        { value: "2", label: tabLabel(1, "Research comparison", "Research comparison") },
+        { value: "1", label: tabLabel(2, "Global screen", "Global screen"), disabled: !t1 },
+      ];
+  if (gis) tabs.push({ value: "live", label: tabLabel(tabs.length + 1, "Discovery", "Live discovery") });
 
   return (
     <div ref={root} className={cx("flex min-h-0 flex-col", phone && "h-full")} style={fit ? { height: fit } : undefined}>
@@ -168,30 +237,29 @@ export function AnalogResults() {
             </button>
           </div>
         )}
-        {!noResult && (
-          <Tabs ariaLabel="Result stage" className="mt-3 shadow-[inset_0_-1px_0_var(--color-line)] max-md:mt-2" value={String(activeTier) as "1" | "2"} onChange={(v) => switchTier(Number(v) as 1 | 2)}
-            options={[
-              { value: "2", label: <span><span className="num mr-1.5 text-num-sm text-faint">1</span>Research comparison</span> },
-              { value: "1", label: <span><span className="num mr-1.5 text-num-sm text-faint">2</span>Global screen</span>, disabled: !t1 },
-            ]} />
+        {tabs.length > 1 && !peek && (
+          <Tabs ariaLabel="Result stage" className="mt-3 gap-4 overflow-x-auto shadow-[inset_0_-1px_0_var(--color-line)] max-md:mt-2 max-xs:gap-3 [&>button]:shrink-0" value={tab} onChange={onTab}
+            options={tabs} />
         )}
       </PanelHeader>
 
       {/* Keyed on the stage so a tab switch starts at that stage's kicker, not at the old scroll offset. */}
-      <PanelBody key={noResult ? "none" : activeTier} className="pt-3 max-md:pt-2">
-        {noResult ? <NoResult search={search} target={target} /> : (
+      <PanelBody key={live ? "live" : noResult ? "none" : activeTier} className="pt-3 max-md:pt-2">
+        {live ? (
+          <div role="tabpanel" aria-label="Live discovery"><LiveDiscovery /></div>
+        ) : noResult ? <NoResult search={search} target={target} /> : (
           <div role="tabpanel" aria-label={activeTier === 2 ? "Research comparison" : "Global screen"}>
             {activeTier === 2 ? <ResearchStage search={search} candidateId={candidateId} /> : <GlobalStage search={search} candidateId={candidateId} />}
           </div>
         )}
         <div className="mt-3 space-y-1 border-t border-line pb-3 pt-2">
           <EarthLookup search={search} />
-          <SearchScope search={search} />
+          {!live && <SearchScope search={search} />}
         </div>
       </PanelBody>
 
       {/* The next step is the sticky footer action in every state, so it stays in reach at half height on phones. */}
-      {noResult ? <NoResultFooter search={search} target={target} /> : <Footer current={current} search={search} target={target} phone={phone} />}
+      {live ? <LiveFooter /> : noResult ? <NoResultFooter search={search} target={target} /> : <Footer current={current} search={search} target={target} phone={phone} />}
     </div>
   );
 }

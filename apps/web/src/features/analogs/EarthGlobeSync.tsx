@@ -9,6 +9,91 @@ import { boundsOf, type CandidateView, candidateList, centroidOf, selectedCandid
 import { phoneFrame, targetForNadir } from "./phoneFrame";
 import { useEarthLocal } from "./earthLocal";
 import { chooseCandidate, useTierMemorySync } from "./tierMemory";
+import { useDiscoveryRun, useGisStatus, useGisTier1 } from "../../services/gis";
+import { searchTarget } from "../../store/searchTarget";
+import { cellLabel, liveId } from "./discoveryModel";
+import { useDiscoverySync } from "./useDiscovery";
+
+/** Drawing groups of the research stages, hidden while the Live discovery stage is shown (and back after). */
+const RESEARCH_MARKERS = ["t1", "t2", "candidates"] as const;
+const RESEARCH_FOOTPRINTS = ["members", "cand"] as const;
+
+/**
+ * Live discovery on the Earth globe: every refined window of the shown run as its true 50 km footprint, the
+ * decision's windows as leader markers and the rest as candidates; the selected window highlighted and flown
+ * to. The research stages' groups are hidden meanwhile (one basis on screen at a time), and the GIS tier-1
+ * cells of an off-zone point are drawn while that screen is shown.
+ */
+function useLiveGlobe() {
+  const bus = useGlobeBus();
+  useDiscoverySync();
+  const stage = useApp((s) => s.stage);
+  const liveOpen = useApp((s) => s.liveOpen);
+  const liveRunId = useApp((s) => s.liveRunId);
+  const liveCandidate = useApp((s) => s.liveCandidate);
+  const search = useApp((s) => s.search);
+  const gis = useGisStatus().data?.status === "available";
+  const live = liveOpen && gis;
+  const run = useDiscoveryRun(live ? liveRunId : null);
+  const r = run.data?.refinement ?? null;
+
+  useEffect(() => {
+    for (const g of RESEARCH_MARKERS) bus.send("earth", { t: "setGroupShown", kind: "markers", group: g, on: !live });
+    for (const g of RESEARCH_FOOTPRINTS) bus.send("earth", { t: "setGroupShown", kind: "footprints", group: g, on: !live });
+  }, [bus, live]);
+
+  useEffect(() => {
+    const members = new Set(r?.decision.members ?? []);
+    const cands = live && r ? r.candidates : [];
+    bus.send("earth", {
+      t: "setMarkers", group: "live", options: { labels: "none" },
+      markers: cands.map((c) => ({ id: liveId(c.id), lat: c.lat, lon: c.lon, kind: members.has(c.id) ? "leader" : "candidate", label: cellLabel(c.lat, c.lon) })),
+    });
+    bus.send("earth", {
+      t: "setFootprints", group: "live",
+      footprints: cands.filter((c) => c.id !== liveCandidate).map((c) => ({ id: `lw:${c.id}`, kind: "window", lat: c.lat, lon: c.lon, km: r!.window_km })),
+    });
+  }, [bus, live, r, liveCandidate]);
+
+  // The selected live window: highlighted with its footprint, and flown to when picked.
+  const sel = live && r ? r.candidates.find((c) => c.id === liveCandidate) ?? null : null;
+  useEffect(() => {
+    bus.send("earth", { t: "setFootprints", group: "livecand", footprints: sel && r ? [{ id: liveId(sel.id), kind: "window", lat: sel.lat, lon: sel.lon, km: r.window_km }] : [] });
+    if (!live) return;
+    bus.send("earth", { t: "select", id: sel ? liveId(sel.id) : null });
+    if (sel) bus.send("earth", { t: "flyTo", lat: sel.lat, lon: sel.lon, heightKm: 1100 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bus, sel?.id, live]);
+
+  // Frame the run's windows when a run opens on the Earth stage.
+  const framed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!live || stage !== "earth" || !r || !run.data) { if (!live) framed.current = null; return; }
+    if (framed.current === run.data.run_id) return;
+    framed.current = run.data.run_id;
+    const b = boundsOf(r.candidates.map((c) => ({ lat: c.lat, lon: c.lon })));
+    if (!b) return;
+    const span = ((b.east - b.west) % 360 + 360) % 360;
+    if (span > 140 || b.north - b.south > 100) {
+      const c = centroidOf(r.candidates.map((x) => ({ lat: x.lat, lon: x.lon })) as CandidateView[]);
+      if (c) bus.send("earth", { t: "flyTo", lat: Math.max(-35, Math.min(35, c.lat)), lon: c.lon, heightKm: 14_000 });
+      return;
+    }
+    bus.send("earth", { t: "fitBounds", ...b, padding: 0.16, minHeightKm: 600, maxHeightKm: 20_000 });
+  }, [bus, live, stage, r, run.data]);
+
+  // GIS tier-1 cells of an off-zone point (the same query the panel's screen reads, so it is cached).
+  const t = searchTarget(search);
+  const offZone = !!search && search.status === "unavailable" && gis;
+  const t1 = useGisTier1(offZone && t ? { lat: t.lat, lon: t.lon, mission: t.mission } : null);
+  useEffect(() => {
+    const cells = offZone && !live ? t1.data?.candidates ?? [] : [];
+    bus.send("earth", {
+      t: "setMarkers", group: "gis1", options: { cluster: true, labels: "none" },
+      markers: cells.map((c) => ({ id: `gis1:${c.region_id}`, lat: c.latitude, lon: c.longitude, kind: "candidate", rank: c.rank })),
+    });
+  }, [bus, offZone, live, t1.data]);
+}
 
 /** Short marker labels: the panel carries the full name. */
 function markerLabel(c: CandidateView) {
@@ -33,6 +118,7 @@ export function activeSet(cands: CandidateView[], tier: 1 | 2, members: string[]
 /** Keeps the Earth globe in step with search results, the active stage and the selected candidate. */
 export function EarthGlobeSync() {
   useTierMemorySync();
+  useLiveGlobe();
   const bus = useGlobeBus();
   const earthSites = useEarthSites();
   const search = useApp((s) => s.search);
@@ -48,6 +134,7 @@ export function EarthGlobeSync() {
   const current = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
   const members = useMemo(() => search?.tier2.decision.members ?? [], [search]);
   const phone = useLayout() === "phone";
+  const liveShown = useApp((s) => s.liveOpen);
 
   // Named reference / control windows only when their layer is on.
   useEffect(() => {
@@ -95,7 +182,7 @@ export function EarthGlobeSync() {
 
   // Camera: frame the active set on arrival, on a new search and on a stage switch; fly to a candidate
   // only when the user picks one.
-  const frameKey = stage === "earth" && search ? `${search.id}|${tier}` : null;
+  const frameKey = stage === "earth" && search && !liveShown ? `${search.id}|${tier}` : null;
   const last = useRef<{ frameKey: string | null; candidateId: string | null }>({ frameKey: null, candidateId: null });
   /** The set framed by `frameShortFree`, until the user moves the camera or picks a candidate. */
   const phoneFramed = useRef<CandidateView[] | null>(null);
@@ -151,9 +238,10 @@ export function EarthGlobeSync() {
   // the spatial comparison: it is a different basis (tier 1, as measured) from the compared windows.
   const comparing = stage === "compare";
   useEffect(() => {
-    const url = !comparing && overlays.similarity && site && mission && search?.tier1 ? api.similarityRasterUrl(site, mission) : null;
+    // Nor during live discovery: its windows come from the GIS shortlist, not this research search's screen.
+    const url = !comparing && !liveShown && overlays.similarity && site && mission && search?.tier1 ? api.similarityRasterUrl(site, mission) : null;
     bus.send("earth", { t: "setOverlay", id: "similarity", url, alpha: 0.92 });
-  }, [bus, comparing, overlays.similarity, site, mission, search?.tier1]);
+  }, [bus, comparing, liveShown, overlays.similarity, site, mission, search?.tier1]);
 
   useEffect(() => {
     bus.send("earth", { t: "setOverlay", id: "coverage", url: overlays.coverage ? api.coverageRasterUrl() : null, alpha: 1 });
@@ -196,7 +284,8 @@ export function EarthGlobeSync() {
 
   useGlobeEvents("earth", (m) => {
     if (m.t === "interaction") phoneFramed.current = null;
-    if (m.t !== "markerClick" || m.id.startsWith("ref:") || m.id.startsWith("pool:")) return;
+    if (m.t !== "markerClick" || m.id.startsWith("ref:") || m.id.startsWith("pool:") || m.id.startsWith("gis1:")) return;
+    if (m.id.startsWith("live:")) { useApp.getState().set({ liveCandidate: m.id.slice(5) }); return; }
     useEarthLocal.setState({ intent: "select" });
     chooseCandidate(m.id);
   });
