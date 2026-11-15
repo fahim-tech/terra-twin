@@ -1,7 +1,8 @@
 import { SFigure, StatusMark } from "../../components/marks";
-import { Disclosure, Measure, radioGroupKeys } from "../../components/primitives";
+import { Measure, radioGroupKeys } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
+import { useGisStatus } from "../../services/gis";
 import { useApp } from "../../store/app";
 import type { AnalogSearch } from "../../types/contracts";
 import type { CandidateView } from "../analogs/candidates";
@@ -18,6 +19,7 @@ type Rep = "mars_observation_space" | "as_measured";
  */
 export function EvidenceMode({ search, c }: { search: AnalogSearch; c: CandidateView }) {
   const representation = useApp((s) => s.representation);
+  const gis = useGisStatus();
   const set = useApp((s) => s.set);
   const t2 = search.tier2;
   const base = t2.as_measured_baseline;
@@ -29,14 +31,14 @@ export function EvidenceMode({ search, c }: { search: AnalogSearch; c: Candidate
     return (
       <div className="max-w-[760px] space-y-3 text-body text-muted">
         <p className="text-ink">This is a global-screen cell. It has no research comparison: no {t2.target.window_km} km window was re-observed the way MOLA saw the Mars site.</p>
-        <p>Refining new screening cells needs on-demand extraction and the target&rsquo;s MOLA observation model, which are not connected.</p>
-        {t2.live_refinement.missing_inputs.length > 0 && (
-          <Disclosure summary="What is missing">
-            <ul className="space-y-1 border-l border-line pl-3">
-              {t2.live_refinement.missing_inputs.map((m) => <li key={m} className="font-mono text-num-sm text-muted">{m}</li>)}
-            </ul>
-          </Disclosure>
-        )}
+        {/* Research comparisons here are published records; refining screening cells is live discovery's job (GIS worker). */}
+        <p>
+          Research comparisons in this view are published records.{" "}
+          {gis.data?.discovery.status === "available"
+            ? "Live discovery refines a Mars window's top screening cells through the GIS worker; this cell has not been refined here."
+            : gis.data ? `Live discovery is not available${gis.data.discovery.reason ? `: ${gis.data.discovery.reason}` : ""}.`
+              : gis.isError ? "Live discovery status could not be read." : null}
+        </p>
         <p className="text-caption text-faint">{G5.scale}</p>
       </div>
     );
