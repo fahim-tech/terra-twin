@@ -117,6 +117,28 @@ export function ratioRow(key: string, mars: number | null, earth: number | null,
   return { ...base, value: r, pos: clamp01(raw), clipped: raw < 0 || raw > 1, band, within, relation };
 }
 
+/** A labelled axis tick: value, 0..1 position on the row's axis and its mono label. */
+export interface AxisTick { v: number; pos: number; label: string }
+
+/** Log-axis ticks (Earth ÷ Mars). 1.00 is the Mars reference; 0.67 and 1.5 are reciprocal, so the grid is symmetric. */
+export const LOG_TICKS: AxisTick[] = [0.5, 2 / 3, 1, 1.5, 2].map((v) => ({ v, pos: ratioPos(v), label: v.toFixed(2) }));
+
+/** Linear Δ ticks for the Hurst row (Earth − Mars), with typographic minus signs. */
+export const DELTA_TICKS: AxisTick[] = [-HURST_DOMAIN, -HURST_DOMAIN / 2, 0, HURST_DOMAIN / 2, HURST_DOMAIN].map((v) => ({
+  v, pos: deltaPos(v), label: v === 0 ? "0" : `${v > 0 ? "+" : "−"}${Math.abs(v).toFixed(2)}`,
+}));
+
+/**
+ * The row's relation split for typesetting (figure in mono, words in the text face). Same rules and
+ * rounding as `relation`; `figure` is null when there is no number to show.
+ */
+export function relationParts(r: RatioRow): { figure: string | null; text: string } {
+  if (r.value === null) return { figure: null, text: r.relation };
+  if (r.transform === "linear") return { figure: `${r.value >= 0 ? "+" : "−"}${Math.abs(r.value).toFixed(2)}`, text: "on Earth" };
+  if (Math.abs(r.value - 1) < 0.005) return { figure: null, text: r.relation };
+  return r.value > 1 ? { figure: `${r.value.toFixed(2)}×`, text: "higher on Earth" } : { figure: `${(1 / r.value).toFixed(2)}×`, text: "lower on Earth" };
+}
+
 /** Splits rows into "Similar" (inside tolerance), "Different" (outside) and "Not comparable". */
 export function groupRows(rows: RatioRow[]) {
   return {
