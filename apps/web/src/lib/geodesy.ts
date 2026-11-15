@@ -20,6 +20,7 @@ export function centricToGraphic(latDeg: number, a: number, b: number): number {
 }
 
 export function normLon(lon: number): number {
+  if (lon >= -180 && lon <= 180) return lon;
   const l = ((((lon + 180) % 360) + 360) % 360) - 180;
   return l === -180 && lon > 0 ? 180 : l;
 }

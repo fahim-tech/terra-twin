@@ -144,6 +144,7 @@ const meanR = planet === "mars" ? R_MARS_M : R_EARTH_MEAN_M;
 let insets = { top: 0, right: 0, bottom: 0, left: 0 };
 /** Last programmatic framing target; re-aimed when insets change, forgotten once the user moves the camera. */
 let lastTarget: { lat: number; lon: number; heightKm: number } | null = null;
+
 let occluder: EllipsoidalOccluder | null = null;
 
 // Latitude conversion between the API convention (planetocentric) and the rendering ellipsoid.
@@ -789,6 +790,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
         insets = { top: m.top, right: m.right, bottom: m.bottom, left: m.left };
         lastTelemetry = "";
         if (lastTarget) flyTo(lastTarget.lat, lastTarget.lon, lastTarget.heightKm, reducedMotion ? 0 : 0.6);
+
         break;
       case "setView":
         viewer?.camera.setView({ destination: pos(m.lat, m.lon, m.heightKm * 1000), orientation: { heading: 0, pitch: -CMath.PI_OVER_TWO, roll: 0 } });

@@ -42,6 +42,8 @@ export function MarsGlobeSync() {
 
   useGlobeEvents("mars", (m) => {
     const { select, set } = useApp.getState();
+    // During the intro a click on the planet only dismisses the intro; it never selects a point.
+    if ((m.t === "pick" || m.t === "markerClick") && useApp.getState().introOpen) { set({ introOpen: false }); return; }
     if (m.t === "pick") {
       const site = siteContaining(sites.data, m.lat, m.lon);
       select({ lat: m.lat, lon: m.lon, siteId: site?.id ?? null, label: site ? `${site.name} · picked point` : `${formatLat(m.lat, 2)}, ${formatLon(m.lon, 2)}` });

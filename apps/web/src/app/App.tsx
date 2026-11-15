@@ -1,37 +1,41 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from "react";
-import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion, MotionConfig } from "motion/react";
 import { GlobeFrame } from "../globes/GlobeFrame";
-import type { GlobeToParent } from "../globes/protocol";
+import type { GlobeToParent, Planet } from "../globes/protocol";
 import { cx, Spinner } from "../components/ui";
+import { SPRING } from "../components/primitives";
+import { Sheet, type SheetSnap } from "../components/Sheet";
+import { AltitudeReadout, CenterReadout, NavControls, Reticle, ScaleBar } from "../components/map/Instruments";
 import { useApp } from "../store/app";
-import { GlobeBusProvider, useGlobeBus } from "./globeBus";
 import { useGlobes } from "../store/globes";
+import { useHealth } from "../services/api";
+import { GlobeBusProvider, useGlobeBus } from "./globeBus";
 import { LiveRegion, useEscapeToClose, useStageFocus } from "./a11y";
 import { useUrlState } from "./useUrlState";
 import { useGlobeInsets } from "./useGlobeInsets";
+import { useLayout } from "./useLayout";
 import { TopBar } from "./TopBar";
 import { Intro } from "./Intro";
-import { MarsControls } from "../features/explorer/MarsControls";
-import { MarsGlobeSync } from "../features/explorer/MarsGlobeSync";
-import { EarthGlobeSync } from "../features/analogs/EarthGlobeSync";
-import { CompareGlobeSync } from "../features/comparison/CompareGlobeSync";
+import { MarsSearch } from "../features/explorer/MarsSearch";
 import { MarsInspector } from "../features/explorer/MarsInspector";
+import { MarsOverlay } from "../features/explorer/MarsOverlay";
+import { MarsGlobeSync } from "../features/explorer/MarsGlobeSync";
+import { EarthLayers } from "../features/analogs/EarthLayers";
 import { AnalogResults } from "../features/analogs/AnalogResults";
-import { SearchContext } from "../features/analogs/SearchContext";
+import { EarthGlobeSync } from "../features/analogs/EarthGlobeSync";
 import { ComparisonPanel } from "../features/comparison/ComparisonPanel";
-import { selectedCandidate } from "../features/analogs/candidates";
-import { AltitudeReadout, CenterReadout, NavControls, Reticle, ScaleBar } from "../components/map/Instruments";
-import { AnnotationLayer } from "../components/map/Annotations";
-import { formatLat, formatLon } from "../lib/geodesy";
+import { CompareGlobeSync } from "../features/comparison/CompareGlobeSync";
 
 const EvidenceView = lazy(() => import("../features/evidence/EvidenceView"));
 const ReportView = lazy(() => import("../features/report/ReportView"));
 
 export function App() {
   return (
-    <GlobeBusProvider>
-      <Workspace />
-    </GlobeBusProvider>
+    <MotionConfig reducedMotion="user">
+      <GlobeBusProvider>
+        <Workspace />
+      </GlobeBusProvider>
+    </MotionConfig>
   );
 }
 
@@ -40,37 +44,51 @@ function Workspace() {
   useEscapeToClose();
   useStageFocus();
   useUrlState();
+  const layout = useLayout();
   const stageRef = useRef<HTMLElement>(null);
   const marsFrame = useRef<HTMLDivElement>(null);
   const earthFrame = useRef<HTMLDivElement>(null);
   const frames = useMemo(() => ({ mars: marsFrame, earth: earthFrame }), []);
   useGlobeInsets(stageRef, frames);
-  const mars = bus.handles.mars;
-  const earth = bus.handles.earth;
-  const s = useApp();
-  const { stage, selection, search, candidateId, introOpen, leftOpen, rightOpen, set } = s;
-  const current = useMemo(() => selectedCandidate(search, candidateId), [search, candidateId]);
 
-  useEffect(() => { bus.send("mars", { t: "setLayer", layer: s.marsLayer }); }, [bus, s.marsLayer]);
-  useEffect(() => { bus.send("earth", { t: "setLayer", layer: s.earthLayer }); }, [bus, s.earthLayer]);
+  const stage = useApp((s) => s.stage);
+  const previousStage = useApp((s) => s.previousStage);
+  const introOpen = useApp((s) => s.introOpen);
+  const selection = useApp((s) => s.selection);
+  const search = useApp((s) => s.search);
+  const marsLayer = useApp((s) => s.marsLayer);
+  const earthLayer = useApp((s) => s.earthLayer);
+  const graticule = useApp((s) => s.graticule);
+  const set = useApp((s) => s.set);
+
+  useEffect(() => { bus.send("mars", { t: "setLayer", layer: marsLayer }); }, [bus, marsLayer]);
+  useEffect(() => { bus.send("earth", { t: "setLayer", layer: earthLayer }); }, [bus, earthLayer]);
+  useEffect(() => { bus.send("mars", { t: "setGraticule", on: graticule }); bus.send("earth", { t: "setGraticule", on: graticule }); }, [bus, graticule]);
   useEffect(() => { bus.send("mars", { t: "setSpin", on: introOpen }); }, [bus, introOpen]);
 
-  // Globe frames publish every event onto the bus; the shell only keeps the hover readout.
-  const onMars = useCallback((m: GlobeToParent) => {
-    bus.emit("mars", m);
-    if (m.t === "hover") useGlobes.getState().setHover(m.lat === null || m.lon === null ? null : { planet: "mars", lat: m.lat, lon: m.lon });
-    else if (m.t === "error") console.warn("[mars globe]", m.message);
-  }, [bus, set]);
-  const onEarth = useCallback((m: GlobeToParent) => {
-    bus.emit("earth", m);
-    if (m.t === "hover") useGlobes.getState().setHover(m.lat === null || m.lon === null ? null : { planet: "earth", lat: m.lat, lon: m.lon });
-    else if (m.t === "error") console.warn("[earth globe]", m.message);
-  }, [bus, set]);
+  const onGlobe = useCallback((planet: Planet) => (m: GlobeToParent) => {
+    bus.emit(planet, m);
+    if (m.t === "hover") useGlobes.getState().setHover(m.lat === null || m.lon === null ? null : { planet, lat: m.lat, lon: m.lon });
+    else if (m.t === "error") console.warn(`[${planet} globe]`, m.message);
+  }, [bus]);
+  const onMars = useMemo(() => onGlobe("mars"), [onGlobe]);
+  const onEarth = useMemo(() => onGlobe("earth"), [onGlobe]);
 
   const fullPage = stage === "evidence" || stage === "report";
   const split = stage === "compare";
-  const marsActive = !fullPage && (stage === "mars" || split);
-  const earthActive = !fullPage && (stage === "earth" || split);
+  const phone = layout === "phone";
+  // On phones the comparison shows one planet at a time.
+  const [phonePlanet, setPhonePlanet] = useState<Planet>("earth");
+  const marsShown = stage === "mars" || (split && (!phone || phonePlanet === "mars")) || (fullPage && previousStage === "mars");
+  const earthShown = stage === "earth" || (split && (!phone || phonePlanet === "earth")) || (fullPage && previousStage !== "mars");
+  const marsActive = !fullPage && marsShown;
+  const earthActive = !fullPage && earthShown;
+  const activePlanet: Planet = stage === "mars" ? "mars" : "earth";
+
+  const startJezero = () => {
+    set({ introOpen: false });
+    useApp.getState().select({ lat: 17.67557431706733, lon: 77.01274064381283, siteId: "Jezero", label: "Jezero" });
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -78,54 +96,68 @@ function Workspace() {
       <MarsGlobeSync />
       <EarthGlobeSync />
       <CompareGlobeSync />
-      <TopBar />
+      <TopBar compact={phone} />
+      <StatusBanner />
       <main ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden">
-        {/* Globe stage: both viewers stay mounted; layout and opacity change per workflow stage. */}
-        <div className={cx("absolute inset-0 transition-[filter,opacity] duration-700", fullPage && "opacity-25 blur-sm")}>
-          <div ref={marsFrame} {...inert(!marsActive)} className={cx("absolute inset-y-0 left-0 transition-all duration-[900ms] ease-[var(--ease-out-soft)]",
-            split ? "w-full md:w-1/2" : "w-full",
-            stage === "mars" || split || (fullPage && s.previousStage === "mars") ? "opacity-100 scale-100" : "pointer-events-none scale-[0.86] opacity-0",
-            split && "hidden md:block")}>
-            <GlobeFrame ref={mars} planet="mars" onMessage={onMars} />
+        {/* Globe stage: both viewers stay mounted; stages change layout and opacity only (no WebGL resize animation). */}
+        <div className={cx("absolute inset-0 transition-opacity duration-500", fullPage && "opacity-35")}>
+          <div ref={marsFrame} {...inert(!marsActive)}
+            className={cx("absolute inset-y-0 left-0 transition-[opacity,transform] duration-[600ms] ease-[var(--ease-out-soft)]",
+              split && !phone ? "w-1/2" : "w-full",
+              introOpen && stage === "mars" && !phone && "md:translate-x-[16vw]",
+              marsShown ? "opacity-100" : "pointer-events-none opacity-0")}>
+            <GlobeFrame planet="mars" ref={bus.handles.mars} onMessage={onMars} />
             {stage === "mars" && !introOpen && <Reticle planet="mars" />}
-            {stage === "mars" && selection && (
-              <AnnotationLayer planet="mars" items={[{ id: "sel", lat: selection.lat, lon: selection.lon, tone: "mars", content: (
-                <div className="whitespace-nowrap"><div className="text-[13px] text-ink">{selection.label}</div>
-                  <div className="num font-mono text-[10.5px] text-muted">{formatLat(selection.lat, 2)} {formatLon(selection.lon, 2)}</div></div>) }]} />
-            )}
-            {split && <GlobeLabel planet="mars" text={selection?.label ?? "Mars target"} />}
+            {stage === "mars" && !introOpen && <MarsOverlay />}
           </div>
-          <div ref={earthFrame} {...inert(!earthActive)} className={cx("absolute inset-y-0 right-0 transition-all duration-[900ms] ease-[var(--ease-out-soft)]",
-            split ? "w-full md:w-1/2 md:border-l md:border-line/60" : "w-full",
-            stage === "earth" || split || (fullPage && s.previousStage !== "mars") ? "opacity-100 scale-100" : "pointer-events-none scale-[1.08] opacity-0")}>
-            <GlobeFrame ref={earth} planet="earth" onMessage={onEarth} />
-            {split && <GlobeLabel planet="earth" text={current?.label ?? "Earth candidate"} />}
+          <div ref={earthFrame} {...inert(!earthActive)}
+            className={cx("absolute inset-y-0 right-0 transition-opacity duration-[600ms]",
+              split && !phone ? "w-1/2 border-l border-line" : "w-full",
+              earthShown ? "opacity-100 delay-200" : "pointer-events-none opacity-0")}>
+            <GlobeFrame planet="earth" ref={bus.handles.earth} onMessage={onEarth} />
+            {stage === "earth" && <Reticle planet="earth" />}
           </div>
         </div>
 
-        {introOpen && stage === "mars" && <Intro onStart={() => set({ introOpen: false })} />}
+        <AnimatePresence>
+          {introOpen && stage === "mars" && (
+            <motion.div key="intro" initial={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+              <Intro onStart={() => set({ introOpen: false })} onJezero={startJezero} />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {!introOpen && (stage === "mars" || stage === "earth") && (
           <>
-            <SidePanel side="left" occludes={stage === "mars" ? "mars" : "earth"} open={leftOpen} onToggle={() => set({ leftOpen: !leftOpen })}>
-              {stage === "mars" ? <MarsControls /> : <SearchContext />}
-            </SidePanel>
-            <SidePanel side="right" occludes={stage === "mars" ? "mars" : "earth"} open={rightOpen} onToggle={() => set({ rightOpen: !rightOpen })}>
-              {stage === "mars" ? <MarsInspector /> : <AnalogResults />}
-            </SidePanel>
-            <div className="no-print absolute bottom-4 z-10 hidden items-end gap-6 md:flex" style={{ left: leftOpen ? 332 : 60 }}>
-              <ScaleBar planet={stage === "mars" ? "mars" : "earth"} />
-              <AltitudeReadout planet={stage === "mars" ? "mars" : "earth"} />
-              <CenterReadout planet={stage === "mars" ? "mars" : "earth"} />
+            {/* Navigator capsule (top-left). */}
+            <div className="no-print absolute left-3 right-3 top-3 z-30 sm:right-auto sm:w-[360px]">
+              {stage === "mars" ? <MarsSearch /> : <EarthLayers />}
             </div>
-            <NavControls planet={stage === "mars" ? "mars" : "earth"} className="no-print absolute bottom-4 z-10 hidden md:flex" style={{ right: rightOpen ? 376 : 60 }} />
+            <Instruments planet={activePlanet} phone={phone} />
+            <ContextSurface stage={stage} phone={phone} open={stage === "mars" ? !!selection : !!search}>
+              {stage === "mars" ? <MarsInspector /> : <AnalogResults />}
+            </ContextSurface>
           </>
         )}
 
-        {split && <ComparisonPanel />}
+        {split && (
+          <>
+            {phone && (
+              <div role="radiogroup" aria-label="Planet" className="surface no-print absolute left-1/2 top-3 z-20 flex -translate-x-1/2 rounded-full p-1">
+                {(["mars", "earth"] as Planet[]).map((p) => (
+                  <button key={p} role="radio" aria-checked={phonePlanet === p} onClick={() => setPhonePlanet(p)}
+                    className={cx("hit rounded-full px-4 py-1.5 text-label", phonePlanet === p ? (p === "mars" ? "bg-mars text-space" : "bg-earth text-space") : "text-muted")}>
+                    {p === "mars" ? "Mars" : "Earth"}
+                  </button>
+                ))}
+              </div>
+            )}
+            <ComparisonPanel />
+          </>
+        )}
 
         {fullPage && (
-          <div className="absolute inset-0 z-20 overflow-y-auto scroll-thin bg-space/80">
+          <div className="absolute inset-0 z-20 overflow-y-auto scroll-thin bg-space/85">
             <Suspense fallback={<div className="p-10"><Spinner label="Loading" /></div>}>
               {stage === "evidence" ? <EvidenceView /> : <ReportView />}
             </Suspense>
@@ -136,42 +168,66 @@ function Workspace() {
   );
 }
 
-/** `inert` removes hidden UI from the tab order and accessibility tree (React 18 needs the string form). */
-function inert(on: boolean): Record<string, string> {
-  return on ? { inert: "" } : {};
+/** Right-hand context surface on desktop/tablet; bottom sheet on phones. Enters and leaves along its own edge. */
+function ContextSurface({ stage, phone, open, children }: { stage: "mars" | "earth"; phone: boolean; open: boolean; children: React.ReactNode }) {
+  const [snap, setSnap] = useState<SheetSnap>("half");
+  useEffect(() => { if (open) setSnap("half"); }, [open, stage]);
+  if (phone) {
+    return open ? (
+      <div className="no-print pointer-events-none absolute inset-0 z-20 [&>section]:pointer-events-auto">
+        <Sheet occludes={stage} label={stage === "mars" ? "Selected location" : "Earth analogs"} snap={snap} onSnapChange={setSnap}>
+          <div className="flex h-full flex-col">{children}</div>
+        </Sheet>
+      </div>
+    ) : null;
+  }
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.aside key={stage} aria-label={stage === "mars" ? "Selected location" : "Earth analogs"} data-occludes={stage}
+          initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 16 }} transition={SPRING}
+          className="surface no-print absolute bottom-3 right-3 top-3 z-20 flex w-[min(380px,calc(100%-24px))] flex-col overflow-hidden rounded-surface">
+          {children}
+        </motion.aside>
+      )}
+    </AnimatePresence>
+  );
 }
 
-function GlobeLabel({ planet, text }: { planet: "mars" | "earth"; text: string }) {
+/** Scale, altitude and centre (bottom-left) and navigation (bottom-right), placed inside the free area. */
+function Instruments({ planet, phone }: { planet: Planet; phone: boolean }) {
+  const ins = useGlobes((s) => s.insets[planet]);
+  if (phone) {
+    return <NavControls planet={planet} className="no-print absolute right-3 top-[68px] z-10" />;
+  }
   return (
-    <div className="pointer-events-none absolute left-4 top-4 flex items-center gap-2 text-[12px]">
-      <span className={cx("h-1.5 w-1.5 rounded-full", planet === "mars" ? "bg-mars" : "bg-earth")} />
-      <span className={planet === "mars" ? "text-mars" : "text-earth"}>{planet === "mars" ? "Mars" : "Earth"}</span>
-      <span className="text-ink/80">{text}</span>
+    <>
+      <div className="no-print on-imagery pointer-events-none absolute z-10 flex items-end gap-6 transition-[left,bottom] duration-300"
+        style={{ left: ins.left + 16, bottom: ins.bottom + 34 }}>
+        <ScaleBar planet={planet} />
+        <AltitudeReadout planet={planet} />
+        <CenterReadout planet={planet} className="hidden lg:flex" />
+      </div>
+      <NavControls planet={planet} className="no-print absolute z-10 transition-[right,bottom] duration-300" style={{ right: ins.right + 16, bottom: ins.bottom + 34 }} />
+    </>
+  );
+}
+
+function StatusBanner() {
+  const health = useHealth();
+  const imagery = useGlobes((s) => s.imagery);
+  const recent = (["mars", "earth"] as Planet[]).find((p) => imagery[p] && Date.now() - imagery[p]!.at < 30_000);
+  if (!health.isError && !recent) return null;
+  return (
+    <div role="alert" className="no-print relative z-30 flex items-center justify-center gap-3 bg-bad/15 px-4 py-1.5 text-caption text-ink">
+      {health.isError
+        ? <>The scientific API is not reachable — measurements and searches are unavailable. <button className="underline" onClick={() => health.refetch()}>Retry</button></>
+        : <>Some {recent === "mars" ? "Mars" : "Earth"} imagery tiles failed to load (NASA tile service). Measurements are unaffected.</>}
     </div>
   );
 }
 
-function SidePanel({ side, open, onToggle, children, occludes }: { side: "left" | "right"; open: boolean; onToggle: () => void; children: React.ReactNode; occludes: "mars" | "earth" }) {
-  const left = side === "left";
-  const Icon = left ? (open ? PanelLeftClose : PanelLeftOpen) : open ? PanelRightClose : PanelRightOpen;
-  return (
-    <>
-      <aside aria-label={left ? "Controls" : "Details"} data-occludes={open ? occludes : undefined} {...inert(!open)}
-        className={cx(
-          "panel no-print absolute z-10 flex flex-col overflow-hidden shadow-2xl shadow-black/40 transition-all duration-500 ease-[var(--ease-out-soft)]",
-          // mobile: right panel becomes a bottom sheet; left panel is hidden behind its toggle
-          left ? "inset-x-2 top-12 max-h-[60%] rounded-2xl md:inset-x-auto md:bottom-3 md:left-3 md:top-3 md:max-h-none md:w-[300px]"
-               : "inset-x-0 bottom-0 max-h-[58%] rounded-t-2xl md:inset-x-auto md:bottom-3 md:right-3 md:top-3 md:max-h-none md:w-[348px] md:rounded-2xl",
-          open ? "translate-x-0 opacity-100" : cx("pointer-events-none opacity-0", left ? "-translate-y-4 md:-translate-x-6 md:translate-y-0" : "translate-y-6 md:translate-x-6 md:translate-y-0"),
-          left && !open && "invisible",
-        )}>
-        {children}
-      </aside>
-      <button onClick={onToggle} aria-label={`${open ? "Collapse" : "Expand"} ${left ? "controls" : "details"} panel`}
-        className={cx("no-print panel absolute z-20 grid h-8 w-8 place-items-center rounded-lg text-muted hover:text-ink transition-all duration-500",
-          left ? (open ? "left-3 top-3 md:left-[316px]" : "left-3 top-3") : open ? "right-3 top-3 md:right-[364px]" : "bottom-3 right-3 md:bottom-auto md:top-3")}>
-        <Icon className="h-4 w-4" />
-      </button>
-    </>
-  );
+/** `inert` removes hidden UI from the tab order and accessibility tree (React 18 needs the string form). */
+function inert(on: boolean): Record<string, string> {
+  return on ? { inert: "" } : {};
 }

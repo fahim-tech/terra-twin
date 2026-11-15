@@ -23,6 +23,8 @@ interface Props {
   peek?: number;
   header?: ReactNode;
   className?: string;
+  /** Marks the sheet as covering a globe (see useGlobeInsets). */
+  occludes?: "mars" | "earth" | "both";
 }
 
 /**
@@ -30,7 +32,7 @@ interface Props {
  * to a critically damped spring, projects momentum to choose the snap point, and rubber-bands at the
  * ends. The handle is also a button: tap or Enter cycles snap points; arrow keys move between them.
  */
-export function Sheet({ children, label, snap, onSnapChange, peek = 112, header, className }: Props) {
+export function Sheet({ children, label, snap, onSnapChange, peek = 112, header, className, occludes }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const [h, setH] = useState(0);
   const y = useMotionValue(10_000);
@@ -101,8 +103,8 @@ export function Sheet({ children, label, snap, onSnapChange, peek = 112, header,
   };
 
   return (
-    <motion.section ref={host} aria-label={label} style={{ y }}
-      className={cx("absolute inset-x-0 top-0 z-20 flex flex-col rounded-t-[18px] border-t border-line/70 bg-surface shadow-[0_-12px_40px_rgba(0,0,0,0.45)]", className)}
+    <motion.section ref={host} aria-label={label} style={{ y }} data-occludes={occludes}
+      className={cx("absolute inset-x-0 top-0 z-20 flex flex-col rounded-t-[18px] bg-surface shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_-12px_40px_rgba(0,0,0,0.5)]", className)}
       >
       <div className="touch-none select-none" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
         <button type="button" onKeyDown={onKey} aria-label={`${label}: ${snap === "full" ? "expanded" : snap === "half" ? "half open" : "collapsed"}. Press to change, arrow keys to resize.`}
