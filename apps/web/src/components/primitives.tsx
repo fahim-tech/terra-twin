@@ -8,7 +8,7 @@ export const SPRING = { type: "spring" as const, bounce: 0, duration: 0.35 };
 
 /** Uppercase section kicker. */
 export function Kicker({ children, className, tone }: { children: ReactNode; className?: string; tone?: "mars" | "earth" | "faint" }) {
-  return <div className={cx("kicker", tone === "mars" && "!text-mars", tone === "earth" && "!text-earth", className)}>{children}</div>;
+  return <div className={cx("kicker", tone === "mars" && "text-mars", tone === "earth" && "text-earth", className)}>{children}</div>;
 }
 
 /** Place names: condensed grotesk caps, like a mission designation. */
@@ -44,7 +44,7 @@ export function Figure({ label, value, unit, digits, basis, tone, className }: {
 }) {
   return (
     <div className={className}>
-      <div className="kicker !text-muted">{label}</div>
+      <div className="kicker text-muted">{label}</div>
       <Measure value={value} unit={unit} digits={digits} className={cx("mt-1 block text-figure", tone === "mars" && "text-mars", tone === "earth" && "text-earth")} />
       {basis && <div className="mt-1 text-caption text-faint">{basis}</div>}
     </div>
@@ -225,7 +225,7 @@ export function Block({ title, aside, children, className }: { title?: ReactNode
     <section className={cx("py-3.5", className)}>
       {(title || aside) && (
         <div className="mb-2.5 flex items-baseline justify-between gap-3">
-          {title && <h3 className="kicker rule-after min-w-0 flex-1 !text-ink/80">{title}</h3>}
+          {title && <h3 className="kicker rule-after min-w-0 flex-1 text-ink/80">{title}</h3>}
           {aside && <div className="text-caption text-faint">{aside}</div>}
         </div>
       )}
