@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   anchorShown, ariaSummary, axisPlacement, baseElevation, boxEdges, buildModel, camera, contourInterval, contourSegments, gradients, gridStats,
-  fitDistance, hillshade, homePose, labelAnchors, layoutLabels, niceStep, niceTicks, pickCell, project, sunVector, TINT, toGrid, worldY, type Grid,
+  fitDistance, fmtPitch, hillshade, homePose, labelAnchors, layoutLabels, niceStep, niceTicks, pickCell, project, sunVector, TINT, toGrid, worldY, type Grid,
 } from "./reliefMath";
 
 /** Plane z = a·east + b·north on a north-up grid (row 0 = north). */
@@ -51,6 +51,12 @@ describe("scales", () => {
     expect(baseElevation(759.3, 100)).toBe(600);
     expect(baseElevation(-5.3, 10)).toBe(-20);
     expect(baseElevation(24.3, 5)).toBe(15);
+  });
+  it("writes the HUD pitch with a single true minus sign", () => {
+    expect(fmtPitch((30 * Math.PI) / 180)).toBe("−30°");
+    expect(fmtPitch((88.4 * Math.PI) / 180)).toBe("−88°");
+    expect(fmtPitch(0)).toBe("0°");
+    expect(fmtPitch((-14 * Math.PI) / 180)).toBe("14°"); // never "−−14°"
   });
   it("chooses 1·2·5 ticks", () => {
     expect(niceStep(50.014, 5)).toBe(10);

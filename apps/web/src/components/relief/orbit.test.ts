@@ -83,6 +83,42 @@ describe("Orbit", () => {
     expect(o.el.x).toBeCloseTo(LIMITS.elMax, 4);
   });
 
+  it("never tilts past overhead or under the floor, however far the drag goes", () => {
+    const o = new Orbit(HOME, false);
+    o.beginDrag(0, 0, 0);
+    for (const dy of [400, 2000, 20000]) {
+      o.moveDrag(0, dy, 10, 480);
+      expect(o.el.x).toBeGreaterThan(LIMITS.elMax);
+      expect(o.el.x).toBeLessThanOrEqual(LIMITS.elMax + LIMITS.elBand);
+      expect(o.el.x).toBeLessThan(Math.PI / 2); // still looking down: the scene never mirrors
+    }
+    for (const dy of [-400, -2000, -20000]) {
+      o.moveDrag(0, dy, 20, 480);
+      expect(o.el.x).toBeLessThan(LIMITS.elMin);
+      expect(o.el.x).toBeGreaterThanOrEqual(LIMITS.elMin - LIMITS.elBand);
+      expect(o.el.x).toBeGreaterThan(0); // camera stays above the floor
+    }
+  });
+
+  it("stops a fast flick at the tilt band and settles on the limit", () => {
+    // Released inside the limits at 6.5–9 rad/s: the glide crosses the limit fast enough that an
+    // unguarded spring would carry the camera overhead or to the floor.
+    for (const [dir, px] of [[1, 11], [-1, 8]] as const) {
+      const o = new Orbit(HOME, false);
+      o.beginDrag(0, 300, 0);
+      for (let i = 1; i <= 6; i++) o.moveDrag(0, 300 + dir * i * px, i * 8, 480);
+      expect(o.el.x).toBeGreaterThan(LIMITS.elMin);
+      expect(o.el.x).toBeLessThan(LIMITS.elMax);
+      o.endDrag(50);
+      expect(Math.abs(o.el.v)).toBeGreaterThan(6);
+      let lo = Infinity, hi = -Infinity, t = 50;
+      for (let i = 0; i < 480; i++) { t += 1000 / 120; o.step(1 / 120, t); lo = Math.min(lo, o.el.x); hi = Math.max(hi, o.el.x); }
+      expect(hi).toBeLessThanOrEqual(LIMITS.elMax + LIMITS.elBand + 1e-12);
+      expect(lo).toBeGreaterThanOrEqual(LIMITS.elMin - LIMITS.elBand - 1e-12);
+      expect(o.el.x).toBeCloseTo(dir > 0 ? LIMITS.elMax : LIMITS.elMin, 4);
+    }
+  });
+
   it("rubber-bands wheel zoom and returns to the limit once the wheel rests", () => {
     const o = new Orbit(HOME, false);
     for (let i = 0; i < 40; i++) o.wheel(120, i * 16);

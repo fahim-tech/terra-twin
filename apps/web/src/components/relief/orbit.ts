@@ -70,13 +70,31 @@ export interface Axis {
   w: number;
   min: number;
   max: number;
+  /** Hard stops a little past [min, max]: no rubber band, glide or spring ever carries the value beyond them. */
+  hardMin: number;
+  hardMax: number;
 }
 
-const axis = (x: number, min = -Infinity, max = Infinity): Axis => ({ x, v: 0, target: null, w: UI, min, max });
+const axis = (x: number, min = -Infinity, max = Infinity, band = Infinity): Axis =>
+  ({ x, v: 0, target: null, w: UI, min, max, hardMin: min - band, hardMax: max + band });
 const clamp = (x: number, a: Axis) => Math.min(a.max, Math.max(a.min, x));
 const MAX_V = 9; // rad/s: a flick never spins the block faster than this
 
-export const LIMITS = { elMin: (8 * Math.PI) / 180, elMax: (88 * Math.PI) / 180, zoomMin: Math.log(0.42), zoomMax: Math.log(2.2) };
+/**
+ * Tilt and zoom limits. Tilt gives way by at most `elBand` past its limits (rubber band while held,
+ * overshoot after a flick), so the camera never passes overhead (which would mirror the scene) and never
+ * drops under the block's floor.
+ */
+export const LIMITS = {
+  elMin: (8 * Math.PI) / 180, elMax: (88 * Math.PI) / 180, elBand: (1.5 * Math.PI) / 180,
+  zoomMin: Math.log(0.42), zoomMax: Math.log(2.2),
+};
+
+/** Stop at the hard limits, dropping any velocity that pushes further out. */
+function hardStop(a: Axis): void {
+  if (a.x > a.hardMax) { a.x = a.hardMax; if (a.v > 0) a.v = 0; }
+  else if (a.x < a.hardMin) { a.x = a.hardMin; if (a.v < 0) a.v = 0; }
+}
 
 export class Orbit {
   readonly az: Axis;
@@ -95,7 +113,7 @@ export class Orbit {
     this.home = home;
     this.reduced = reduced;
     this.az = axis(home.az);
-    this.el = axis(home.el, LIMITS.elMin, LIMITS.elMax);
+    this.el = axis(home.el, LIMITS.elMin, LIMITS.elMax, LIMITS.elBand);
     this.zoom = axis(Math.log(home.zoom), LIMITS.zoomMin, LIMITS.zoomMax);
     this.ve = axis(home.ve, 1, 8);
   }
@@ -136,7 +154,7 @@ export class Orbit {
     if (!d) return;
     const k = Math.PI / Math.min(1200, Math.max(480, widthPx));
     this.az.x = d.az0 + (px - d.x0) * k; // drag right: the camera walks left round the block, the terrain follows the pointer
-    this.el.x = rubberClamp(d.el0 + (py - d.y0) * k, this.el.min, this.el.max, 1); // drag down: the camera rises
+    this.el.x = rubberClamp(d.el0 + (py - d.y0) * k, this.el.min, this.el.max, LIMITS.elBand); // drag down: the camera rises
     d.az.push({ t, x: this.az.x });
     d.el.push({ t, x: this.el.x });
     if (d.az.length > 8) { d.az.shift(); d.el.shift(); }
@@ -239,6 +257,7 @@ export class Orbit {
         else if (Math.abs(a.v) < 2e-3) a.v = 0;
         else moving = true;
       }
+      hardStop(a);
     }
     return moving || wheelActive;
   }

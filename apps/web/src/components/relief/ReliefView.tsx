@@ -19,7 +19,7 @@ import { drawFlat } from "./flat";
 import { Orbit } from "./orbit";
 import { ReliefRenderer, reliefContext } from "./reliefGl";
 import {
-  ariaSummary, axisPlacement, buildModel, camera, fmtNum, homePose, labelAnchors, layoutLabels, pickCell, project, rampColor, SUN, TINT, toGrid,
+  ariaSummary, axisPlacement, buildModel, camera, fmtNum, fmtPitch, homePose, labelAnchors, layoutLabels, pickCell, project, rampColor, SUN, TINT, toGrid,
   type Grid, type Model,
 } from "./reliefMath";
 
@@ -287,7 +287,7 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
       }
       for (const [key, el] of labelEls.current) if (!shown.has(key)) el.style.visibility = "hidden";
       if (heading.current) heading.current.textContent = `${String(Math.round(cam.headingDeg) % 360).padStart(3, "0")}°`;
-      if (pitch.current) pitch.current.textContent = `−${Math.round(pose.el / DEG)}°`;
+      if (pitch.current) pitch.current.textContent = fmtPitch(pose.el);
       // Same convention as the globe's compass (NavControls): the needle points to north on screen.
       if (refs.needle.current) refs.needle.current.style.transform = `rotate(${-cam.headingDeg - 45}deg)`;
       // Probe: the cell under a resting mouse pointer, read from the grid itself.

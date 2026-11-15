@@ -126,6 +126,12 @@ export function fmtNum(v: number, digits = 0): string {
   return s.replace("-", "−");
 }
 
+/** View pitch for the HUD: the camera's elevation as a downward (negative) angle, whole degrees, one true minus sign. */
+export function fmtPitch(elRad: number): string {
+  const d = Math.round((-elRad * 180) / Math.PI) + 0; // + 0 folds −0 into 0
+  return `${d < 0 ? "−" : ""}${Math.abs(d)}°`;
+}
+
 // ---------------------------------------------------------------- geometry
 
 export interface Model {
