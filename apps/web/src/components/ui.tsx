@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { cloneElement, isValidElement, type ReactNode } from "react";
 import { AlertTriangle, Info, OctagonAlert } from "lucide-react";
 import type { QualityFlag } from "../types/contracts";
 
@@ -26,24 +26,58 @@ export function Segmented<T extends string | number>({ value, options, onChange,
   value: T; options: { value: T; label: ReactNode; disabled?: boolean; title?: string }[]; onChange: (v: T) => void;
   accent?: "mars" | "earth" | "ink"; size?: "sm" | "md"; ariaLabel: string;
 }) {
+  // ARIA radio group: one Tab stop (the checked option, or the first enabled one), arrows and Home/End move
+  // the selection; disabled options are skipped.
+  const enabled = options.filter((o) => !o.disabled);
+  const stop = enabled.some((o) => o.value === value) ? value : enabled[0]?.value;
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const i = Math.max(0, enabled.findIndex((o) => o.value === value));
+    const n = enabled.length;
+    const to = e.key === "ArrowRight" || e.key === "ArrowDown" ? (i + 1) % n : e.key === "ArrowLeft" || e.key === "ArrowUp" ? (i - 1 + n) % n
+      : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : -1;
+    if (to < 0 || !n) return;
+    // Handled here: a wrapper with its own radio-group keys (MarsInspector's footprint) must not move it twice.
+    e.preventDefault();
+    e.stopPropagation();
+    onChange(enabled[to].value);
+    e.currentTarget.querySelectorAll<HTMLElement>("[role=radio]:not(:disabled)")[to]?.focus();
+  };
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className="inline-flex divide-x divide-line-strong rounded-control border border-line-strong bg-space/70">
+    <div role="radiogroup" aria-label={ariaLabel} onKeyDown={onKeyDown} className="inline-flex divide-x divide-line-strong rounded-control border border-line-strong bg-space/70">
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <button key={String(o.value)} role="radio" aria-checked={on} disabled={o.disabled} title={o.title}
-            onClick={() => onChange(o.value)}
+          <button key={String(o.value)} type="button" role="radio" aria-checked={on} disabled={o.disabled} title={o.title}
+            tabIndex={o.value === stop ? 0 : -1} onClick={() => onChange(o.value)}
             className={cx(
-              "hit whitespace-nowrap font-semibold uppercase tracking-[0.1em] transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-40",
+              "hit whitespace-nowrap font-semibold uppercase tracking-[0.1em] transition-colors duration-150 active:duration-0 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-offset-[-3px]",
               size === "sm" ? "px-2.5 py-1 text-[10.5px]" : "px-3 py-1.5 text-[11.5px]",
-              on ? cx("bg-ink text-space", accent === "mars" && "shadow-[inset_0_-2px_0_var(--color-mars)]", accent === "earth" && "shadow-[inset_0_-2px_0_var(--color-earth)]") : "text-muted hover:bg-white/[0.05] hover:text-ink",
+              on ? cx("bg-ink text-space active:bg-ink/80", accent === "mars" && "shadow-[inset_0_-2px_0_var(--color-mars)]", accent === "earth" && "shadow-[inset_0_-2px_0_var(--color-earth)]") : "text-muted hover:bg-white/[0.05] hover:text-ink active:bg-white/[0.12]",
             )}>
-            {o.label}
+            {unitCase(o.label)}
           </button>
         );
       })}
     </div>
   );
+}
+
+/** Unit symbols stay lowercase inside caps controls ("25 km", not "25 KM"), as in prose and figures. */
+export function unitCase(label: ReactNode): ReactNode {
+  // A label wrapped in one element (<span className="num">25 km</span>) keeps its wrapper.
+  const text = (n: ReactNode): string | null =>
+    typeof n === "string" || typeof n === "number" ? String(n)
+      : Array.isArray(n) && n.every((x) => typeof x === "string" || typeof x === "number") ? n.join("") : null;
+  if (isValidElement<{ children?: ReactNode }>(label)) {
+    const t = text(label.props.children);
+    return t === null ? label : cloneElement(label, undefined, unitCase(t));
+  }
+  const s = text(label);
+  if (s === null) return label;
+  const m = s.match(/^(.*?\d)\s*(km|m|ppd)$/);
+  if (!m) return label;
+  if (!m) return label;
+  return <>{m[1]}<span className="ml-[0.25em] normal-case tracking-normal">{m[2]}</span></>;
 }
 
 export function Chip({ children, tone = "neutral", className, title }: { children: ReactNode; tone?: "neutral" | "mars" | "earth" | "warn" | "ok" | "bad"; className?: string; title?: string }) {

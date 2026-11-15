@@ -2,7 +2,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown, X } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { GLOSSARY, keepsTermCase, type GlossaryEntry, type GlossaryKey } from "../lib/glossary";
+import { GLOSSARY, glossaryDefinition, keepsTermCase, type GlossaryEntry, type GlossaryKey } from "../lib/glossary";
+import { useGlossaryFacts } from "../lib/facts";
 import { termPopoverPlacement, type PopoverPlacement } from "../lib/popover";
 import { cx } from "./ui";
 
@@ -101,6 +102,8 @@ export function radioGroupKeys<T>(values: readonly T[], current: T, select: (v: 
  */
 export function Term({ k, children, className }: { k: GlossaryKey; children?: ReactNode; className?: string }) {
   const g: GlossaryEntry = GLOSSARY[k];
+  // Counts and grid facts in a definition come from the payloads, filled in at render time.
+  const facts = useGlossaryFacts();
   const [open, setOpen] = useState(false);
   const triggers = useTermTriggers(setOpen);
   const id = useId();
@@ -136,7 +139,7 @@ export function Term({ k, children, className }: { k: GlossaryKey; children?: Re
   return (
     <span className={cx("relative inline", className)} {...triggers.wrapper}>
       <button ref={trigger} type="button" aria-describedby={open ? id : undefined} aria-expanded={open} {...triggers.button}
-        className="term-hit cursor-help underline decoration-faint/70 decoration-dotted underline-offset-[3px] hover:decoration-ink">
+        className="term-hit cursor-help underline decoration-faint/70 decoration-dotted underline-offset-[3px] hover:decoration-ink active:text-ink/70 active:decoration-ink">
         {children ?? g.label}
       </button>
       {typeof document !== "undefined" && createPortal(
@@ -145,10 +148,10 @@ export function Term({ k, children, className }: { k: GlossaryKey; children?: Re
             <motion.span ref={pop} id={id} role="tooltip"
               initial={{ opacity: 0, y: pos?.below ? -4 : 4 }} animate={{ opacity: pos ? 1 : 0, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.14 }}
               style={{ position: "fixed", left: pos?.left ?? -9999, top: pos?.top ?? 0 }}
-              className="surface-solid frame z-[60] block w-[min(320px,calc(100vw-24px))] whitespace-normal rounded-control p-3 text-left font-sans text-caption font-normal normal-case tracking-normal text-muted [--frame-l:8px]">
+              className="no-print surface-solid frame z-[60] block w-[min(320px,calc(100vw-24px))] whitespace-normal rounded-control p-3 text-left font-sans text-caption font-normal normal-case tracking-normal text-muted [--frame-l:8px]">
               {/* Caps like every label, except terms with Greek symbols, which stay as written (ρ, κ). */}
               <span className={cx("mb-1.5 block text-ink", keepsTermCase(g.term) ? "text-label font-semibold" : "label-caps")}>{g.term}</span>
-              {g.definition}
+              {glossaryDefinition(k, facts)}
               {g.source ? <span className="mt-1.5 block font-mono text-[11px] text-faint">{g.source}</span> : null}
             </motion.span>
           )}
@@ -165,7 +168,7 @@ export function Disclosure({ summary, children, defaultOpen = false, className }
   return (
     <div className={className}>
       <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen((o) => !o)}
-        className="hit label-caps -mx-1 inline-flex items-center gap-1.5 rounded-control px-1 py-1 text-muted hover:text-ink">
+        className="hit label-caps -mx-1 inline-flex items-center gap-1.5 rounded-control px-1 py-1 text-muted hover:text-ink active:text-ink/70 active:duration-0">
         <ChevronDown className={cx("h-3.5 w-3.5 transition-transform duration-200", open && "rotate-180")} aria-hidden />
         {summary}
       </button>
@@ -200,15 +203,31 @@ export function IconButton({ label, children, onClick, className, disabled, pres
   );
 }
 
-/** Underline tabs for switching views inside a surface: uppercase labels, 1 px ink rule under the selected one. */
-export function Tabs<T extends string>({ value, options, onChange, ariaLabel, className }: { value: T; options: { value: T; label: ReactNode; disabled?: boolean }[]; onChange: (v: T) => void; ariaLabel: string; className?: string }) {
+/**
+ * Underline tabs for switching views inside a surface: uppercase labels, 1 px ink rule under the selected one.
+ * ARIA tabs pattern: one Tab stop (the selected tab), arrows and Home/End move between enabled tabs and
+ * select them (automatic activation). `panelId` names the tab panel the tabs control (aria-controls).
+ */
+export function Tabs<T extends string>({ value, options, onChange, ariaLabel, className, panelId }: { value: T; options: { value: T; label: ReactNode; disabled?: boolean }[]; onChange: (v: T) => void; ariaLabel: string; className?: string; panelId?: string }) {
+  const base = useId();
+  const enabled = options.filter((o) => !o.disabled);
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const i = Math.max(0, enabled.findIndex((o) => o.value === value));
+    const n = enabled.length;
+    const to = e.key === "ArrowRight" ? (i + 1) % n : e.key === "ArrowLeft" ? (i - 1 + n) % n : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : -1;
+    if (to < 0 || !n) return;
+    e.preventDefault();
+    onChange(enabled[to].value);
+    e.currentTarget.querySelectorAll<HTMLElement>("[role=tab]:not(:disabled)")[to]?.focus();
+  };
   return (
-    <div role="tablist" aria-label={ariaLabel} className={cx("flex gap-5", className)}>
+    <div role="tablist" aria-label={ariaLabel} onKeyDown={onKeyDown} className={cx("flex gap-5", className)}>
       {options.map((o) => {
         const on = o.value === value;
         return (
-          <button key={o.value} role="tab" aria-selected={on} disabled={o.disabled} onClick={() => onChange(o.value)}
-            className={cx("hit label-caps relative py-2 transition-colors disabled:opacity-40", on ? "text-ink" : "text-faint hover:text-ink")}>
+          <button key={o.value} type="button" role="tab" id={`${base}-${o.value}`} aria-selected={on} aria-controls={on ? panelId : undefined}
+            tabIndex={on ? 0 : -1} disabled={o.disabled} onClick={() => onChange(o.value)}
+            className={cx("hit label-caps relative py-2 transition-colors active:duration-0 disabled:opacity-40", on ? "text-ink" : "text-faint hover:text-ink active:text-ink/70")}>
             {o.label}
             {on && <motion.span layoutId={`tab-${ariaLabel}`} transition={SPRING} className="absolute inset-x-0 -bottom-px h-px bg-ink" />}
           </button>
@@ -243,11 +262,15 @@ export function PanelHeader({ children, onClose, className }: { children: ReactN
     </div>
   );
 }
+/**
+ * In the landscape-phone side sheet (`.side-sheet`, App.tsx) the whole panel scrolls as one column: the
+ * header scrolls away with the body and only the footer command stays docked at the foot.
+ */
 export function PanelBody({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx("scroll-thin fade-edges min-h-0 flex-1 overflow-y-auto px-5 py-2", className)}>{children}</div>;
+  return <div className={cx("scroll-thin fade-edges min-h-0 flex-1 overflow-y-auto px-5 py-2 [.side-sheet_&]:flex-none [.side-sheet_&]:overflow-visible [.side-sheet_&]:[mask-image:none]", className)}>{children}</div>;
 }
 export function PanelFooter({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cx("shrink-0 px-5 pb-5 pt-3 [padding-bottom:max(20px,env(safe-area-inset-bottom))]", className)}>{children}</div>;
+  return <div className={cx("shrink-0 bg-surface px-5 pb-5 pt-3 [padding-bottom:max(20px,env(safe-area-inset-bottom))] [.side-sheet_&]:sticky [.side-sheet_&]:bottom-0 [.side-sheet_&]:z-10 [.side-sheet_&]:pb-3", className)}>{children}</div>;
 }
 
 /** A titled block inside a panel body: caps title followed by a hairline rule. */
