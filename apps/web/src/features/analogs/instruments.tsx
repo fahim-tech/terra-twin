@@ -58,13 +58,16 @@ export function Readout({ label, children, className }: { label: ReactNode; chil
   );
 }
 
-/** A row of labelled figures divided by hairlines: the dense header of an instrument. */
+/**
+ * A row of labelled figures divided by hairlines: the dense header of an instrument. Labels are tracked a
+ * little tighter than a kicker so that "LAND CELLS" still fits a quarter of a 360 px phone.
+ */
 export function ReadoutStrip({ cells, className, label }: { cells: { key: string; label: ReactNode; value: ReactNode }[]; className?: string; label?: string }) {
   return (
     <dl aria-label={label} className={cx("grid border-y border-line", className)} style={{ gridTemplateColumns: `repeat(${cells.length}, minmax(0, 1fr))` }}>
       {cells.map((c, i) => (
-        <div key={c.key} className={cx("min-w-0 py-2.5", i > 0 && "border-l border-line pl-3", i < cells.length - 1 && "pr-2")}>
-          <dt className={cx(CAPS, "whitespace-nowrap")}>{c.label}</dt>
+        <div key={c.key} className={cx("min-w-0 py-2.5 max-md:py-2", i > 0 && "border-l border-line pl-3 max-md:pl-2.5", i < cells.length - 1 && "pr-2")}>
+          <dt className={cx(CAPS, "whitespace-nowrap !tracking-[0.1em]")}>{c.label}</dt>
           <dd className="num mt-1.5 whitespace-nowrap text-[15px] leading-none text-ink">{c.value}</dd>
         </div>
       ))}

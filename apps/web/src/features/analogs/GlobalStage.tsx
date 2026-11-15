@@ -14,15 +14,18 @@ import { contiguousCount, mergeByRank, tier1InView, type ViewBox, viewBox } from
 
 const NEAR_TOL = 0.05;
 
-/** Instrument-table columns for screened cells: rank · position · S · flag. Cells near the top have no rank column. */
-const RANKED_ROW = "grid grid-cols-[3.25rem_minmax(0,1fr)_3rem_1rem] items-center gap-x-2 pl-3 pr-2";
-const NEAR_ROW = "grid grid-cols-[minmax(0,1fr)_3rem_1rem] items-center gap-x-2 pl-3 pr-2";
+/**
+ * Instrument-table columns for screened cells: rank · position · S · flag. Cells near the top have no rank column.
+ * Phones drop the label row (the summary and filter already fill the half-height sheet) and print "S" in the cell.
+ */
+const RANKED_ROW = "grid grid-cols-[3.25rem_minmax(0,1fr)_3rem_1rem] items-center gap-x-2 pl-3 pr-2 max-md:grid-cols-[3.25rem_minmax(0,1fr)_3.75rem_1rem]";
+const NEAR_ROW = "grid grid-cols-[minmax(0,1fr)_3rem_1rem] items-center gap-x-2 pl-3 pr-2 max-md:grid-cols-[minmax(0,1fr)_3.75rem_1rem]";
 
 /** Column labels (visual only: every row button carries its full accessible name). */
 function CellTableHead({ ranked }: { ranked: boolean }) {
   return (
-    <div aria-hidden className={cx(ranked ? RANKED_ROW : NEAR_ROW, "kicker border-b border-line py-1.5")}>
-      {ranked && <span>Rank</span>}<span>{ranked ? "Position" : "Position · west → east"}</span><span className="text-right">S</span><span />
+    <div aria-hidden className={cx(ranked ? RANKED_ROW : NEAR_ROW, "kicker border-b border-line py-1.5 max-md:hidden")}>
+      {ranked && <span>Rank</span>}<span>{ranked ? "Position" : "Position · west → east"}</span><span className="justify-self-end">S</span><span />
     </div>
   );
 }
@@ -40,7 +43,7 @@ function CellRow({ c, on, approx }: { c: CandidateView; on: boolean; approx: boo
         {!approx && <span className="num text-num-sm text-faint">{c.rank?.toLocaleString("en-US")}</span>}
         <span className={cx("num truncate text-num-sm", on ? "text-earth" : "text-ink")}>{coord(c.lat, c.lon)}</span>
         {/* No length bars: a bar would read as an order, and cells near the top are not ranked against each other. */}
-        <span className="num text-right text-num text-ink">{sText(c.score)}</span>
+        <span className="num whitespace-nowrap text-right text-num text-ink"><span aria-hidden className="text-faint md:hidden">S </span>{sText(c.score)}</span>
         <span aria-hidden className="text-center text-caption leading-none" title={flagText || undefined}>
           {flagged ? <span className="text-warn">⚠</span> : near ? <span className="text-muted">◆</span> : null}
         </span>
@@ -124,9 +127,9 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
         { key: "top", label: <>Top <Term k="similarity">S</Term></>, value: sText(top) },
         { key: "strong", label: "S ≥ 0.75", value: t1.summary.n_strong_ge_0p75.toLocaleString("en-US") },
       ]} />
-      <p className="mt-2 text-caption text-muted">Earth as measured · <Term k="globalScreen">a wide net, not a verdict</Term>.</p>
+      <p className="mt-2 text-caption text-muted max-md:mt-1.5">Earth as measured · <Term k="globalScreen">a wide net, not a verdict</Term>.</p>
 
-      <div className="mt-4">
+      <div className="mt-4 max-md:mt-3">
         <div className="kicker mb-1.5">Reference set</div>
         <SegmentedField label="Reference status" value={knownFilter} onChange={(v) => set({ knownFilter: v })}
           options={[
@@ -151,7 +154,7 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
       )}
 
       {near.length > 0 && (
-        <div className="mt-5">
+        <div className="mt-5 max-md:mt-4">
           <SectionHead index="01">Near the top</SectionHead>
           <p className="mt-1.5 text-caption text-muted">
             {/* The global count only describes the unfiltered list; a filter or the in-view list counts what is shown. */}
@@ -169,7 +172,7 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
         </div>
       )}
       {rest.length > 0 && (
-        <div className="mt-5">
+        <div className="mt-5 max-md:mt-4">
           <SectionHead index={near.length > 0 ? "02" : "01"} aside={view ? "in view" : <>{contiguous.toLocaleString("en-US")} / {t1.total.toLocaleString("en-US")}</>}>By global rank</SectionHead>
           <div className="mt-2 border-b border-line">
             <CellTableHead ranked />
