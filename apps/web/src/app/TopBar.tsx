@@ -33,7 +33,11 @@ const DECISION_TINY: Record<string, string> = {
   named_leader: "leader", tied_set: "tie", no_convincing_analog: "none", insufficient_evidence: "n/a", unavailable: "no data",
 };
 
-/** The investigation trail: Mars · target › Earth · outcome › Compare. Locked steps say what unlocks them. */
+/**
+ * The investigation trail: Mars · target › Earth · outcome › Compare. Locked steps say what unlocks them.
+ * Phones show the current step only, its detail set under the step name (a readout line that truncates
+ * with an ellipsis, never down to a stray letter); the full detail stays in the accessible name.
+ */
 function Trail({ compact }: { compact: boolean }) {
   const { stage, selection, search, candidateId, go } = useApp();
   const t = searchTarget(search);
@@ -45,25 +49,37 @@ function Trail({ compact }: { compact: boolean }) {
   ];
   const visible = compact ? steps.filter((s) => s.id === (stage === "evidence" || stage === "report" ? "mars" : stage)) : steps;
   return (
-    <nav aria-label="Investigation" className="flex min-w-0 items-center">
-      <ol className="flex min-w-0 items-center gap-1">
+    <nav aria-label="Investigation" className="flex min-w-0 self-stretch">
+      <ol className="flex min-w-0 items-stretch gap-1">
         {visible.map((s, i) => {
           const current = stage === s.id;
           const shown = compact ? s.tiny : s.detail;
           const n = steps.findIndex((x) => x.id === s.id) + 1;
+          const tone = s.id === "mars" ? "mars" : s.id === "earth" ? "earth" : "ink";
           return (
             <li key={s.id} className="flex min-w-0 items-center gap-1">
               {i > 0 && <span aria-hidden className="mx-1 h-px w-5 shrink-0 bg-line-strong" />}
               <button type="button" onClick={() => !s.locked && go(s.id)} aria-current={current ? "step" : undefined} aria-disabled={!!s.locked}
                 title={s.locked ?? undefined} aria-label={compact && s.detail ? `${s.planet}: ${s.detail}${s.locked ? ` (${s.locked})` : ""}` : undefined}
-                className={cx("hit group relative flex min-w-0 items-center rounded-control px-2 py-1 transition-colors",
+                className={cx("hit group relative flex h-full min-w-0 items-center rounded-control px-2 transition-colors",
                   s.locked ? "cursor-default text-faint/70" : current ? "text-ink" : "text-muted hover:text-ink")}>
-                <span className="flex min-w-0 items-baseline gap-2">
-                  <span aria-hidden className={cx("num shrink-0 text-[10.5px]", current ? (s.id === "mars" ? "text-mars" : s.id === "earth" ? "text-earth" : "text-ink") : "text-faint")}>{String(n).padStart(2, "0")}</span>
-                  <span className="label-caps shrink-0">{s.planet}</span>
-                  {shown && <span className="truncate text-caption normal-case tracking-normal text-muted">{shown}</span>}
+                <span className={cx("flex min-w-0 items-baseline", compact ? "gap-1.5" : "gap-2")}>
+                  <span aria-hidden className={cx("num shrink-0 text-[10.5px]", current ? (tone === "mars" ? "text-mars" : tone === "earth" ? "text-earth" : "text-ink") : "text-faint")}>{String(n).padStart(2, "0")}</span>
+                  {compact ? (
+                    // Step name over its detail, like a labelled readout: the detail gets the step's whole width.
+                    <span className="flex min-w-0 flex-col text-left">
+                      <span className="label-caps">{s.planet}</span>
+                      {shown && <span className="mt-px truncate text-[11.5px] leading-[1.25] text-muted">{shown}</span>}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="label-caps shrink-0">{s.planet}</span>
+                      {shown && <span className="truncate text-caption text-muted">{shown}</span>}
+                    </>
+                  )}
                 </span>
-                {current && <span aria-hidden className={cx("absolute inset-x-2 -bottom-[9px] h-px", s.id === "mars" ? "bg-mars" : s.id === "earth" ? "bg-earth" : "bg-ink")} />}
+                {/* Selected step: a 1 px planet-colour rule sitting on the rail's bottom hairline. */}
+                {current && <span aria-hidden className={cx("absolute inset-x-2 -bottom-px h-px", tone === "mars" ? "bg-mars" : tone === "earth" ? "bg-earth" : "bg-ink")} />}
                 {s.locked && !compact && <span className="sr-only">({s.locked})</span>}
               </button>
             </li>
@@ -110,7 +126,7 @@ function MissionClock() {
   return (
     <div aria-hidden className="hidden items-center gap-4 border-r border-line pr-4 lg:flex" title="Coordinated Universal Time · Mars Coordinated Time (Mars24)">
       <span className="flex items-baseline gap-1.5"><span className="kicker">UTC</span><span className="num text-num-sm text-ink">{utc}</span></span>
-      <span className="flex items-baseline gap-1.5"><span className="kicker !text-mars/90">MTC</span><span className="num text-num-sm text-ink">{clock(m.mtcHours)}</span></span>
+      <span className="flex items-baseline gap-1.5"><span className="kicker text-mars/90">MTC</span><span className="num text-num-sm text-ink">{clock(m.mtcHours)}</span></span>
       <span className="hidden items-baseline gap-1.5 xl:flex"><span className="kicker">MSD</span><span className="num text-num-sm text-muted">{Math.floor(m.msd).toLocaleString("en-US")}</span></span>
     </div>
   );
@@ -119,8 +135,11 @@ function MissionClock() {
 export function TopBar({ compact }: { compact: boolean }) {
   const { stage, go, back, search } = useApp();
   const fullPage = stage === "evidence" || stage === "report";
+  // Phones: tighter cells so the current step keeps room for its detail.
+  const cell = compact ? "px-2 tracking-[0.1em]" : "px-2.5";
   return (
-    <header className={cx("no-print relative z-30 flex h-[52px] shrink-0 items-center gap-3 border-b border-white/[0.07] px-3 sm:gap-5 sm:px-5",
+    <header className={cx("no-print relative z-30 flex h-[52px] shrink-0 items-center border-b border-white/[0.07] px-3 sm:gap-5 sm:px-5",
+      compact ? "gap-2" : "gap-3",
       // Full pages scroll text right under the rail: give it a solid backing there (the globe stages keep the scrim).
       fullPage ? "bg-space" : "bg-space/85 backdrop-blur-md")}>
       <Wordmark compact={compact} />
@@ -131,9 +150,9 @@ export function TopBar({ compact }: { compact: boolean }) {
         <HoverReadout />
         {!compact && <MissionClock />}
         <button type="button" onClick={() => go("evidence")} aria-current={stage === "evidence" ? "page" : undefined}
-          className={cx("hit label-caps rounded-control px-2.5 py-1 hover:text-ink", stage === "evidence" ? "text-ink" : "text-muted")}>Evidence</button>
+          className={cx("hit label-caps rounded-control py-1 hover:text-ink", cell, stage === "evidence" ? "text-ink" : "text-muted")}>Evidence</button>
         <button type="button" onClick={() => search && go("report")} aria-disabled={!search} title={search ? undefined : "Run Find Earth Analogs to build a report"}
-          className={cx("hit label-caps rounded-control px-2.5 py-1", !search ? "cursor-default text-faint/70" : stage === "report" ? "text-ink" : "text-muted hover:text-ink")}>Report</button>
+          className={cx("hit label-caps rounded-control py-1", cell, !search ? "cursor-default text-faint/70" : stage === "report" ? "text-ink" : "text-muted hover:text-ink")}>Report</button>
         <MoreMenu />
       </div>
     </header>
