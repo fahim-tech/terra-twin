@@ -63,6 +63,24 @@ export interface AnchorPosition {
   y: number;
   /** False when the point is behind the planet or off-screen. */
   visible: boolean;
+  /**
+   * When the anchor is a marker the globe draws on a stem (the selection, the selected marker, leaders):
+   * where its glyph is drawn, at the top of the stem. Equals (x, y) in a top-down view; above it when the
+   * camera is tilted. Labels should attach here so they meet the glyph, not the stem's foot.
+   */
+  top?: { x: number; y: number };
+}
+
+/** Where a label's leader line should start for an anchor: the marker's glyph (stem top) when it has one. */
+export function anchorPoint(a: AnchorPosition): { x: number; y: number; glyph: boolean } {
+  return a.top ? { x: a.top.x, y: a.top.y, glyph: true } : { x: a.x, y: a.y, glyph: false };
+}
+
+/** Names of the two camera views, as the tilt control and announcements say them. */
+export const VIEW_NAMES = { tilted: "3D view", topDown: "Top-down view" } as const;
+
+export function viewName(tilted: boolean): string {
+  return tilted ? VIEW_NAMES.tilted : VIEW_NAMES.topDown;
 }
 
 export interface CameraTelemetry {
@@ -70,15 +88,25 @@ export interface CameraTelemetry {
   heightKm: number;
   /** Surface point under the frame centre (planetocentric, east-positive), or null when looking past the limb. */
   center: { lat: number; lon: number } | null;
-  /** Ground distance per CSS pixel at the frame centre, metres; null when the centre is off the planet. */
+  /**
+   * Ground distance per CSS pixel at the frame centre, metres, along the screen horizontal (in a tilted view
+   * that row is not foreshortened); null when the centre is off the planet.
+   */
   metersPerPixel: number | null;
+  /** Direction of north at the frame centre, degrees clockwise (the compass). */
   headingDeg: number;
+  /** Camera pitch below its own horizon: −90 looking straight down, about −56° to −69° in the 3D view. */
   pitchDeg: number;
   moving: boolean;
 }
 
 export type ParentToGlobe =
   | { t: "init"; ionToken: string | null }
+  /**
+   * Fly so the target sits at the centre of the free area, `heightKm` from the camera (its altitude when
+   * looking straight down). Site-scale flights end in the oblique 3D view (pitched ≈ −50°) unless the
+   * user chose the top-down view; whole-planet framings always look straight down.
+   */
   | { t: "flyTo"; lat: number; lon: number; heightKm?: number; durationS?: number }
   /** Fit a geographic box into the unobstructed part of the frame (see setInsets). */
   | { t: "fitBounds"; west: number; south: number; east: number; north: number; padding?: number; minHeightKm?: number; maxHeightKm?: number; durationS?: number }
@@ -97,8 +125,14 @@ export type ParentToGlobe =
   | { t: "panBy"; dx: number; dy: number }
   | { t: "resetHeading" }
   | { t: "snapshot"; requestId: string; lat: number; lon: number; heightKm: number; maxWidth?: number }
+  /** Idle rotation; while on (the intro) the planet is also lit by a stronger three-quarter light. */
   | { t: "setSpin"; on: boolean }
-  | { t: "resize" };
+  | { t: "resize" }
+  /**
+   * Switch between the top-down and the oblique 3D view, keeping the point under the centre of the free
+   * area where it is and at the same ground scale. Later site flights follow the choice.
+   */
+  | { t: "setTilt"; on: boolean };
 
 export type GlobeToParent =
   | { t: "boot"; planet: Planet }
@@ -111,6 +145,8 @@ export type GlobeToParent =
   | { t: "snapshot"; requestId: string; dataUrl: string | null; width: number; height: number; error?: string }
   | { t: "interaction" }
   | { t: "key"; key: "Escape" }
+  /** The view was switched (T key in the globe, or setTilt): on = 3D view, off = top-down. */
+  | { t: "tilt"; on: boolean }
   /** Imagery tiles failing to load (throttled); `failures` counts since the previous report. */
   | { t: "imageryStatus"; layer: string; failures: number; ok: boolean }
   | { t: "error"; message: string };
