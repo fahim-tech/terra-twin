@@ -50,7 +50,7 @@ export function ScoreFigure({ c, className, symbolClassName }: { c: CandidateVie
 export function BackToResults({ className }: { className?: string }) {
   const go = useApp((s) => s.go);
   return (
-    <button type="button" onClick={() => go("earth")}
+    <button type="button" onClick={() => go("earth")} aria-label="Back to Earth results"
       className={cx("hit label-caps -ml-1 inline-flex shrink-0 items-center gap-1.5 px-1 py-1 text-muted transition-colors duration-150 hover:text-ink active:text-ink/70 active:duration-0", className)}>
       <ArrowLeft className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> Results
     </button>
