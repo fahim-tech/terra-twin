@@ -17,11 +17,11 @@ export function scale(lo: number, hi: number, ticks?: number[]): Scale {
 /** The shared row grid: label column (wraps), plot track. */
 export const ROW_GRID = "grid grid-cols-[minmax(0,42%)_minmax(0,1fr)] gap-x-3 sm:grid-cols-[13.5rem_minmax(0,1fr)] sm:gap-x-5 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-x-8";
 
-export function Chart({ id, title, basis, legend, children, footer, className }: {
-  id?: string; title: ReactNode; basis?: ReactNode; legend?: ReactNode; children: ReactNode; footer?: ReactNode; className?: string;
+export function Chart({ title, basis, legend, children, footer, className }: {
+  title: ReactNode; basis?: ReactNode; legend?: ReactNode; children: ReactNode; footer?: ReactNode; className?: string;
 }) {
   return (
-    <figure id={id} className={cx("m-0", className)}>
+    <figure className={cx("m-0", className)}>
       <figcaption className="mb-4">
         <div className="text-title text-ink">{title}</div>
         {basis && <div className="mt-1 max-w-[62ch] text-caption text-muted">{basis}</div>}
@@ -77,17 +77,15 @@ export function Axis({ s, title, format = (v: number) => v.toFixed(1) }: { s: Sc
 
 /** Tick marks and labels; the end labels sit inside the track so they never overflow the page. */
 export function Ticks({ s, format }: { s: Scale; format: (v: number) => string }) {
-  const last = s.ticks.length - 1;
   return (
     <>
-      {s.ticks.map((t, i) => {
+      {s.ticks.map((t) => {
         const x = s.at(t);
         const edge = x <= 0.5 ? "left" : x >= 99.5 ? "right" : "mid";
         return (
           <span key={t} className="absolute top-0" style={{ left: `${x}%` }}>
             <span className="absolute left-0 top-0 block h-1 w-px bg-line-strong" />
-            <span className={cx("num absolute top-1.5 block whitespace-nowrap text-num-sm text-faint", edge === "left" ? "left-0" : edge === "right" ? "right-0" : "-translate-x-1/2")}
-              data-last={i === last || undefined}>{format(t)}</span>
+            <span className={cx("num absolute top-1.5 block whitespace-nowrap text-num-sm text-faint", edge === "left" ? "left-0" : edge === "right" ? "right-0" : "-translate-x-1/2")}>{format(t)}</span>
           </span>
         );
       })}
@@ -111,17 +109,22 @@ export function useWidth<T extends HTMLElement>(): [React.RefObject<T>, number] 
 }
 
 /** A dot centred on a value. */
-export function Dot({ x, kind = "solid", size = 10, className, title }: { x: number; kind?: "solid" | "ring" | "diamond"; size?: number; className?: string; title?: string }) {
+export function Dot({ x, size = 10, className }: { x: number; size?: number; className?: string }) {
   return (
-    <span title={title} className={cx("absolute top-1/2 -translate-x-1/2 -translate-y-1/2", kind === "diamond" ? "rotate-45 rounded-[1px]" : "rounded-full", className)}
+    <span className={cx("absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full", className)}
       style={{ left: `${x}%`, width: size, height: size }} />
   );
 }
 
-/** A horizontal segment between two values (CI whisker, dumbbell bar). */
-export function Seg({ a, b, className, thick = 2 }: { a: number; b: number; className?: string; thick?: number }) {
+/** A horizontal segment between two values (CI whisker, dumbbell bar). `caps` adds end ticks so short whiskers stay visible. */
+export function Seg({ a, b, className, thick = 2, caps }: { a: number; b: number; className?: string; thick?: number; caps?: boolean }) {
   const l = Math.min(a, b), r = Math.max(a, b);
-  return <span className={cx("absolute top-1/2 -translate-y-1/2 rounded-full", className)} style={{ left: `${l}%`, width: `${r - l}%`, height: thick }} />;
+  return (
+    <>
+      <span className={cx("absolute top-1/2 -translate-y-1/2 rounded-full", className)} style={{ left: `${l}%`, width: `${r - l}%`, height: thick }} />
+      {caps && [l, r].map((x, i) => <span key={i} className={cx("absolute top-1/2 h-3 w-px -translate-x-1/2 -translate-y-1/2", className)} style={{ left: `${x}%` }} />)}
+    </>
+  );
 }
 
 /** Legend swatch + words (status is never colour alone). */

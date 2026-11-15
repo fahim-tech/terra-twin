@@ -1,7 +1,9 @@
 import { Disclosure } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import { zoneName } from "../../lib/glossary";
+import { useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Axis, Chart, Dot, Grid, Key, RingSwatch, Row, ROW_GRID, scale, Seg, SolidSwatch, Ticks, useWidth } from "./chartKit";
+import { Gloss } from "./Gloss";
 import { CHAIN_NAMES, fmtInt, fmtNum, fmtPct, niceTicks, type EvidenceModel } from "./model";
 
 const mrrAxis = scale(0, 1, [0, 0.2, 0.4, 0.6, 0.8, 1]);
@@ -13,7 +15,7 @@ export function MethodChart({ m }: { m: EvidenceModel }) {
   return (
     <Chart
       title="Twin recovery by method"
-      basis={<>Mean reciprocal rank of the true twin among {fmtInt(n)} synthetic twins, with 95 % bootstrap intervals. 1 = the twin is always ranked first.</>}
+      basis={<>Mean reciprocal rank (<Gloss k="mrr" />) of the true twin among {fmtInt(n)} synthetic twins, with 95 % bootstrap intervals. 1 = the twin is always ranked first.</>}
       legend={<>
         <Key swatch={<SolidSwatch />}>Deployed method</Key>
         <Key swatch={<SolidSwatch className="bg-muted" />}>Alternative</Key>
@@ -28,11 +30,16 @@ export function MethodChart({ m }: { m: EvidenceModel }) {
           return (
             <Row key={r.code} emphasis={deployed}
               label={<>{r.name}{r.note && <span className="ml-1.5 text-caption text-faint">· {r.note}</span>}</>}
-              value={<><span className="hidden sm:inline">MRR </span>{fmtNum(r.mrr)} <span className="hidden sm:inline">[{fmtNum(r.lo)}–{fmtNum(r.hi)}]</span>{r.top1 !== null && <> · top-1 {fmtPct(r.top1)}</>}</>}
+              value={<>
+                MRR {fmtNum(r.mrr)}
+                {r.lo !== null && r.hi !== null && <span className="hidden sm:inline"> [{fmtNum(r.lo)}–{fmtNum(r.hi)}]</span>}
+                {r.top1 !== null && <> · top-1 {fmtPct(r.top1)}</>}
+                {r.lo !== null && r.hi !== null && <span className="block sm:hidden">95% CI{" "}{fmtNum(r.lo)}–{fmtNum(r.hi)}</span>}
+              </>}
               srText={r.lo !== null && r.hi !== null ? `95% interval ${fmtNum(r.lo)} to ${fmtNum(r.hi)}.` : undefined}
             >
               <Grid s={mrrAxis} />
-              {r.lo !== null && r.hi !== null && <Seg a={mrrAxis.at(r.lo)} b={mrrAxis.at(r.hi)} className={deployed ? "bg-ink/70" : "bg-muted/70"} />}
+              {r.lo !== null && r.hi !== null && <Seg a={mrrAxis.at(r.lo)} b={mrrAxis.at(r.hi)} caps className={deployed ? "bg-ink/70" : "bg-muted/70"} />}
               <Dot x={mrrAxis.at(r.mrr)} size={deployed ? 12 : 10}
                 className={retired ? "border-2 border-faint bg-space" : deployed ? "bg-ink ring-2 ring-space" : "bg-muted ring-2 ring-space"} />
             </Row>
@@ -49,7 +56,7 @@ export function FalsificationChart({ m }: { m: EvidenceModel }) {
   return (
     <Chart
       title="What happens when the assumed operator is wrong"
-      basis={<>Each row makes synthetic twins with a different “true” observation chain, then ranks them with no correction and with the deployed operator (linear + ½ px). The MEGDR gridding algorithm is undocumented, so any row could be the real one.</>}
+      basis={<>Each row makes synthetic twins with a different “true” observation chain, then ranks them with no correction and with the deployed operator (linear + ½ px). The <Gloss k="megdr" /> gridding algorithm is undocumented, so any row could be the real one.</>}
       legend={<>
         <Key swatch={<RingSwatch />}>Direct comparison</Key>
         <Key swatch={<SolidSwatch />}>Deployed operator</Key>
@@ -131,8 +138,9 @@ export function InterpolatorChart({ m }: { m: EvidenceModel }) {
     <Chart
       title="Choosing the interpolator from Mars itself"
       basis={<>
-        Paired error between each variant's along-track (ρ, N–S) and cross-track (κ, E–W) statistics and the Mars medians
-        (ρ <span className="num">{fmtNum(m.interp.marsRho)}</span>, κ <span className="num">{fmtNum(m.interp.marsKappa)}</span>). Lower is closer to Mars.
+        Paired fidelity error of each interpolator variant against Mars-observable statistics — lower is closer to Mars.
+        Each row also lists its along-track <Gloss k="rho">ρ</Gloss> and cross-track <Gloss k="kappa">κ</Gloss>; for reference only, the Mars
+        medians are ρ <span className="num">{fmtNum(m.interp.marsRho)}</span>, κ <span className="num">{fmtNum(m.interp.marsKappa)}</span>.
         {m.interp.label && <> {m.interp.label}.</>}
       </>}
       legend={<>
@@ -144,7 +152,7 @@ export function InterpolatorChart({ m }: { m: EvidenceModel }) {
         {m.interp.rows.map((r) => (
           <Row key={r.label} emphasis={r.selected}
             label={<>{r.label}{r.selected && <span className="ml-1.5 text-caption text-ink">✓ selected</span>}</>}
-            value={<>error {fmtNum(r.error)}<span className="hidden sm:inline"> · ρ {fmtNum(r.rho)} · κ {fmtNum(r.kappa)}</span></>}
+            value={<>error {fmtNum(r.error)}<span className="block sm:inline"><span className="hidden sm:inline"> · </span>ρ {fmtNum(r.rho)} · κ {fmtNum(r.kappa)}</span></>}
           >
             <Grid s={s} />
             <Seg a={s.at(0)} b={s.at(r.error)} className={r.selected ? "bg-ink/40" : "bg-line-strong"} thick={1} />
@@ -152,7 +160,10 @@ export function InterpolatorChart({ m }: { m: EvidenceModel }) {
           </Row>
         ))}
       </ol>
-      <Axis s={s} format={(v) => (v === 0 ? "0" : v.toFixed(step < 0.1 ? 2 : 1))} title="Paired error |Δρ| + |Δκ|" />
+      <Axis s={s} format={(v) => (v === 0 ? "0" : v.toFixed(step < 0.1 ? 2 : 1))} title="Paired fidelity error (lower = closer to Mars)" />
+      <p className="mt-6 max-w-[70ch] text-caption text-muted">
+        <span aria-hidden className="mr-1 text-warn">⚠</span>The half-pixel registration offset was measured in the Mars data on all 39 research zones; it is not yet confirmed by USGS metadata.
+      </p>
     </Chart>
   );
 }
@@ -160,6 +171,7 @@ export function InterpolatorChart({ m }: { m: EvidenceModel }) {
 /** Observed fraction per research zone as a dot strip. The search target (never the live selection) is marked. */
 export function SupportStrip({ m, targetSite }: { m: EvidenceModel; targetSite: string | null }) {
   const [ref, width] = useWidth<HTMLDivElement>();
+  const [active, setActive] = useState<string | null>(null);
   const rows = m.support.rows;
   if (!rows.length) return <p className="text-caption text-faint">Observation support is not in the evidence payload.</p>;
   const lo = Math.floor(((m.support.min ?? 0) - 0.005) * 100) / 100;
@@ -181,6 +193,30 @@ export function SupportStrip({ m, targetSite }: { m: EvidenceModel; targetSite: 
   const step = DOT + 1;
   const h = (maxLvl + 1) * step + 10;
   const target = targetSite ? rows.find((r) => r.site === targetSite) ?? null : null;
+  const activeIdx = active ? rows.findIndex((r) => r.site === active) : -1;
+  const activeRow = activeIdx >= 0 ? rows[activeIdx] : null;
+  // rows are sorted by observed fraction (ascending), so arrow keys walk the strip left to right.
+  const move = (i: number) => setActive(rows[Math.max(0, Math.min(rows.length - 1, i))].site);
+  const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const from = activeIdx >= 0 ? activeIdx : -1;
+    const keys: Record<string, () => void> = {
+      ArrowRight: () => move(from + 1), ArrowUp: () => move(from + 1),
+      ArrowLeft: () => move(from < 0 ? rows.length - 1 : from - 1), ArrowDown: () => move(from < 0 ? rows.length - 1 : from - 1),
+      Home: () => move(0), End: () => move(rows.length - 1),
+      Escape: () => setActive(null),
+    };
+    const fn = keys[e.key];
+    if (fn) { e.preventDefault(); fn(); }
+  };
+  // Pointer (mouse or touch): pick the zone whose dot is nearest horizontally to the pointer.
+  const pick = (e: PointerEvent<HTMLDivElement>) => {
+    const box = e.currentTarget.getBoundingClientRect();
+    if (!box.width) return;
+    const x = ((e.clientX - box.left) / box.width) * 100;
+    let best = 0;
+    rows.forEach((r, i) => { if (Math.abs(s.at(r.fraction) - x) < Math.abs(s.at(rows[best].fraction) - x)) best = i; });
+    setActive(rows[best].site);
+  };
   return (
     <Chart
       title="How much of each zone MOLA actually observed"
@@ -194,7 +230,8 @@ export function SupportStrip({ m, targetSite }: { m: EvidenceModel; targetSite: 
         <Disclosure summary={`All ${rows.length} zones`}>
           <ul className="grid list-none grid-cols-1 gap-x-8 p-0 sm:grid-cols-2 lg:grid-cols-3">
             {[...rows].sort((a, b) => a.site.localeCompare(b.site)).map((r) => (
-              <li key={r.site} className={cx("flex justify-between gap-3 border-b border-line py-1.5 text-label", r.site === targetSite ? "text-mars" : "text-muted")}>
+              <li key={r.site} onMouseEnter={() => setActive(r.site)} onMouseLeave={() => setActive(null)}
+                className={cx("-mx-1.5 flex justify-between gap-3 rounded-[4px] border-b border-line px-1.5 py-1.5 text-label", r.site === targetSite ? "text-mars" : "text-muted", r.site === active && "bg-elevated text-ink")}>
                 <span>{zoneName(r.site)}</span><span className="num text-num">{fmtPct(r.fraction, 1)}</span>
               </li>
             ))}
@@ -202,15 +239,21 @@ export function SupportStrip({ m, targetSite }: { m: EvidenceModel; targetSite: 
         </Disclosure>
       }
     >
-      <div ref={ref} className="relative" style={{ height: h }} role="img"
-        aria-label={`Observed fraction ranges from ${fmtPct(m.support.min, 1)} to ${fmtPct(m.support.max, 1)} across ${rows.length} zones, median ${fmtPct(m.support.median, 1)}${target ? `; ${zoneName(target.site)} ${fmtPct(target.fraction, 1)}` : ""}.`}>
+      <div ref={ref} className="relative cursor-crosshair touch-pan-y rounded-[4px]" style={{ height: h }} role="group" tabIndex={0}
+        aria-roledescription="dot strip"
+        aria-label={`Observed fraction per zone. Ranges from ${fmtPct(m.support.min, 1)} to ${fmtPct(m.support.max, 1)} across ${rows.length} zones, median ${fmtPct(m.support.median, 1)}${target ? `; your search target ${zoneName(target.site)} ${fmtPct(target.fraction, 1)}` : ""}. Use the arrow keys to read each zone.`}
+        aria-describedby="ev-support-readout"
+        onKeyDown={onKey} onPointerMove={(e) => { if (e.pointerType === "mouse") pick(e); }} onPointerDown={pick}
+        onMouseLeave={() => setActive(null)} onBlur={() => setActive(null)}>
         <Grid s={s} />
         {m.support.median !== null && <span aria-hidden className="absolute bottom-0 top-0 w-px bg-ink/70" style={{ left: `${s.at(m.support.median)}%` }} />}
+        {activeRow && <span aria-hidden className="absolute bottom-0 top-0 w-px bg-ink/40" style={{ left: `${s.at(activeRow.fraction)}%` }} />}
         {rows.map((r, i) => {
           const isT = r.site === targetSite;
+          const isA = r.site === active;
           return (
-            <span key={r.site} title={`${zoneName(r.site)} · ${fmtPct(r.fraction, 1)}`}
-              className={cx("absolute -translate-x-1/2 rounded-full ring-1 ring-space", isT ? "z-10 h-[11px] w-[11px] bg-mars" : "h-[9px] w-[9px] bg-muted")}
+            <span key={r.site} aria-hidden
+              className={cx("absolute -translate-x-1/2 rounded-full", isT ? "z-10 h-[11px] w-[11px] bg-mars" : "h-[9px] w-[9px] bg-muted", isA ? "z-20 ring-2 ring-ink" : "ring-1 ring-space")}
               style={{ left: `${s.at(r.fraction)}%`, bottom: 4 + levels[i] * step }} />
           );
         })}
@@ -219,6 +262,11 @@ export function SupportStrip({ m, targetSite }: { m: EvidenceModel; targetSite: 
         <Ticks s={s} format={(t) => fmtPct(t)} />
       </div>
       <div className="mt-3 text-center text-caption text-muted" aria-hidden>Bins with ≥ 1 laser shot (axis zoomed to {fmtPct(lo)}–{fmtPct(hi)})</div>
+      <p id="ev-support-readout" aria-live="polite" className="mt-3 min-h-[1.5em] text-caption text-muted">
+        {activeRow
+          ? <><span className="text-ink">{zoneName(activeRow.site)}</span> · <span className="num text-ink">{fmtPct(activeRow.fraction, 1)}</span> of bins observed · <span className="num">{activeIdx + 1}</span> of {rows.length} from the lowest</>
+          : <span className="text-faint">Hover, tap or focus the strip and use ← → to read each zone.</span>}
+      </p>
       {target && <p className="mt-3 text-caption text-muted">Your search target, <span className="text-mars">{zoneName(target.site)}</span>, has <span className="num text-ink">{fmtPct(target.fraction, 1)}</span> of bins observed.</p>}
     </Chart>
   );
