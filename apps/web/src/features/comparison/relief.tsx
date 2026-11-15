@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type RefObject } from "react";
 import { radioGroupKeys, Term } from "../../components/primitives";
-import { ExaggerationSwitch, ReliefNotice, ReliefView, reliefWindowId, unavailableWords, type Exaggeration } from "../../components/relief";
+import { ExaggerationSwitch, GridFacts, ReliefNotice, ReliefView, reliefWindowId, unavailableWords, type Exaggeration } from "../../components/relief";
 import { cx, Spinner } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
 import { ApiError, useEarthPool, useMarsRelief, useRelief } from "../../services/api";
@@ -177,7 +177,7 @@ function Caption({ earth, earthId, mars, zone, ve, both, marsWhy }: {
               {earth.source.representation === "as_measured"
                 ? <>Earth terrain: {G5.toggleMeasured} — the <Term k="operator">MOLA observation model</Term> is not applied · </>
                 : <>{G5.toggleOom} · </>}
-              {earth.source.title} · <span className="num">{earth.rows} × {earth.cols}</span> cells of <span className="num">{earth.cell_m.toFixed(2)}</span> m
+              {earth.source.title} · <GridFacts relief={earth} />
             </>
           ) : earthId ? "Loading the elevation grid." : "No relief grid for this candidate."}
         </dd>
@@ -185,7 +185,7 @@ function Caption({ earth, earthId, mars, zone, ve, both, marsWhy }: {
       <div className={row}>
         <dt className="kicker !text-mars">Mars</dt>
         <dd className="text-muted">
-          {mars ? <>Mars as measured · {mars.source.title} · <span className="num">{mars.rows} × {mars.cols}</span> cells of <span className="num">{mars.cell_m.toFixed(2)}</span> m</>
+          {mars ? <>Mars as measured · {mars.source.title} · <GridFacts relief={mars} /></>
             : !zone ? "No Exploration Zone, so no Mars grid." : marsWhy ?? "Checking for a Mars elevation grid."}
         </dd>
       </div>

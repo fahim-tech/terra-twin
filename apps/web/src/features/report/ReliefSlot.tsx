@@ -2,7 +2,7 @@ import type { UseQueryResult } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { Term } from "../../components/primitives";
-import { renderReliefSnapshot, reliefWindowId, unavailableWords, type Snapshot } from "../../components/relief";
+import { GridFacts, renderReliefSnapshot, reliefWindowId, unavailableWords, type Snapshot } from "../../components/relief";
 import { contourInterval, fmtNum, rampColor, SUN, TINT } from "../../components/relief/reliefMath";
 import { cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
@@ -142,7 +142,7 @@ function ReliefPlate({ plate, planet, kicker, name, q }: { plate: string; planet
                     {relief.source.representation === "as_measured" && planet === "earth"
                       ? <>Earth terrain: {G5.toggleMeasured} — the <Term k="operator">MOLA observation model</Term> is not applied. </>
                       : planet === "mars" ? "Mars as measured. " : <>{G5.toggleOom}. </>}
-                    {relief.source.title} · <span className="num">{relief.rows} × {relief.cols}</span> cells of <span className="num">{relief.cell_m.toFixed(2)}</span> m
+                    {relief.source.title} · <GridFacts relief={relief} />
                     {relief.source.vertical_reference ? <> · heights: {relief.source.vertical_reference}</> : null}
                   </dd>
                 </div>
