@@ -403,7 +403,7 @@ function Controls({ m }: { m: EvidenceModel }) {
           <thead>
             <tr className="border-b border-line-strong">
               <th scope="col" className={th}>Control</th>
-              {["M0", "M3", "OOM"].map((k) => <th key={k} scope="col" className={cx(th, "text-right")}>{methodName[k]}</th>)}
+              {["M0", "M3", "OOM"].map((k) => <th key={k} scope="col" className={cx(th, "pl-3 text-right")}>{methodName[k]}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -411,7 +411,7 @@ function Controls({ m }: { m: EvidenceModel }) {
               <tr key={p.control} className="border-t border-line first:border-t-0">
                 <th scope="row" className="py-2.5 text-label font-normal text-ink">{p.control}</th>
                 {p.ranks.map((r) => (
-                  <td key={r.method} className={cx("num py-2.5 text-right text-num", r.method === "OOM" ? "text-ink" : "text-muted")}>{r.rank === null ? "—" : <>#{r.rank}<span className="text-faint">/{c.poolSize ?? "?"}</span></>}</td>
+                  <td key={r.method} className={cx("num whitespace-nowrap py-2.5 pl-3 text-right text-num", r.method === "OOM" ? "text-ink" : "text-muted")}>{r.rank === null ? "—" : <>#{r.rank}<span className="text-faint">/{c.poolSize ?? "?"}</span></>}</td>
                 ))}
               </tr>
             ))}
