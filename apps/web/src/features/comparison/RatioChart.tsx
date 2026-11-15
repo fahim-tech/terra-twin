@@ -79,13 +79,14 @@ function Row({ r, compact }: { r: RatioRow; compact?: boolean }) {
       <span className="sr-only">{sr}</span>
       <span aria-hidden className="flex items-baseline justify-between gap-3 text-label text-ink sm:block">
         {r.label}
-        <span className="text-caption text-muted sm:hidden">
-          <Measure value={r.mars} unit={r.unit} digits={digitsFor(r.key, r.mars)} className="text-mars" /> vs <Measure value={r.earth} unit={r.unit} digits={digitsFor(r.key, r.earth)} className="text-earth" />
+        <span className="whitespace-nowrap text-caption text-muted sm:hidden">
+          Mars <Measure value={r.mars} unit={r.unit} digits={digitsFor(r.key, r.mars)} className="text-ink" /> · Earth <Measure value={r.earth} unit={r.unit} digits={digitsFor(r.key, r.earth)} className="text-ink" />
         </span>
       </span>
       <Measure value={r.mars} unit={r.unit} digits={digitsFor(r.key, r.mars)} className="hidden text-right text-num sm:block" />
       <Measure value={r.earth} unit={r.unit} digits={digitsFor(r.key, r.earth)} className="hidden text-right text-num sm:block" />
       <Track r={r} />
+      <span aria-hidden className={cx("-mt-0.5 mb-0.5 text-caption sm:hidden", r.within === false ? "text-ink" : "text-muted")}>{r.relation}</span>
       <span aria-hidden className={cx("hidden text-caption sm:block", r.within === false ? "text-ink" : "text-muted")}>
         {r.relation}
       </span>
