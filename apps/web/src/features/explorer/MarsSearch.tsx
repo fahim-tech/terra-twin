@@ -250,10 +250,10 @@ export function MarsSearch() {
                 <p className="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-caption text-faint">
                   {!gateMode && missions.data ? <span>None for this mission</span> : (
                     <>
-                      <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◉</span> stable leader</span>
-                      <span className="whitespace-nowrap"><span aria-hidden className="text-mars">◎</span> tie</span>
-                      <span className="whitespace-nowrap"><span aria-hidden>○</span> no verdict</span>
-                      <span className="whitespace-nowrap"><span aria-hidden>—</span> not loaded</span>
+                      <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><OutcomeMark type="named_leader" />stable leader</span>
+                      <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><OutcomeMark type="tied_set" />tie</span>
+                      <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><OutcomeMark type="no_convincing_analog" />no verdict</span>
+                      <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><OutcomeMark />not loaded</span>
                     </>
                   )}
                 </p>
@@ -273,17 +273,32 @@ export function MarsSearch() {
 }
 
 /**
- * Research outcome glyph for a zone under the active mission: ◉ stable leader, ◎ tie, ○ abstention
- * (no convincing analog / insufficient evidence), — no outcome loaded. Abstention is a result, so it
- * never shares the "missing data" dash. (The glyph set is shared with the Earth, comparison and report
- * views.)
+ * Research outcome mark, square like every status mark in the interface (and the decision marks of the
+ * Earth and comparison views): filled ■ stable leader, nested ▣ tie, hollow □ abstention (no convincing
+ * analog / insufficient evidence), dash — no outcome loaded. Abstention is a result, so it never shares
+ * the "missing data" dash. Drawn, not typeset, so it renders the same in every font.
  */
+export function OutcomeMark({ type, className }: { type?: string; className?: string }) {
+  const lit = type === "named_leader" || type === "tied_set";
+  return (
+    <svg viewBox="0 0 7 7" aria-hidden shapeRendering="crispEdges" className={cx("h-[7px] w-[7px] shrink-0 overflow-visible", lit ? "text-mars" : "text-faint", className)}>
+      {type === "named_leader" ? <rect width="7" height="7" fill="currentColor" />
+        : type ? (
+          <>
+            <rect x="0.5" y="0.5" width="6" height="6" fill="none" stroke="currentColor" strokeWidth="1" />
+            {type === "tied_set" && <rect x="2" y="2" width="3" height="3" fill="currentColor" />}
+          </>
+        ) : <path d="M0 3.5h7" stroke="currentColor" strokeWidth="1" />}
+    </svg>
+  );
+}
+
+/** The outcome mark in a list row, with its meaning for screen readers and on hover. */
 export function OutcomeGlyph({ type }: { type?: string }) {
   const label = type ? OUTCOME_COPY[type as keyof typeof OUTCOME_COPY]?.short ?? type : "No research outcome loaded";
-  const glyph = type === "named_leader" ? "◉" : type === "tied_set" ? "◎" : type ? "○" : "—";
   return (
-    <span title={label} className={cx("inline-grid w-4 shrink-0 place-items-center text-[13px] leading-none", type === "named_leader" || type === "tied_set" ? "text-mars" : "text-faint")}>
-      <span aria-hidden>{glyph}</span>
+    <span title={label} className="inline-grid w-4 shrink-0 place-items-center">
+      <OutcomeMark type={type} />
       <span className="sr-only">{label}:</span>
     </span>
   );
