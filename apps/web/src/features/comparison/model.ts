@@ -12,7 +12,7 @@ export type VerdictKind = "leader" | "tie_member" | "not_member" | "screening" |
 
 export interface Verdict {
   kind: VerdictKind;
-  /** ◉ stable leader, ◎ tie, ○ screening, — no decision. Always paired with words. */
+  /** ■ stable leader, ▣ tie member, □ screening, — no decision (the shapes of marks.tsx VerdictMark). Always paired with words. */
   glyph: string;
   headline: string;
   /** The verbatim G5 label or the plain explanation that goes with the headline. */
@@ -23,7 +23,7 @@ export interface Verdict {
 export function verdictFor(search: AnalogSearch, c: CandidateView): Verdict {
   if (c.tier === 1) {
     return {
-      kind: "screening", glyph: "○",
+      kind: "screening", glyph: "□",
       headline: `Screening cell${c.rank ? ` #${c.rank}` : ""} — not a decision`,
       detail: `A global-screen cell (${screenCellKm(search) !== null ? `${screenCellKm(search)} km, ` : ""}Earth as measured). Screening ranks are a wide net, not a research decision.`,
     };
@@ -33,12 +33,12 @@ export function verdictFor(search: AnalogSearch, c: CandidateView): Verdict {
   const k = memberOrder(search.tier2).indexOf(id);
   if (d.type === "named_leader") {
     return k >= 0
-      ? { kind: "leader", glyph: "◉", headline: "Stable leader", detail: decisionG5Label(d)! }
+      ? { kind: "leader", glyph: "■", headline: "Stable leader", detail: decisionG5Label(d)! }
       : { kind: "not_member", glyph: "—", headline: "Research window — not the stable leader", detail: `The stable leader for this zone is ${d.members[0] ? windowName(d.members[0]) : "another window"}.` };
   }
   if (d.type === "tied_set") {
     return k >= 0
-      ? { kind: "tie_member", glyph: "◎", headline: `Member of a tie (${k + 1} of ${d.members.length})`, detail: decisionG5Label(d)! }
+      ? { kind: "tie_member", glyph: "▣", headline: `Member of a tie (${k + 1} of ${d.members.length})`, detail: decisionG5Label(d)! }
       : { kind: "not_member", glyph: "—", headline: "Research window — outside the tied set", detail: decisionG5Label(d)! };
   }
   if (d.type === "no_convincing_analog") {
