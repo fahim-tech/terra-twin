@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { cx } from "../components/ui";
 import { formatLat, formatLon } from "../lib/geodesy";
 import { clock, marsTime } from "../lib/instruments";
-import { useDatasets, useHealth } from "../services/api";
+import { useApiReachable, useDatasets, useHealth } from "../services/api";
 import { liveCompareActive, type Stage, useApp } from "../store/app";
 import { useGlobes } from "../store/globes";
 import { searchTarget } from "../store/searchTarget";
@@ -241,6 +241,7 @@ function MoreMenu() {
   const [open, setOpen] = useState(false);
   const { marsLayer, earthLayer, graticule, set } = useApp();
   const health = useHealth();
+  const reach = useApiReachable();
   const datasets = useDatasets();
   const sources = useGlobeSources((s) => s.source);
   const resolution = (dataset: string | null) =>
@@ -280,7 +281,7 @@ function MoreMenu() {
       <span className="num shrink-0 whitespace-nowrap pt-px text-num-sm text-faint">{note}</span>
     </button>
   );
-  const apiTone = health.isError ? "API unreachable" : health.data?.research_data ? "API connected · research data verified" : health.data ? "API connected · research data missing" : "Checking API…";
+  const apiTone = reach.state === "down" ? "API unreachable · retrying" : health.data?.research_data ? "API connected · research data verified" : health.data ? "API connected · research data missing" : "Checking API…";
   return (
     <div className="relative">
       <button ref={btn} type="button" aria-label="More: layers, data status, about" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}

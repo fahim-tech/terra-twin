@@ -9,7 +9,7 @@ import { AltitudeReadout, CenterReadout, NavControls, Reticle, ScaleBar } from "
 import { useApp } from "../store/app";
 import { useGlobes } from "../store/globes";
 import { usePhonePlanet } from "../store/phone";
-import { useHealth } from "../services/api";
+import { useApiReachable } from "../services/api";
 import { GlobeBusProvider, useGlobeBus } from "./globeBus";
 import { LiveRegion, useEscapeToClose, useStageFocus } from "./a11y";
 import { useUrlState } from "./useUrlState";
@@ -320,14 +320,15 @@ function Instruments({ planet, phone }: { planet: Planet; phone: boolean }) {
 }
 
 function StatusBanner() {
-  const health = useHealth();
+  const api = useApiReachable();
   const imagery = useGlobes((s) => s.imagery);
   const recent = (["mars", "earth"] as Planet[]).find((p) => imagery[p] && Date.now() - imagery[p]!.at < 30_000);
-  if (!health.isError && !recent) return null;
+  const down = api.state === "down";
+  if (!down && !recent) return null;
   return (
     <div role="alert" className="no-print relative z-30 flex items-center justify-center gap-3 bg-bad/15 px-4 py-1.5 text-caption text-ink">
-      {health.isError
-        ? <>The scientific API is not reachable — measurements and searches are unavailable. <button className="underline" onClick={() => health.refetch()}>Retry</button></>
+      {down
+        ? <>The scientific API is not reachable — measurements and searches are unavailable. Retrying automatically. <button className="underline" onClick={api.retry}>Retry now</button></>
         : <>Some {recent === "mars" ? "Mars" : "Earth"} imagery tiles failed to load (NASA tile service). Measurements are unaffected.</>}
     </div>
   );

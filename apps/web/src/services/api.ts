@@ -1,5 +1,7 @@
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import { z } from "zod";
+import { create } from "zustand";
 import { AnalogSearch, MarsAnalysis, MarsSite, MissionProfile, PoolWindow, Relief, ResearchSiteSummary, Tier1Result, VisualizationLegend } from "../types/contracts";
 
 /**
@@ -9,6 +11,24 @@ import { AnalogSearch, MarsAnalysis, MarsSite, MissionProfile, PoolWindow, Relie
  */
 const CONFIGURED_API = import.meta.env.VITE_API_BASE_URL;
 export const API_BASE = (CONFIGURED_API ?? (import.meta.env.DEV ? "http://127.0.0.1:8000" : "")).replace(/\/$/, "");
+
+/**
+ * When the API last answered any request (any HTTP status: a 404 or 422 still proves it is reachable). The
+ * health banner uses it so that one failed health poll never reports a working API as unreachable.
+ */
+export const useApiPulse = create<{ okAt: number | null; beat: () => void }>((set) => ({
+  okAt: null,
+  beat: () => set({ okAt: Date.now() }),
+}));
+/** How long an answer from any API request counts as proof the API is reachable. */
+export const API_PULSE_MS = 90_000;
+
+/** Reachability: "ok" when health answers or any API call answered recently, "down" only when both fail. */
+export function apiReachability(h: { isError: boolean; isSuccess: boolean }, okAt: number | null, now: number): "ok" | "down" | "checking" {
+  if (h.isSuccess && !h.isError) return "ok";
+  if (okAt !== null && now - okAt < API_PULSE_MS) return "ok";
+  return h.isError ? "down" : "checking";
+}
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number, readonly detail?: unknown) {
@@ -23,6 +43,7 @@ async function request<T>(path: string, schema: z.ZodType<T> | null, init?: Requ
   } catch {
     throw new ApiError("Scientific API is not reachable", 0);
   }
+  if (res.status < 502) useApiPulse.getState().beat();
   const body = await res.json().catch(() => null);
   if (!res.ok) {
     const d = body?.detail;
@@ -70,7 +91,20 @@ export interface DatasetsResponse {
   live_refinement: { status: string; missing_inputs: string[] };
 }
 
-export const useHealth = () => useQuery({ queryKey: ["health"], queryFn: api.health, retry: 0, staleTime: 30_000 });
+/** Health poll: retried with backoff, re-checked every minute, so a transient failure recovers on its own. */
+export const useHealth = () => useQuery({
+  queryKey: ["health"], queryFn: api.health, staleTime: 30_000, refetchInterval: 60_000,
+  retry: 3, retryDelay: (n) => Math.min(1000 * 2 ** n, 8000),
+});
+
+/** The API's reachability for banners and status lines (see apiReachability). Re-evaluates every 15 s. */
+export function useApiReachable(): { state: "ok" | "down" | "checking"; retry: () => void } {
+  const health = useHealth();
+  const okAt = useApiPulse((s) => s.okAt);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 15_000); return () => clearInterval(t); }, []);
+  return { state: apiReachability(health, okAt, Math.max(now, okAt ?? 0)), retry: () => { void health.refetch(); } };
+}
 export const useSites = () => useQuery({ queryKey: ["sites"], queryFn: api.sites });
 export const useEarthSites = () => useQuery({ queryKey: ["earthSites"], queryFn: api.earthSites });
 export const useMissions = () => useQuery({ queryKey: ["missions"], queryFn: api.missions });

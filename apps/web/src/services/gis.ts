@@ -8,7 +8,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { useApp, type NRefine } from "../store/app";
 import { Relief } from "../types/contracts";
-import { API_BASE, ApiError } from "./api";
+import { API_BASE, ApiError, useApiPulse } from "./api";
 
 const num = z.number().nullable();
 
@@ -19,6 +19,7 @@ async function get<T>(path: string, schema: z.ZodType<T>, init?: RequestInit): P
   } catch {
     throw new ApiError("Scientific API is not reachable", 0);
   }
+  if (res.status < 502) useApiPulse.getState().beat();
   const body = await res.json().catch(() => null);
   if (!res.ok) {
     const d = body?.detail;

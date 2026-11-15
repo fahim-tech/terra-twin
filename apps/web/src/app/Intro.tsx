@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import { cx } from "../components/ui";
 import { formatLat, formatLon } from "../lib/geodesy";
-import { useDatasets, useEarthPool, useHealth, useSites } from "../services/api";
+import { useApiReachable, useDatasets, useEarthPool, useHealth, useSites } from "../services/api";
 import { useGisStatus } from "../services/gis";
 import { useGlobes } from "../store/globes";
 import { gisSummary } from "./gisStatus";
@@ -43,7 +43,8 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
   const jezero = sites.data?.find((s) => s.id === "Jezero") ?? null;
   const rise = (i: number) => ({ initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const, delay: 0.08 + i * 0.06 } });
 
-  const api = health.isError ? { tone: "bad" as const, text: "API unreachable" }
+  const reach = useApiReachable();
+  const api = reach.state === "down" ? { tone: "bad" as const, text: "API unreachable · retrying" }
     : health.data ? { tone: health.data.research_data ? "ok" as const : "warn" as const, text: `API ${(health.data as { api_version?: string }).api_version ?? "—"} · ${health.data.research_data ? "research data verified" : "research data missing"}` }
       : { tone: "idle" as const, text: "Checking API…" };
   const gisLine = gis.state === "unknown" ? { tone: "idle" as const, text: "Checking GIS…" }
