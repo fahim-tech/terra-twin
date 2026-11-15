@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { StatusMark } from "../../components/marks";
 import { cx } from "../../components/ui";
 import { formatKm } from "./zones";
 
@@ -6,7 +7,7 @@ import { formatKm } from "./zones";
 export function SectionTitle({ n, children }: { n: number; children: ReactNode }) {
   return (
     <span className="inline-flex min-w-0 items-baseline">
-      <span aria-hidden className="num mr-3 text-[10.5px] font-medium tracking-[0.04em] text-faint">{String(n).padStart(2, "0")}</span>
+      <span aria-hidden className="num mr-3 text-[11px] font-medium tracking-[0.04em] text-faint">{String(n).padStart(2, "0")}</span>
       {children}
     </span>
   );
@@ -32,13 +33,11 @@ export function Section({ n, title, aside, children, className }: { n: number; t
 }
 
 /**
- * Square status mark: filled = on, outlined = off. Decorative — the words beside it (or a legend)
- * always carry the state too.
+ * Square status mark (the shared set, components/marks.tsx): filled = on, outlined = off; `mars` where it
+ * marks Mars data. Decorative — the words beside it (or a legend) always carry the state too.
  */
 export function Mark({ on, tone = "ink", className }: { on: boolean; tone?: "ink" | "mars" | "faint"; className?: string }) {
-  const fill = tone === "mars" ? "bg-mars" : tone === "faint" ? "bg-faint" : "bg-ink";
-  const ring = tone === "mars" ? "ring-mars" : "ring-faint";
-  return <span aria-hidden className={cx("inline-block h-1.5 w-1.5 shrink-0", on ? fill : cx("ring-1 ring-inset", ring), className)} />;
+  return <StatusMark state={on ? "on" : "off"} tone={tone === "mars" ? "mars" : undefined} className={className} />;
 }
 
 /** Caps micro label and a mono value, e.g. LAT 17.676° N. */

@@ -1,15 +1,17 @@
 import { ArrowRight, ChevronDown, CornerUpLeft } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { DECISION_WORDS, type DecisionType, OutcomeMark, outcomeKind } from "../../components/marks";
 import { Kicker, PanelBody, PanelFooter, PanelHeader, radioGroupKeys, Term, Toponym } from "../../components/primitives";
 import { Button, cx, Note, Segmented } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
-import { zoneName } from "../../lib/glossary";
+import { type GlossaryKey, zoneName } from "../../lib/glossary";
 import { useMarsAnalysis, useMissions, useSites } from "../../services/api";
 import { useApp } from "../../store/app";
 import type { MarsAnalysis, MissionProfile } from "../../types/contracts";
 import { Availability } from "./Availability";
 import { Locator } from "./Locator";
 import { useExplorer } from "./explorerStore";
+import { useSiteOutcomes } from "./outcomes";
 import { OutsideActions, OutsideBody } from "./OutsideZone";
 import { Mark, Readout, Section, SectionTitle } from "./parts";
 import type { Scales } from "./readouts";
@@ -96,7 +98,7 @@ export function MarsInspector() {
         )}
         {outside ? <OutsideBody a={a} /> : (
           <>
-            <MissionRow compact={inSheet} />
+            <MissionRow compact={inSheet} siteId={a?.site ?? selection.siteId} />
             <Section n={2} title="Terrain" className={inSheet ? "py-2.5!" : undefined}>
               <div aria-busy={q.isLoading}>
                 {a ? <Terrain tier1={a.tier1_features} zone={a.ez_features} flags={a.quality_flags} cellKm={scales.cellKm} />
@@ -201,8 +203,40 @@ function missionEffect(m: MissionProfile | undefined): ReactNode {
   );
 }
 
+const OUTCOME_TERM: Partial<Record<DecisionType, GlossaryKey>> = { named_leader: "stableLeader", tied_set: "tie", insufficient_evidence: "notEnough" };
+
+/**
+ * The zone's published research outcome for the chosen mission (/api/research/summary), with the outcome
+ * mark every view uses. It says what Find Earth Analogs will show; nothing here is computed.
+ */
+function ZoneOutcome({ siteId }: { siteId: string | null }) {
+  const { bySite, loading, gateMode } = useSiteOutcomes();
+  const missions = useMissions();
+  const o = siteId ? bySite[siteId] : undefined;
+  const term = o ? OUTCOME_TERM[o.type] : undefined;
+  return (
+    <div className="mt-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-caption">
+      <span className="kicker shrink-0">Research outcome</span>
+      {o ? (
+        <span className="inline-flex min-w-0 items-baseline gap-2 text-ink">
+          <OutcomeMark kind={outcomeKind(o.type)} />
+          <span>
+            {term ? <Term k={term}>{DECISION_WORDS[o.type]}</Term> : DECISION_WORDS[o.type]}
+            {o.type === "tied_set" && <span className="text-muted"> · <span className="num">{o.members.length}</span> equivalent windows</span>}
+          </span>
+        </span>
+      ) : (
+        <span className="inline-flex items-baseline gap-2 text-faint">
+          <OutcomeMark kind="not_loaded" />
+          {loading ? "Loading…" : !gateMode && missions.data ? "None for this mission" : "Not in the research record"}
+        </span>
+      )}
+    </div>
+  );
+}
+
 /** Mission as a parameter row — "01  MISSION  [LANDING SITE ⌄]" — with one sentence on what it changes. */
-function MissionRow({ compact }: { compact?: boolean }) {
+function MissionRow({ compact, siteId }: { compact?: boolean; siteId: string | null }) {
   const mission = useApp((s) => s.mission);
   const missions = useMissions();
   const m = missions.data?.find((x) => x.id === mission);
@@ -224,6 +258,7 @@ function MissionRow({ compact }: { compact?: boolean }) {
         </span>
       </div>
       <p className="mt-2 text-caption text-muted">{missionEffect(m)}</p>
+      <ZoneOutcome siteId={siteId} />
     </section>
   );
 }

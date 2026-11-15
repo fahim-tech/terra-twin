@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { DECISION_WORDS } from "../../components/marks";
 import { useMissions, useResearchSummary } from "../../services/api";
 import { useApp } from "../../store/app";
 import type { ResearchSiteSummary } from "../../types/contracts";
@@ -27,9 +28,10 @@ export function useSiteOutcomes(): { bySite: Record<string, Outcome>; loading: b
   return { bySite, loading: summary.isLoading || missions.isLoading, gateMode };
 }
 
+/** Each outcome's plain name (the same words every view prints, components/marks.tsx) and a one-line gloss. */
 export const OUTCOME_COPY: Record<Outcome["type"], { short: string; long: string }> = {
-  named_leader: { short: "Stable leader", long: "One Earth window leads under all four orientations" },
-  tied_set: { short: "Tied set", long: "Several Earth windows are equivalent at this resolution" },
-  no_convincing_analog: { short: "No convincing analog", long: "No candidate reaches the research verdict thresholds" },
-  insufficient_evidence: { short: "Insufficient evidence", long: "Not enough evidence to rank candidates" },
+  named_leader: { short: DECISION_WORDS.named_leader, long: "One Earth window leads under all four orientations" },
+  tied_set: { short: DECISION_WORDS.tied_set, long: "Several Earth windows are equivalent at this resolution" },
+  no_convincing_analog: { short: DECISION_WORDS.no_convincing_analog, long: "No candidate reaches the research verdict thresholds" },
+  insufficient_evidence: { short: DECISION_WORDS.insufficient_evidence, long: "Not enough evidence to rank candidates" },
 };

@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { StatusMark } from "../../components/marks";
 import { Disclosure, Measure, Term } from "../../components/primitives";
 import { cx } from "../../components/ui";
 import type { FeatureValue, QualityFlag } from "../../types/contracts";
@@ -43,8 +44,22 @@ function MeasureCard({ f }: { f: FeatureValue }) {
         {f.footprint && <><span className="kicker">Support</span><span>{f.footprint}</span></>}
         {f.source_id && <><span className="kicker">Source</span><span className="break-all font-mono text-[11px] text-muted">{f.source_id}</span></>}
       </span>
-      {f.reason && <span className="mt-2 block text-warn">⚠ {f.reason}</span>}
+      {f.reason && <span className="mt-2 flex items-baseline gap-2 text-ink"><StatusMark state="caution" className="translate-y-[-1px]" />{f.reason}</span>}
     </>
+  );
+}
+
+/**
+ * A data-quality flag from the record, with the shared marks (never typed glyphs): amber triangle = warning,
+ * red crossed square = critical; an informational note carries no mark. The words say the severity too.
+ */
+function FlagLine({ f }: { f: QualityFlag }) {
+  const state = f.severity === "critical" ? "fault" : f.severity === "warning" ? "caution" : null;
+  return (
+    <p className={cx("mt-2 flex items-baseline gap-2 text-caption", state ? "text-ink" : "text-muted")}>
+      {state ? <StatusMark state={state} className="translate-y-[-1px]" /> : <span aria-hidden className="w-[7px] shrink-0" />}
+      <span>{state && <span className="sr-only">{state === "fault" ? "Critical: " : "Warning: "}</span>}{f.message}</span>
+    </p>
   );
 }
 
@@ -136,11 +151,7 @@ export function Terrain({ tier1, zone, flags, cellKm }: { tier1: FeatureValue[];
           ) : gridText}
         </dd>
       </dl>
-      {otherFlags.map((f) => (
-        <p key={f.code} className={cx("mt-2 text-caption", f.severity === "info" ? "text-muted" : f.severity === "warning" ? "text-warn" : "text-bad")}>
-          {f.severity === "info" ? "ⓘ" : f.severity === "warning" ? "⚠" : "⊘"} {f.message}
-        </p>
-      ))}
+      {otherFlags.map((f) => <FlagLine key={f.code} f={f} />)}
 
       <div className="mt-3 space-y-0.5">
         {tier1.length > 0 && (
