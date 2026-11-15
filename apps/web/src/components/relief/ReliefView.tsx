@@ -289,8 +289,10 @@ function ReliefScene({ relief, planet, name, compact, sceneHeight, defaultExagge
   const label = ariaSummary(relief, ve, planet, mode);
   // "float": the controls sit in the scene's lower corners from sm up (a deck row below on phones and for the 2D map).
   const float = controls === "float" && mode === "3d";
-  const veControl = exaggerationControl && model && (
-    <ExaggerationControl ve={ve} choose={choose} planet={planet} labelId={veLabel} compact={!float} mode={mode} />
+  // Floating, the control carries its label in words above it; in the deck row it is the compact "V.E." group. Both may
+  // be in the DOM (one hidden per breakpoint), so each has its own label id.
+  const veControl = (deck: boolean) => exaggerationControl && model && (
+    <ExaggerationControl ve={ve} choose={choose} planet={planet} labelId={deck ? `${veLabel}d` : veLabel} compact={deck} mode={mode} />
   );
 
   return (
@@ -309,7 +311,7 @@ function ReliefScene({ relief, planet, name, compact, sceneHeight, defaultExagge
         </div>
         {float && (
           <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 hidden items-end justify-between gap-6 sm:flex">
-            <div className="pointer-events-auto">{veControl}</div>
+            <div className="pointer-events-auto">{veControl(false)}</div>
             <div className="pointer-events-auto"><NavStack act={act} needle={refs.needle} vertical /></div>
           </div>
         )}
@@ -323,7 +325,7 @@ function ReliefScene({ relief, planet, name, compact, sceneHeight, defaultExagge
         // touch-sized targets it becomes two full-width rows: exaggeration, then the view buttons.
         <div className={cx("relative flex items-center justify-between gap-3 pointer-coarse:flex-wrap pointer-coarse:gap-2",
           compact ? "border-x border-b border-line-strong px-1.5 py-1.5" : "border-t border-line px-3 py-2.5 sm:px-5", float && "sm:hidden")}>
-          {veControl || <span />}
+          {veControl(true) || <span />}
           {mode === "3d" ? <NavStack act={act} needle={refs.needle} /> : failed && (
             <p className="max-w-[300px] text-caption text-muted sm:text-right">{failed}</p>
           )}
