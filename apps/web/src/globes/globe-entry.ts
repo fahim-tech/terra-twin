@@ -875,7 +875,7 @@ function autoDuration(lat: number, lon: number, heightKm: number) {
   const h0 = (viewer?.camera.positionCartographic.height ?? heightKm * 1000) / 1000;
   const ang = from ? distanceKm(from.lat, from.lon, lat, lon, meanR) / (Math.PI * meanR / 1000) : 0.5;
   const zoom = Math.abs(Math.log10(Math.max(heightKm, 1) / Math.max(h0, 1)));
-  return Math.min(2.4, Math.max(0.8, 0.8 + 1.1 * ang + 0.4 * zoom));
+  return Math.min(2.1, Math.max(0.7, 0.7 + 1.1 * ang + 0.35 * zoom));
 }
 
 function flyTo(lat: number, lon: number, heightKm = planet === "mars" ? 1_400 : 2_200, durationS?: number) {
