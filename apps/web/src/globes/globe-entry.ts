@@ -1347,6 +1347,8 @@ async function runSnapshot(job: SnapshotJob, signal: AbortSignal) {
  * working light, so a plate's locator does not depend on which screen asked for it.
  */
 const LIGHT = { work: { right: 0.32, up: -0.24 }, intro: { right: 1.25, up: -0.62 } };
+/** Seconds to change between the two lights (the shell slides the Mars frame in 0.6 s as the intro closes). */
+const LIGHT_EASE_S = 0.6;
 function updateLight() {
   if (!viewer) return;
   const cam = viewer.camera;
@@ -1528,7 +1530,9 @@ async function init(ionToken: string | null) {
       }
       const goal = lightMode === "intro" ? 1 : 0;
       if (lightMix !== goal) {
-        lightMix = reducedMotion ? goal : goal > lightMix ? Math.min(goal, lightMix + dt / 1.4) : Math.max(goal, lightMix - dt / 1.4);
+        // The change of light runs with the shell's 0.6 s slide of the frame as the intro opens or closes, so it
+        // reads as part of that one transition rather than as a terminator sweeping on its own afterwards.
+        lightMix = reducedMotion ? goal : goal > lightMix ? Math.min(goal, lightMix + dt / LIGHT_EASE_S) : Math.max(goal, lightMix - dt / LIGHT_EASE_S);
         scene.requestRender();
       }
       if (now < settleUntil) scene.requestRender();
