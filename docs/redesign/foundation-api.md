@@ -205,5 +205,6 @@ breakpoints and leave a gap at 379.5 px. The shell's layout classes (`useLayout`
 `mars-unavailable`, `earth-results`, `earth-tier1`, `earth-unavailable`, `earth-tied`, `compare`, `compare-why`,
 `compare-relief` (opens the comparison's "3D relief" mode; skipped with a note when the build has none),
 `evidence`, `report`. Waits are condition-based and bounded: both globes ready (30 s) and the web fonts before
-any view; Evidence and the report are captured screen by screen to the end; the report waits (30 s) until every
-`#dossier-plates` figure image has loaded.
+any view, then a quiet network (no request in flight for 0.7 s, at most 8 s — imagery tiles) after boot and
+before each capture; Evidence and the report are captured screen by screen to the end; the report waits (30 s)
+until every `#dossier-plates` figure image has loaded and no plate or whole-disk locator is still rendering.
