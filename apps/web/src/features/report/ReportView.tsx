@@ -83,7 +83,7 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
         </div>
         <h1 data-stage-heading="report" tabIndex={-1} className="toponym mt-5 text-balance text-[40px] leading-[1.04] tracking-[-0.02em] text-ink outline-none md:text-display">
           <Place name={target.label} coord={target.siteId ? null : { lat: target.lat, lon: target.lon }} />
-          <span className="mx-[0.28em] text-faint" aria-label="compared with">↔</span>
+          <span className="mx-[0.28em] text-faint" aria-hidden>↔</span><span className="sr-only"> compared with </span>
           {c ? <Place name={c.label} coord={c.tier === 1 && !c.t1?.known_analog.name ? { lat: c.lat, lon: c.lon, prefix: "Screening cell" } : null} /> : <span className="text-muted">No candidate selected</span>}
         </h1>
         <p className="mt-4 flex items-start gap-2 text-lead text-warn">

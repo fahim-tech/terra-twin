@@ -39,15 +39,45 @@ export function useSnapshot(planet: Planet, lat: number, lon: number): State {
     let p = cache.get(key);
     if (!p) {
       const h = bus.handles[planet].current;
-      p = h ? withoutDataOverlays(planet, () => h.snapshot(lat, lon, PLATE_HEIGHT_KM, PLATE_MAX_WIDTH)).catch(() => null) : Promise.resolve(null);
+      p = h
+        ? waitForStillCamera(planet)
+          // A camera that never settles means the capture could show another place: no imagery rather than wrong imagery.
+          .then((ok) => (ok ? withoutDataOverlays(planet, () => h.snapshot(lat, lon, PLATE_HEIGHT_KM, PLATE_MAX_WIDTH)) : null))
+          .catch(() => null)
+        : Promise.resolve(null);
       cache.set(key, p);
       void p.then((r) => { if (!r) cache.delete(key); });
     }
-    void p.then((r) => { if (live) setState(r ? { status: "ok", shot: r } : { status: "failed" }); });
+    void p.then((r) => {
+      if (!live) return;
+      setState(r ? { status: "ok", shot: r } : { status: "failed" });
+      const name = planet === "mars" ? "Mars" : "Earth";
+      useApp.getState().announce(r ? `${name} location plate ready` : `${name} imagery unavailable; the plate shows coordinates only`);
+    });
     return () => { live = false; };
   }, [bus, planet, lat, lon, ready, key]);
 
   return state;
+}
+
+/**
+ * A camera flight still running on the (hidden) globe would keep moving the camera while the snapshot
+ * waits for tiles, and the plate would show somewhere else under this plate's coordinates. Wait until the
+ * globe reports a still camera before capturing.
+ */
+function waitForStillCamera(planet: Planet, timeoutMs = 8000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    let still = 0;
+    const tick = () => {
+      const cam = useGlobes.getState().camera[planet];
+      still = cam && !cam.moving ? still + 1 : 0;
+      if (still >= 3) resolve(true);
+      else if (performance.now() - t0 > timeoutMs) resolve(false);
+      else setTimeout(tick, 150);
+    };
+    tick();
+  });
 }
 
 /**
