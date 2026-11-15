@@ -1,4 +1,5 @@
-import { Check, ChevronDown } from "lucide-react";
+import { Ban, Check, ChevronDown } from "lucide-react";
+import { screenCellKm } from "./candidates";
 import type { ReactNode } from "react";
 import { Term } from "../../components/primitives";
 import { cx } from "../../components/ui";
@@ -19,7 +20,8 @@ function Toggle({ on, onClick, children, swatch, compact, label, unavailable }: 
       className={cx("hit inline-flex shrink-0 items-center whitespace-nowrap rounded-full py-1.5 text-caption shadow-[inset_0_0_0_1px_rgb(255_255_255/0.10)] transition-[color,background,transform] duration-150",
         compact ? "gap-1 pl-1.5 pr-2" : "gap-1.5 pl-2 pr-3",
         unavailable ? "cursor-default text-faint" : shown ? "bg-elevated text-ink active:scale-[0.97]" : "text-muted hover:bg-elevated/50 hover:text-ink active:scale-[0.97]")}>
-      <span aria-hidden className={cx("grid h-4 w-4 place-items-center", unavailable && "opacity-50")}>{shown ? <Check className="h-3.5 w-3.5" /> : swatch}</span>
+      {/* Unavailable reads as off at a glance: a struck-out glyph, never a dimmed colour swatch. */}
+      <span aria-hidden className="grid h-4 w-4 place-items-center">{unavailable ? <Ban className="h-3 w-3 text-faint" strokeWidth={1.75} /> : shown ? <Check className="h-3.5 w-3.5" /> : swatch}</span>
       <span aria-hidden={compact}>{children}</span>
     </button>
   );
@@ -75,7 +77,7 @@ export function EarthLayers() {
             <div>
               <div className="flex items-baseline justify-between text-caption">
                 <span className="text-ink"><Term k="similarity">Similarity S</Term></span>
-                <span className="text-muted">global screen · 25 km · as measured</span>
+                <span className="text-muted">global screen{screenCellKm(search) !== null ? ` · ${screenCellKm(search)} km` : ""} · as measured</span>
               </div>
               <div className="mt-1.5 h-2 w-full rounded-full" role="img" aria-label={`Viridis colour scale from ${lg.domain[0]} to ${lg.domain[1]}`}
                 style={{ background: `linear-gradient(to right, ${lg.stops.map(([v, c]) => `${c} ${v * 100}%`).join(", ")})` }} />
