@@ -18,7 +18,13 @@ The scientific method is research-stage. Its benefit was shown on **synthetic te
 validated against field data or expert review. The UI states this wherever a score appears.
 
 Live: https://terratwin-five.vercel.app (frontend on Vercel; API and GIS data on an AWS Lightsail host, see
-[docs/deployment.md](docs/deployment.md)).
+[docs/deployment.md](docs/deployment.md)). Seven-slide demo: https://terratwin-five.vercel.app/deck/
+
+**Finding in one sentence.** Searching the whole Earth for Jezero crater's terrain as MOLA would see it, TerraTwin
+returns a tie of two windows in north-west China — 37.06° N 86.21° E (≈ Kunlun–Altun mountain belt, south rim of the
+Tarim Basin, Xinjiang; S 0.781) and 37.29° N 97.51° E (≈ north-eastern Qaidam Basin near Delingha, Qinghai; S 0.693) —
+ahead of the classic Atacama Yungay analog (S 0.613, 9th of 90 refined windows). Place names are approximate, read
+from the coordinates; the app makes no novelty claim, and the method's benefit is benchmarked on synthetic twins only.
 
 ## AI assistance (Use of Super Intelligence)
 

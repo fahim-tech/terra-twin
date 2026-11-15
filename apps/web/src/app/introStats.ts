@@ -66,7 +66,7 @@ export function storyLines(s: StoryInput): StoryLines {
   const problem = "Crews and instruments rehearse Mars work at Earth analog sites, mostly chosen by eye. NASA's MOLA "
     + `altimeter mapped Mars with laser tracks, so its grid is largely interpolated${interp !== null ? ` (${interp} % at Jezero)` : ""}; `
     + "set beside raw Earth elevation, the two do not measure the same thing.";
-  const method = `TerraTwin screens ${s.cells !== null ? `all ${s.cells.toLocaleString("en-US")}` : "every"} Earth land cell, then re-observes `
+  const method = `TerraTwin screens ${s.cells !== null ? `all ${s.cells.toLocaleString("en-US")} Earth land cells` : "every Earth land cell"}, then re-observes `
     + "Earth windows through the Mars site's own MOLA sampling before scoring terrain, and names a leader only if it "
     + "holds under four window orientations.";
   let finding: string | null = null;

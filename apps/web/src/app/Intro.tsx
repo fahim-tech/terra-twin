@@ -138,6 +138,9 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
           <Commands onStart={onStart} onJezero={onJezero} jezero={jezero} />
         </motion.div>
 
+        <motion.div {...rise(6)} className="mt-6 short:hidden">
+          <Commands onStart={onStart} onJezero={onJezero} jezero={jezero} />
+        </motion.div>
         {/* Systems: live API and GIS status, read from /api/health and /api/gis/status. */}
         <motion.section {...rise(4)} aria-label="Systems" className="mt-7 max-w-[540px] max-sm:hidden landscape:md:mt-8 short:hidden">
           <h2 className="kicker rule-after text-[10px] text-faint">Systems</h2>
@@ -172,9 +175,6 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
           </dl>
         </motion.section>
 
-        <motion.div {...rise(6)} className="mt-7 short:hidden">
-          <Commands onStart={onStart} onJezero={onJezero} jezero={jezero} />
-        </motion.div>
         <motion.div {...rise(7)} className="mt-6 max-w-[560px] space-y-1 text-caption text-faint landscape:md:mt-7 short:!mt-3">
           <p><span className="kicker mr-2 text-[10px]">Light</span><span className="text-warn/90">{LIGHT_NOTE}</span>: lit for legibility, not by the Sun&rsquo;s position</p>
           <p><span className="kicker mr-2 text-[10px]">Imagery</span>{credit ?? "—"}</p>

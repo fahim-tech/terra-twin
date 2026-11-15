@@ -38,7 +38,7 @@ describe("storyLines", () => {
   it("states problem, method and the verified Jezero finding from API figures", () => {
     const s = storyLines(base);
     expect(s.problem).toContain("69 % at Jezero");
-    expect(s.method).toContain("all 249,165 Earth land cell");
+    expect(s.method).toContain("all 249,165 Earth land cells, then");
     expect(s.finding).toBe("Jezero (landing site): Atacama Yungay, S 0.614, stable under all four orientations — research record over the fixed 230-window pool.");
     expect(s.caveat).toBe("Established on the twin benchmark: twin recovery MRR 0.30 → 0.97. Not yet: field validation — the benchmark is synthetic, and similarity is terrain geometry only.");
     expect(storyLines({ ...base, top1: { baseline: 0.178, oom: 0.948 }, nTwins: 213 }).caveat).toContain("Established on 213 synthetic twins: the true twin is found first 95 % of the time, against 18 % uncorrected");
