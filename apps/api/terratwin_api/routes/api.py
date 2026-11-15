@@ -205,8 +205,8 @@ def earth_pool_relief(window_id: str):
     """Elevation grid of one 50 km research-pool window (Earth as measured), for 3D relief views.
 
     Row-major, north-up (row 0 = north edge, column 0 = west edge), metres, 0.1 m precision,
-    ``null`` where the cell has no elevation (water-masked). Cell size and window size come from
-    the research engine and the pool record.
+    ``null`` where the cell has no elevation (water-masked). The cell size is the research engine's
+    pixel (``oom_worker.PIX``); the window size is the nominal side that ``/api/earth/pool`` publishes.
     """
     r = _data_or_503(relief.pool_relief, window_id, VIS.POOL_WINDOW_KM)
     if r is None:
