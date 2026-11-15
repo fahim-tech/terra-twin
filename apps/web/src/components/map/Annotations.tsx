@@ -26,6 +26,16 @@ const DX = 44, DY = 38;
 const GLYPH_HALF = 11;
 
 /**
+ * Screen y of a label's leader row. The box to clear (clearPx) is drawn around the ground point; a glyph
+ * standing on a stem above that point (3D view) only needs the default reach from the glyph. The label
+ * sits at whichever of the two is farther out, so a stem does not push it a stem's height further away.
+ */
+export function labelY(groundY: number, glyphY: number, north: boolean, clearPx = 0): number {
+  const reach = leaderDy(clearPx);
+  return north ? Math.min(groundY - reach, glyphY - DY) : Math.max(groundY + reach, glyphY + DY);
+}
+
+/**
  * HTML annotations pinned to planetary coordinates with thin leader lines. Positions come from the
  * globe frame (projected anchors), so labels follow camera motion and hide behind the limb. When the
  * globe draws the point as a glyph on a stem (tilted view), the leader starts from that glyph.
@@ -49,7 +59,8 @@ export function AnnotationLayer({ planet, items, className }: { planet: Planet; 
         const side = it.side ?? "ne";
         const sx = side.includes("e") ? 1 : -1;
         const sy = side.includes("n") ? -1 : 1;
-        const lx = o.x + sx * DX, ly = o.y + sy * leaderDy(it.clearPx);
+        const lx = o.x + sx * DX;
+        const ly = labelY(a.y, o.y, sy < 0, it.clearPx);
         const stroke = it.tone === "earth" ? "var(--color-earth)" : it.tone === "neutral" ? "var(--color-ink)" : "var(--color-mars)";
         const start = o.glyph ? GLYPH_HALF : 3.5;
         return (
