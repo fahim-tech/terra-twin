@@ -34,9 +34,9 @@ export function DiskLocator({ planet, body, lat, lon, heightKm, snapshot, plateK
 
   return (
     <figure className={cx("m-0 w-[84px] md:w-[96px] print:w-[84px]", className)}>
-      {/* A soft edge just outside the limb lets the render's own black sky meet the page. */}
-      <div className="relative aspect-square w-full overflow-hidden [print-color-adjust:exact]"
-        style={{ maskImage: "radial-gradient(circle closest-side, #000 93%, transparent 100%)", WebkitMaskImage: "radial-gradient(circle closest-side, #000 93%, transparent 100%)" }}>
+      {/* On screen a soft edge just outside the limb (radius 1 / 1.1 of the box) lets the render's black sky meet the
+          page with the atmosphere kept; on white paper the sky is cut at the limb, so no dark ring is printed. */}
+      <div className="relative aspect-square w-full overflow-hidden [print-color-adjust:exact] [mask-image:radial-gradient(circle_closest-side,#000_93%,transparent_100%)] print:[mask-image:radial-gradient(circle_closest-side,#000_90.4%,transparent_91.2%)]">
         {shot && crop ? (
           <>
             {/* Cross-fade only (kept under reduced motion). */}
