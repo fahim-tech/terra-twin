@@ -14,6 +14,7 @@ import { NO_RING, SectionRule } from "./marks";
 import { basisFor, compareTargets, verdictFor } from "./model";
 import { type CompareMode, visibleModes } from "./modes";
 import { MODE_PANEL_ID, ModeSwitch, modeTabId } from "./ModeSwitch";
+import { PairLink } from "./PairLink";
 import { PhoneScale } from "./PhoneScale";
 import { RatioChart } from "./RatioChart";
 import { BackToResults, CompactReadout, PhoneReadout, TelemetryReadout, WhyButton } from "./Readout";
@@ -161,6 +162,7 @@ export function ComparisonPanel() {
     <>
       <StageProbe />
       {!phone && <ComparePlates targets={targets} planets={["mars", "earth"]} whyOpen={whyOpen} compact={expanded} />}
+      {!phone && !whyOpen && <PairLink c={c} />}
       {phone && !expanded && <PhoneScale />}
       {/* Phones: the shell's Mars|Earth switch sits over the top of the frame; mark that band as covered
           so the globe frames the compared window below it (the switch itself is not an occluder). */}

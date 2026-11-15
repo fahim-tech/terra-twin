@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { footprintDimension, kmLabel } from "./gauge";
+import { footprintDimension, kmLabel, pairLink } from "./gauge";
 
 const pt = (x: number, y: number, visible = true) => ({ x, y, visible });
 
@@ -42,3 +42,27 @@ describe("footprint dimension", () => {
   });
 });
 
+describe("pair link across the split", () => {
+  const sq = (x0: number, y0: number, s: number, hide = -1) =>
+    [pt(x0 + s, y0, hide !== 0), pt(x0 + s, y0 + s, hide !== 1), pt(x0, y0 + s, hide !== 2), pt(x0, y0, hide !== 3)];
+
+  it("runs from the edge of one square to the edge of the other, crossing the seam", () => {
+    const link = pairLink(sq(100, 100, 100), sq(400, 100, 100), 300)!;
+    expect(link.line).toEqual([200, 150, 400, 150]);
+    expect(link.seam).toEqual({ x: 300, y: 150 });
+  });
+
+  it("follows squares at different heights", () => {
+    const link = pairLink(sq(100, 100, 100), sq(400, 200, 100), 300)!;
+    expect(link.seam.x).toBeCloseTo(300);
+    expect(link.seam.y).toBeCloseTo(200);
+    expect(link.line[0]).toBeCloseTo(200);
+    expect(link.line[2]).toBeCloseTo(400);
+  });
+
+  it("draws nothing when a corner is hidden, the squares overlap, or both sit on one side of the seam", () => {
+    expect(pairLink(sq(100, 100, 100, 2), sq(400, 100, 100), 300)).toBeNull();
+    expect(pairLink(sq(100, 100, 100), sq(150, 100, 100), 175)).toBeNull();
+    expect(pairLink(sq(100, 100, 50), sq(200, 100, 50), 300)).toBeNull();
+  });
+});

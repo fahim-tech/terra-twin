@@ -74,6 +74,46 @@ export function footprintDimension(corners: readonly (ScreenPoint | null | undef
   };
 }
 
+/**
+ * The link between the two compared footprints across the split: the segment between the squares'
+ * centres, trimmed to start where it leaves the first square and end where it enters the second, with
+ * the point where it crosses `seamX`. Points are in one shared frame (the caller offsets the second
+ * planet's anchors by its frame's left edge). Null when a corner is hidden, the squares overlap, or the
+ * segment does not cross the seam.
+ */
+export function pairLink(a: readonly (ScreenPoint | null | undefined)[], b: readonly (ScreenPoint | null | undefined)[], seamX: number):
+  { line: Segment; seam: { x: number; y: number } } | null {
+  const ok = (q: readonly (ScreenPoint | null | undefined)[]): q is ScreenPoint[] =>
+    q.length === 4 && q.every((c) => !!c && c.visible && Number.isFinite(c.x) && Number.isFinite(c.y));
+  if (!ok(a) || !ok(b)) return null;
+  const centre = (q: ScreenPoint[]) => ({ x: q.reduce((s, p) => s + p.x, 0) / 4, y: q.reduce((s, p) => s + p.y, 0) / 4 });
+  const A = centre(a), B = centre(b);
+  // Parameter t along A→B where the segment crosses the quad's boundary (the largest crossing for the
+  // quad around A, the smallest for the quad around B).
+  const cross = (q: ScreenPoint[], pick: (ts: number[]) => number) => {
+    const ts: number[] = [];
+    const dx = B.x - A.x, dy = B.y - A.y;
+    for (let i = 0; i < 4; i++) {
+      const p = q[i], r = q[(i + 1) % 4];
+      const ex = r.x - p.x, ey = r.y - p.y;
+      const den = dx * ey - dy * ex;
+      if (Math.abs(den) < 1e-9) continue;
+      const t = ((p.x - A.x) * ey - (p.y - A.y) * ex) / den;
+      const u = ((p.x - A.x) * dy - (p.y - A.y) * dx) / den;
+      if (t >= 0 && t <= 1 && u >= 0 && u <= 1) ts.push(t);
+    }
+    return ts.length ? pick(ts) : null;
+  };
+  const t0 = cross(a, (ts) => Math.max(...ts));
+  const t1 = cross(b, (ts) => Math.min(...ts));
+  if (t0 === null || t1 === null || t1 <= t0) return null;
+  const at = (t: number) => ({ x: A.x + (B.x - A.x) * t, y: A.y + (B.y - A.y) * t });
+  const p0 = at(t0), p1 = at(t1);
+  if (!(p0.x < seamX && p1.x > seamX)) return null;
+  const ts = (seamX - A.x) / (B.x - A.x);
+  return { line: [p0.x, p0.y, p1.x, p1.y], seam: at(ts) };
+}
+
 /** Footprint size for the label: the record's kilometres, at most one decimal, never padded. */
 export function kmLabel(km: number): string {
   return `${km.toLocaleString("en-US", { maximumFractionDigits: 1 })} km`;
