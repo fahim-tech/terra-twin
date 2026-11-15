@@ -39,6 +39,7 @@ import {
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
   SingleTileImageryProvider,
+  SkyAtmosphere,
   UrlTemplateImageryProvider,
   VerticalOrigin,
   Viewer,
@@ -409,14 +410,29 @@ function flyTo(lat: number, lon: number, heightKm = planet === "mars" ? 1_400 : 
   });
 }
 
+let currentLayerId: string | null = null;
 function setLayer(id: string) {
   if (!viewer) return;
   const def = LAYERS.find((l) => l.id === id) ?? LAYERS[0];
-  const layer = new ImageryLayer(def.make(ellipsoid));
-  if (baseLayer) viewer.imageryLayers.remove(baseLayer, true);
-  viewer.imageryLayers.add(layer, 0);
+  if (def.id === currentLayerId) return;
+  currentLayerId = def.id;
+  const old = baseLayer;
+  const layer = new ImageryLayer(def.make(ellipsoid), { alpha: old && !reducedMotion ? 0 : 1 });
+  // Insert directly above the old base so overlays stay on top, then crossfade (no base-colour flash).
+  viewer.imageryLayers.add(layer, old ? viewer.imageryLayers.indexOf(old) + 1 : 0);
   baseLayer = layer;
-  requestRender();
+  if (!old) { requestRender(); return; }
+  if (reducedMotion) { viewer.imageryLayers.remove(old, true); requestRender(); return; }
+  const t0 = performance.now();
+  const step = (now: number) => {
+    if (!viewer) return;
+    const k = Math.min(1, (now - t0) / 450);
+    layer.alpha = k * k * (3 - 2 * k);
+    viewer.scene.requestRender();
+    if (k < 1) requestAnimationFrame(step);
+    else viewer.imageryLayers.remove(old, true);
+  };
+  setTimeout(() => requestAnimationFrame(step), 250);
 }
 
 function zoom(direction: "in" | "out") {
@@ -602,6 +618,8 @@ async function init(ionToken: string | null) {
     baseLayerPicker: false, geocoder: false, homeButton: false, sceneModePicker: false, timeline: false,
     animation: false, navigationHelpButton: false, fullscreenButton: false, infoBox: false,
     selectionIndicator: false, msaaSamples: 4,
+    // Cesium's default sky atmosphere is WGS84-sized; give each planet a shell of its own radius.
+    skyAtmosphere: new SkyAtmosphere(ellipsoid),
     // Render only when something changes (camera, tiles, data, messages): saves GPU and battery.
     requestRenderMode: true, maximumRenderTimeChange: Infinity,
   });
@@ -622,9 +640,15 @@ async function init(ionToken: string | null) {
   if (scene.skyAtmosphere) {
     scene.skyAtmosphere.show = true;
     if (planet === "mars") {
-      scene.skyAtmosphere.hueShift = -0.08;
-      scene.skyAtmosphere.saturationShift = -0.35;
-      scene.skyAtmosphere.brightnessShift = -0.45;
+      // Thin, dusty limb: red-weighted scattering, more Mie (dust) than Rayleigh, dimmer overall.
+      const sa = scene.skyAtmosphere;
+      sa.atmosphereRayleighCoefficient = new Cartesian3(26.0e-6, 11.0e-6, 3.5e-6);
+      sa.atmosphereMieCoefficient = new Cartesian3(34.0e-6, 22.0e-6, 12.0e-6);
+      sa.atmosphereRayleighScaleHeight = 11_000;
+      sa.atmosphereMieScaleHeight = 2_400;
+      sa.atmosphereLightIntensity = 26;
+      sa.saturationShift = 0.1;
+      sa.brightnessShift = -0.38;
     } else {
       scene.skyAtmosphere.brightnessShift = -0.15;
     }
