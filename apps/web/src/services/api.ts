@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { AnalogSearch, MarsAnalysis, MarsSite, MissionProfile, Tier1Result } from "../types/contracts";
+import { AnalogSearch, MarsAnalysis, MarsSite, MissionProfile, PoolWindow, ResearchSiteSummary, Tier1Result, VisualizationLegend } from "../types/contracts";
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -43,6 +43,12 @@ export const api = {
     request("/api/analysis/mars", MarsAnalysis, { method: "POST", body: JSON.stringify(b) }),
   findAnalogs: (b: { lat: number; lon: number; footprint_km: number; mission: string; limit?: number }) =>
     request("/api/analysis/analogs", AnalogSearch, { method: "POST", body: JSON.stringify({ limit: 100, ...b }) }),
+  researchSummary: () => request("/api/research/summary", z.object({ sites: z.array(ResearchSiteSummary) })).then((r) => r.sites),
+  earthPool: () => request("/api/earth/pool", z.object({ windows: z.array(PoolWindow) })).then((r) => r.windows),
+  legend: () => request("/api/visualization/legend", VisualizationLegend),
+  similarityRasterUrl: (site: string, mission: string) =>
+    `${API_BASE}/api/visualization/tier1-similarity.png?site=${encodeURIComponent(site)}&mission=${encodeURIComponent(mission)}`,
+  coverageRasterUrl: () => `${API_BASE}/api/visualization/tier1-coverage.png`,
   tier1Page: (site: string, mission: string, offset: number, limit: number) =>
     request(`/api/analysis/tier1/candidates?site=${encodeURIComponent(site)}&mission=${mission}&offset=${offset}&limit=${limit}`, Tier1Result),
 };
@@ -63,5 +69,9 @@ export const useEvidence = () => useQuery({ queryKey: ["evidence"], queryFn: api
 
 export const useMarsAnalysis = (p: { lat: number; lon: number; footprint_km: number; mission: string } | null) =>
   useQuery({ queryKey: ["mars", p], queryFn: () => api.analyseMars(p!), enabled: !!p });
+
+export const useResearchSummary = () => useQuery({ queryKey: ["researchSummary"], queryFn: api.researchSummary });
+export const useEarthPool = () => useQuery({ queryKey: ["earthPool"], queryFn: api.earthPool });
+export const useLegend = () => useQuery({ queryKey: ["legend"], queryFn: api.legend });
 
 export const useFindAnalogs = () => useMutation({ mutationFn: api.findAnalogs });

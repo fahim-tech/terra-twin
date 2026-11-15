@@ -114,3 +114,27 @@ export const AnalogSearch = z.object({
   tier1: Tier1Result.nullable(), tier2: Tier2Result,
 }).loose();
 export type AnalogSearch = z.infer<typeof AnalogSearch>;
+
+// ---------------------------------------------------------------- read-only visualization products
+const SiteDecision = z.object({ type: DecisionType, members: z.array(z.string()), leader_S: num });
+export const ResearchSiteSummary = z.object({
+  site: z.string(), name: z.string(), lat: z.number(), lon: z.number(), observed_fraction: num,
+  exclude: SiteDecision, report: SiteDecision,
+});
+export type ResearchSiteSummary = z.infer<typeof ResearchSiteSummary>;
+
+export const PoolWindow = z.object({
+  id: z.string(), lat: z.number(), lon: z.number(), kind: z.string(),
+  landcover_available: z.boolean(), gate_pass: z.boolean().nullable(), frac_bare_like: num,
+});
+export type PoolWindow = z.infer<typeof PoolWindow>;
+
+export const VisualizationLegend = z.object({
+  tier1_similarity: z.object({
+    name: z.string(), stops: z.array(z.tuple([z.number(), z.string()])), domain: z.tuple([z.number(), z.number()]),
+    opacity: z.object({ transparent_below: z.number(), opaque_above: z.number(), max: z.number() }),
+    label: z.string(), pixel_rule: z.string(), caveat: z.string(),
+  }),
+  tier1_coverage: z.object({ rgba: z.array(z.number()), label: z.string(), pixel_rule: z.string() }),
+});
+export type VisualizationLegend = z.infer<typeof VisualizationLegend>;
