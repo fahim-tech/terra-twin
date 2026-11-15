@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Planet } from "../globes/protocol";
+import type { GlossaryKey } from "../lib/glossary";
 import { Measure, Term } from "./primitives";
 import { cx } from "./ui";
 
@@ -67,12 +68,41 @@ export const DECISION_WORDS: Record<DecisionType, string> = {
   insufficient_evidence: "Not enough evidence",
 };
 
+/** The glossary term that defines each decision (none for "No convincing analog", whose name says it). */
+export const DECISION_TERM: Partial<Record<DecisionType, GlossaryKey>> = { named_leader: "stableLeader", tied_set: "tie", insufficient_evidence: "notEnough" };
+
 /** The decision's plain name; an unknown type is said as the record writes it, never guessed. */
 export function decisionWord(type: DecisionType | string): string {
   return DECISION_WORDS[type as DecisionType] ?? type.replace(/_/g, " ");
 }
 
 const INK_CLASS: Record<MarkInk, string> = { ink: "text-ink", muted: "text-muted", faint: "text-faint" };
+
+/**
+ * The one decision-label treatment, in every view that names a research decision: the outcome mark centred on the
+ * first line, then the decision's plain name in the uppercase tracked label, ink (no decision loaded: faint). Every
+ * decision reads the same quiet way; a tie is a valid outcome, never a caution, and never styled as a rank.
+ * The research definition is on demand on the name (DECISION_TERM; `term={null}` drops it, e.g. inside another
+ * button); `after` follows it in muted words (a tie's window count); `children` replaces the name entirely (e.g.
+ * "Loading…" for a decision not yet loaded).
+ */
+export function DecisionLabel({ type, term, after, children, size, className }: {
+  type: DecisionType | string | null | undefined; term?: GlossaryKey | null; after?: ReactNode; children?: ReactNode; size?: number; className?: string;
+}) {
+  const kind = outcomeKind(type);
+  const name = children ?? (type ? decisionWord(type) : "Not loaded");
+  const k = term === undefined ? (type ? DECISION_TERM[type as DecisionType] ?? null : null) : term;
+  return (
+    <span data-decision={type ?? "none"} className={cx("label-caps inline-flex min-w-0 items-start gap-2 [&_button]:text-left [&_button]:uppercase",
+      kind === "not_loaded" ? "text-faint" : "text-ink", className)}>
+      <span aria-hidden className="flex h-[1lh] shrink-0 items-center"><OutcomeMark kind={kind} size={size} /></span>
+      <span className="min-w-0">
+        {k && !children ? <Term k={k}>{name}</Term> : name}
+        {after ? <span className="font-normal normal-case tracking-normal text-muted">{after}</span> : null}
+      </span>
+    </span>
+  );
+}
 
 /**
  * A decision outcome mark: solid square = stable leader, two nested squares = tie, hollow square = no

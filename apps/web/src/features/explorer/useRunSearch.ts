@@ -1,13 +1,8 @@
+import { decisionWord } from "../../components/marks";
 import { useFindAnalogs } from "../../services/api";
 import { useApp, type Selection } from "../../store/app";
 import { memberOrder, shortWindow, stableLeaderId } from "../analogs/candidates";
 
-const DECISION_WORDS: Record<string, string> = {
-  named_leader: "stable leader",
-  tied_set: "tie",
-  no_convincing_analog: "no convincing analog",
-  insufficient_evidence: "not enough evidence",
-};
 
 /**
  * "Find Earth Analogs": runs the global screen + research comparison for the selection, announces the
@@ -28,7 +23,7 @@ export function useRunSearch() {
         const members = d.members.length ? ` (${memberOrder(res.tier2).map(shortWindow).join(", ")})` : "";
         const screen = res.tier1 ? `${res.tier1.candidate_pool.n_cells_searched.toLocaleString("en-US")} land cells screened.` : "Global screen not run.";
         useApp.getState().announce(res.status === "available"
-          ? `Earth analog search complete. ${screen} Research comparison: ${DECISION_WORDS[d.type] ?? d.type}${members}.`
+          ? `Earth analog search complete. ${screen} Research comparison: ${decisionWord(d.type).toLowerCase()}${members}.`
           : "No Earth comparison for this point: research terrain data is not available here.");
         useApp.getState().set({ search: res, candidateId: leader ? `t2:${leader}` : null, tier: res.tier2.candidates.length || !res.tier1 ? 2 : 1 });
         useApp.getState().go("earth");

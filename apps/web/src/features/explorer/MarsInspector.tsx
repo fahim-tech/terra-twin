@@ -1,10 +1,10 @@
 import { ArrowRight, ChevronDown, CornerUpLeft } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import { DECISION_WORDS, type DecisionType, OutcomeMark, outcomeKind } from "../../components/marks";
+import { DecisionLabel } from "../../components/marks";
 import { Kicker, PanelBody, PanelFooter, PanelHeader, radioGroupKeys, Term, Toponym } from "../../components/primitives";
 import { Button, cx, Note, Segmented } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
-import { type GlossaryKey, zoneName } from "../../lib/glossary";
+import { zoneName } from "../../lib/glossary";
 import { useMarsAnalysis, useMissions, useSites } from "../../services/api";
 import { useApp } from "../../store/app";
 import type { MarsAnalysis, MissionProfile } from "../../types/contracts";
@@ -235,7 +235,6 @@ function missionEffect(m: MissionProfile | undefined): ReactNode {
   );
 }
 
-const OUTCOME_TERM: Partial<Record<DecisionType, GlossaryKey>> = { named_leader: "stableLeader", tied_set: "tie", insufficient_evidence: "notEnough" };
 
 /**
  * The zone's published research outcome for the chosen mission (/api/research/summary), with the outcome
@@ -246,20 +245,10 @@ function ZoneOutcome({ siteId, compact = false }: { siteId: string | null; compa
   const { bySite, loading, gateMode } = useSiteOutcomes();
   const missions = useMissions();
   const o = siteId ? bySite[siteId] : undefined;
-  const term = o ? OUTCOME_TERM[o.type] : undefined;
   const value = o ? (
-    <span className="inline-flex min-w-0 items-baseline gap-2 text-ink">
-      <OutcomeMark kind={outcomeKind(o.type)} />
-      <span>
-        {term ? <Term k={term}>{DECISION_WORDS[o.type]}</Term> : DECISION_WORDS[o.type]}
-        {o.type === "tied_set" && <span className="text-muted"> · <span className="num">{o.members.length}</span> equivalent windows</span>}
-      </span>
-    </span>
+    <DecisionLabel type={o.type} after={o.type === "tied_set" ? <> · <span className="num">{o.members.length}</span> equivalent windows</> : null} />
   ) : (
-    <span className="inline-flex items-baseline gap-2 text-faint">
-      <OutcomeMark kind="not_loaded" />
-      {loading ? "Loading…" : !gateMode && missions.data ? "None for this mission" : "Not in the research record"}
-    </span>
+    <DecisionLabel type={null}>{loading ? "Loading…" : !gateMode && missions.data ? "None for this mission" : "Not in the research record"}</DecisionLabel>
   );
   return (
     <div className={cx("flex flex-wrap items-baseline gap-x-3 gap-y-1 text-caption", compact ? "mt-1" : "mt-2.5")}>
