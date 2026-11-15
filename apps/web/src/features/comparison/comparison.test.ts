@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { G5 } from "../../lib/glossary";
 import type { AnalogSearch } from "../../types/contracts";
 import type { CandidateView } from "../analogs/candidates";
-import { basisFor, compareTargets, earthName, verdictFor } from "./model";
+import { basisFor, compareTargets, earthName, poolKindLabel, verdictFor } from "./model";
 import { deltaPos, groupRows, ratioPos, ratioRow, S_AT_TOLERANCE } from "./science";
 
 describe("ratio chart geometry", () => {
@@ -111,5 +111,32 @@ describe("targets", () => {
 
   it("names random research windows without inventing a place", () => {
     expect(earthName(t2cand("rand_d8_233", 0.7)).name).toBe("Research window 233");
+  });
+});
+
+describe("names and footprints", () => {
+  it("never prints a raw window id for the stable leader", () => {
+    const s = search({ type: "named_leader", members: ["rand_d8_233"], rotations_checked: 4, label: G5.leader });
+    const v = verdictFor(s, t2cand("rand_d3_12", 0.5));
+    expect(v.kind).toBe("not_member");
+    expect(v.detail).toContain("Research window 233");
+    expect(v.detail).not.toContain("rand_");
+  });
+
+  it("explains the pool kind of named controls in plain words", () => {
+    expect(poolKindLabel("documented analog (non-terrain)")).toContain("reasons other than its terrain");
+    expect(poolKindLabel("negative control")).toContain("negative control");
+    expect(poolKindLabel(null)).toBeNull();
+  });
+
+  it("does not call the Mars square the compared cell for a tier-1 zone target", () => {
+    const s = search({ type: "named_leader", members: ["Atacama Yungay"], rotations_checked: 4, label: null });
+    const c = {
+      id: "t1:gmted25k:1", tier: 1, rank: 1, lat: 0, lon: 0, label: "Cell 1", score: 0.9, coverage: 1,
+      t1: { region_id: "gmted25k:1", footprint: { kind: "cell", cell_km_ns: 25, cell_km_ew: 25, bbox: [0, 0, 1, 1] } },
+    } as unknown as CandidateView;
+    const t = compareTargets(s, c)!;
+    expect(t.earth.footprint).toBe("25 km screening cell");
+    expect(t.mars.footprint).toContain("zone median");
   });
 });

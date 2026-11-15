@@ -34,7 +34,7 @@ export function verdictFor(search: AnalogSearch, c: CandidateView): Verdict {
   if (d.type === "named_leader") {
     return k >= 0
       ? { kind: "leader", glyph: "◉", headline: "Stable leader", detail: d.label ?? G5.leader }
-      : { kind: "not_member", glyph: "—", headline: "Research window — not the stable leader", detail: `The stable leader for this zone is ${d.members[0] ?? "another window"}.` };
+      : { kind: "not_member", glyph: "—", headline: "Research window — not the stable leader", detail: `The stable leader for this zone is ${d.members[0] ? windowName(d.members[0]) : "another window"}.` };
   }
   if (d.type === "tied_set") {
     return k >= 0
@@ -65,21 +65,45 @@ export function basisFor(c: CandidateView): string {
     : `Global screen · 25 km cell · Earth as measured${m ? ` · ${m}` : ""}`;
 }
 
+/** Display name for a research-pool window id (random windows have no toponym; named controls do). */
+export function windowName(id: string): string {
+  const m = /^rand_d(\d)_(\d+)$/.exec(id);
+  return m ? `Research window ${m[2]}` : id;
+}
+
+/**
+ * Plain copy for the research pool's `kind` field. The 17 non-random windows are the pool's named
+ * controls; their kind says why each was included, which is not a statement about this comparison.
+ */
+export function poolKindLabel(kind: string | null | undefined): string | null {
+  if (!kind) return null;
+  const k = kind.trim();
+  if (k === "random") return "Stratified random window";
+  if (k === "documented analog (non-terrain)") return "Named control · a documented Mars analog site, documented for reasons other than its terrain";
+  if (k === "documented analog (title-level)") return "Named control · a documented Mars analog site (cited at publication-title level)";
+  if (k === "documented analog") return "Named control · a documented Mars analog site";
+  if (k === "negative control") return "Named control · negative control, not expected to resemble Mars";
+  if (k === "prior gated candidate") return "Named control · a candidate from an earlier land-cover-gated search";
+  const pos = /^positive:\s*(.+)$/.exec(k);
+  if (pos) return `Named control · positive control for ${pos[1]}`;
+  return `Named control · ${k}`;
+}
+
 /** Plain place name + secondary line for an Earth candidate (random windows have no toponym). */
 export function earthName(c: CandidateView): { name: string; sub: string | null } {
   if (c.tier === 2) {
     const m = /^rand_d(\d)_(\d+)$/.exec(c.t2?.id ?? "");
-    if (m) return { name: `Research window ${m[2]}`, sub: `Stratified random window · roughness decile ${m[1]}` };
-    const kind = c.t2?.kind ?? null;
-    return { name: c.label, sub: kind ? kind.charAt(0).toUpperCase() + kind.slice(1) : null };
+    if (m) return { name: windowName(c.t2!.id), sub: `Stratified random window · roughness decile ${m[1]}` };
+    return { name: c.label, sub: poolKindLabel(c.t2?.kind) };
   }
   return { name: c.label, sub: c.t1 ? `Global-screen cell ${c.t1.region_id.split(":")[1] ?? c.t1.region_id}` : null };
 }
 
 export interface CompareTargets {
-  mars: { name: string; lat: number; lon: number; km: number };
-  earth: { name: string; sub: string | null; lat: number; lon: number; km: number };
-  /** What the footprints are: the 50 km research window or the 25 km screening cell. */
+  /** `footprint` says what the white square on that planet is, and what the descriptors describe. */
+  mars: { name: string; lat: number; lon: number; km: number; footprint: string };
+  earth: { name: string; sub: string | null; lat: number; lon: number; km: number; footprint: string };
+  /** What is being compared: the 50 km research window or the 25 km screening cell. */
   footprintLabel: string;
 }
 
@@ -93,15 +117,18 @@ export function compareTargets(search: AnalogSearch, c: CandidateView): CompareT
     const tg = search.tier2.target;
     const km = c.t2?.window_km ?? tg.window_km ?? 50;
     return {
-      mars: { name, lat: tg.lat, lon: tg.lon, km: tg.window_km ?? km },
-      earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km },
+      mars: { name, lat: tg.lat, lon: tg.lon, km: tg.window_km ?? km, footprint: `${tg.window_km ?? km} km research window` },
+      earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km, footprint: `${km} km research window` },
       footprintLabel: `${km} km research window`,
     };
   }
   const km = c.t1?.footprint.cell_km_ns ?? 25;
+  const cell = `${Math.round(km)} km screening cell`;
   return {
-    mars: { name, lat: t.lat, lon: t.lon, km },
-    earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km },
+    // For a research zone the Mars global-screen descriptors are the median of the zone's 25 km
+    // cells, so the square only marks the target point; it is not the area that was measured.
+    mars: { name, lat: t.lat, lon: t.lon, km, footprint: t.siteId ? `Target point, ${Math.round(km)} km square for scale · descriptors: zone median` : cell },
+    earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km, footprint: cell },
     footprintLabel: `${Math.round(km)} km screening cell`,
   };
 }
