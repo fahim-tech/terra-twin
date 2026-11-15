@@ -40,6 +40,12 @@
   --radius-control: 2px;
   --radius-surface: 2px;
 
+  /* Narrow phones (360–379 px: small Android, iPhone mini/SE in zoomed mode). `xs:` is width ≥ 380 px,
+     `max-xs:` width < 380 px. Set in rem like Tailwind's own breakpoints so it sorts with them: a
+     `max-xs:` utility wins over `max-sm:` / `max-md:` on the same property, and `sm:` / `md:` win over
+     `xs:` — no `max-[379px]:` ordering workarounds. */
+  --breakpoint-xs: 23.75rem;
+
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
