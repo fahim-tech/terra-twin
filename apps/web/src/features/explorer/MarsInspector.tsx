@@ -99,7 +99,7 @@ export function MarsInspector() {
         {outside ? <OutsideBody a={a} /> : (
           <>
             <MissionRow compact={inSheet} siteId={a?.site ?? selection.siteId} />
-            <Section n={2} title="Terrain" className={inSheet ? "py-2.5!" : undefined}>
+            <Section n={2} title="Terrain" className={inSheet ? "pb-2.5! pt-1.5!" : undefined}>
               <div aria-busy={q.isLoading}>
                 {a ? <Terrain tier1={a.tier1_features} zone={a.ez_features} flags={a.quality_flags} cellKm={scales.cellKm} />
                   : q.isLoading ? <TerrainSkeleton /> : <p className="text-caption text-faint">Not loaded.</p>}
@@ -207,30 +207,32 @@ const OUTCOME_TERM: Partial<Record<DecisionType, GlossaryKey>> = { named_leader:
 
 /**
  * The zone's published research outcome for the chosen mission (/api/research/summary), with the outcome
- * mark every view uses. It says what Find Earth Analogs will show; nothing here is computed.
+ * mark every view uses. It says what Find Earth Analogs will show; nothing here is computed. `compact` (the
+ * phone sheet) sets it tighter, so the first row of terrain figures still shows at the half detent.
  */
-function ZoneOutcome({ siteId }: { siteId: string | null }) {
+function ZoneOutcome({ siteId, compact = false }: { siteId: string | null; compact?: boolean }) {
   const { bySite, loading, gateMode } = useSiteOutcomes();
   const missions = useMissions();
   const o = siteId ? bySite[siteId] : undefined;
   const term = o ? OUTCOME_TERM[o.type] : undefined;
+  const value = o ? (
+    <span className="inline-flex min-w-0 items-baseline gap-2 text-ink">
+      <OutcomeMark kind={outcomeKind(o.type)} />
+      <span>
+        {term ? <Term k={term}>{DECISION_WORDS[o.type]}</Term> : DECISION_WORDS[o.type]}
+        {o.type === "tied_set" && <span className="text-muted"> · <span className="num">{o.members.length}</span> equivalent windows</span>}
+      </span>
+    </span>
+  ) : (
+    <span className="inline-flex items-baseline gap-2 text-faint">
+      <OutcomeMark kind="not_loaded" />
+      {loading ? "Loading…" : !gateMode && missions.data ? "None for this mission" : "Not in the research record"}
+    </span>
+  );
   return (
-    <div className="mt-2.5 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-caption">
+    <div className={cx("flex flex-wrap items-baseline gap-x-3 gap-y-1 text-caption", compact ? "mt-1" : "mt-2.5")}>
       <span className="kicker shrink-0">Research outcome</span>
-      {o ? (
-        <span className="inline-flex min-w-0 items-baseline gap-2 text-ink">
-          <OutcomeMark kind={outcomeKind(o.type)} />
-          <span>
-            {term ? <Term k={term}>{DECISION_WORDS[o.type]}</Term> : DECISION_WORDS[o.type]}
-            {o.type === "tied_set" && <span className="text-muted"> · <span className="num">{o.members.length}</span> equivalent windows</span>}
-          </span>
-        </span>
-      ) : (
-        <span className="inline-flex items-baseline gap-2 text-faint">
-          <OutcomeMark kind="not_loaded" />
-          {loading ? "Loading…" : !gateMode && missions.data ? "None for this mission" : "Not in the research record"}
-        </span>
-      )}
+      {value}
     </div>
   );
 }
@@ -241,7 +243,7 @@ function MissionRow({ compact, siteId }: { compact?: boolean; siteId: string | n
   const missions = useMissions();
   const m = missions.data?.find((x) => x.id === mission);
   return (
-    <section aria-labelledby="mars-mission-title" className={compact ? "pb-2.5 pt-1" : "pb-3.5 pt-2"}>
+    <section aria-labelledby="mars-mission-title" className={compact ? "pb-1 pt-1" : "pb-3.5 pt-2"}>
       <div className="flex items-center gap-4">
         <h3 id="mars-mission-title" className="kicker shrink-0 !text-ink/80">
           <SectionTitle n={1}><label htmlFor="mars-mission" className="cursor-pointer">Mission</label></SectionTitle>
@@ -257,8 +259,8 @@ function MissionRow({ compact, siteId }: { compact?: boolean; siteId: string | n
           <ChevronDown aria-hidden className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
         </span>
       </div>
-      <p className="mt-2 text-caption text-muted">{missionEffect(m)}</p>
-      <ZoneOutcome siteId={siteId} />
+      <p className={cx("text-caption text-muted", compact ? "mt-1.5" : "mt-2")}>{missionEffect(m)}</p>
+      <ZoneOutcome siteId={siteId} compact={compact} />
     </section>
   );
 }
