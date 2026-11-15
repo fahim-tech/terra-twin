@@ -1,12 +1,14 @@
-import { Compass, Home, Minus, Plus } from "lucide-react";
-import { useGlobeBus } from "../../app/globeBus";
-import type { Planet } from "../../globes/protocol";
+import { Home, Minus, Plus } from "lucide-react";
+import { useGlobeBus, useGlobeEvents } from "../../app/globeBus";
+import { isTilted } from "../../globes/camera";
+import { type Planet, viewName } from "../../globes/protocol";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { formatAltitude, niceScale } from "../../lib/instruments";
+import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
 import { cx } from "../ui";
 
-/** Scale bar from live camera telemetry (ground distance at the frame centre). */
+/** Scale bar from live camera telemetry (ground distance at the frame centre, along the screen horizontal). */
 export function ScaleBar({ planet, maxPx = 120, className }: { planet: Planet; maxPx?: number; className?: string }) {
   const mpp = useGlobes((s) => s.camera[planet]?.metersPerPixel ?? null);
   const s = niceScale(mpp, maxPx);
@@ -62,16 +64,38 @@ export function Reticle({ planet, className }: { planet: Planet; className?: str
 
 const ctl = "hit grid h-9 w-9 place-items-center text-muted transition-colors duration-150 hover:bg-white/[0.07] hover:text-ink active:bg-white/[0.14] active:duration-0";
 
-/** Zoom, north-up compass and reset. All have keyboard equivalents inside the globe (±, N). */
+/** North needle: filled half points north, outlined half south; turns with the camera heading. */
+function NorthNeedle({ heading }: { heading: number }) {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden className="transition-transform duration-300" style={{ transform: `rotate(${-heading}deg)` }}>
+      <path d="M8 1.5 L10.6 8 L5.4 8 Z" fill="currentColor" />
+      <path d="M5.4 8 L10.6 8 L8 14.5 Z" fill="none" stroke="currentColor" strokeWidth="1" strokeLinejoin="miter" />
+    </svg>
+  );
+}
+
+/**
+ * Zoom, north-up needle, top-down ⇄ 3D tilt and reset. All have keyboard equivalents inside the globe
+ * (±, N, T). The tilt button is a toggle: pressed while the view is tilted.
+ */
 export function NavControls({ planet, className, style }: { planet: Planet; className?: string; style?: React.CSSProperties }) {
   const bus = useGlobeBus();
   const heading = useGlobes((s) => s.camera[planet]?.headingDeg ?? 0);
+  const tilted = useGlobes((s) => isTilted(s.camera[planet]?.pitchDeg));
+  // The globe reports every switch (this button or T inside the globe); say which view it is now.
+  useGlobeEvents(planet, (m) => { if (m.t === "tilt") useApp.getState().announce(viewName(m.on)); });
   return (
     <div style={style} className={cx("surface flex flex-col overflow-hidden rounded-control", className)} role="group" aria-label="Map navigation">
       <button className={ctl} aria-label="Zoom in" title="Zoom in (+)" onClick={() => bus.send(planet, { t: "zoom", direction: "in" })}><Plus className="h-4 w-4" strokeWidth={1.6} /></button>
       <button className={cx(ctl, "border-t border-line")} aria-label="Zoom out" title="Zoom out (−)" onClick={() => bus.send(planet, { t: "zoom", direction: "out" })}><Minus className="h-4 w-4" strokeWidth={1.6} /></button>
       <button className={cx(ctl, "border-t border-line")} aria-label={`Face north (heading ${Math.round(heading)}°)`} title="Face north (N)" onClick={() => bus.send(planet, { t: "resetHeading" })}>
-        <Compass className="h-4 w-4 transition-transform duration-300" strokeWidth={1.6} style={{ transform: `rotate(${-heading - 45}deg)` }} />
+        <NorthNeedle heading={heading} />
+      </button>
+      <button className={cx(ctl, "relative border-t border-line", tilted && "text-ink")} aria-label={viewName(true)} aria-pressed={tilted}
+        title={tilted ? `${viewName(false)} (T)` : `${viewName(true)} (T)`} onClick={() => bus.send(planet, { t: "setTilt", on: !tilted })}>
+        <span aria-hidden className="num text-[11px] font-medium tracking-[0.06em]">3D</span>
+        {/* Status mark: filled while tilted, outlined while top-down. */}
+        <span aria-hidden className={cx("absolute right-[5px] top-[5px] h-[5px] w-[5px]", tilted ? "bg-ink" : "border border-faint")} />
       </button>
       <button className={cx(ctl, "border-t border-line")} aria-label="Reset view" title="Reset view" onClick={() => bus.send(planet, { t: "reset" })}><Home className="h-4 w-4" strokeWidth={1.6} /></button>
     </div>

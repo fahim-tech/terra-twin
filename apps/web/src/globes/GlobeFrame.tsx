@@ -96,15 +96,15 @@ export const GlobeFrame = forwardRef<GlobeHandle, Props>(function GlobeFrame({ p
     <div className={`relative h-full w-full ${className ?? ""}`}>
       <iframe
         ref={frame}
-        title={`${planet === "mars" ? "Mars" : "Earth"} globe. Arrow keys pan, plus and minus zoom, N faces north, Enter selects the point under the centre crosshair.`}
+        title={`${planet === "mars" ? "Mars" : "Earth"} globe. Arrow keys pan, plus and minus zoom, N faces north, T switches between the top-down and 3D views, Enter selects the point under the centre crosshair.`}
         src={`./globe.html?planet=${planet}`}
         className="absolute inset-0 h-full w-full border-0 transition-opacity duration-700"
         style={{ opacity: loaded ? 1 : 0 }}
       />
       {!loaded && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center">
-          <div className="flex items-center gap-3 text-[12px] text-muted">
-            <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${planet === "mars" ? "bg-mars" : "bg-earth"}`} />
+          <div className="kicker flex items-center gap-3 !text-muted">
+            <span className={`h-1.5 w-1.5 animate-pulse motion-reduce:animate-none ${planet === "mars" ? "bg-mars" : "bg-earth"}`} />
             Initialising {planet === "mars" ? "Mars" : "Earth"} globe
           </div>
         </div>

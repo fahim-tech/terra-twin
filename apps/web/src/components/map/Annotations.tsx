@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from "react";
 import { useGlobeBus } from "../../app/globeBus";
-import type { Planet } from "../../globes/protocol";
+import { anchorPoint, type Planet } from "../../globes/protocol";
 import { useGlobes } from "../../store/globes";
 import { cx } from "../ui";
 
@@ -22,10 +22,13 @@ export function leaderDy(clearPx = 0) {
 }
 
 const DX = 44, DY = 38;
+/** Half-size of the globe's bracketed glyph: a leader starts at the bracket corner, not over the glyph. */
+const GLYPH_HALF = 11;
 
 /**
  * HTML annotations pinned to planetary coordinates with thin leader lines. Positions come from the
- * globe frame (projected anchors), so labels follow camera motion and hide behind the limb.
+ * globe frame (projected anchors), so labels follow camera motion and hide behind the limb. When the
+ * globe draws the point as a glyph on a stem (tilted view), the leader starts from that glyph.
  */
 export function AnnotationLayer({ planet, items, className }: { planet: Planet; items: Annotation[]; className?: string }) {
   const bus = useGlobeBus();
@@ -42,16 +45,19 @@ export function AnnotationLayer({ planet, items, className }: { planet: Planet; 
       {items.map((it) => {
         const a = anchors[it.id];
         if (!a || !a.visible) return null;
+        const o = anchorPoint(a);
         const side = it.side ?? "ne";
         const sx = side.includes("e") ? 1 : -1;
         const sy = side.includes("n") ? -1 : 1;
-        const lx = a.x + sx * DX, ly = a.y + sy * leaderDy(it.clearPx);
+        const lx = o.x + sx * DX, ly = o.y + sy * leaderDy(it.clearPx);
         const stroke = it.tone === "earth" ? "var(--color-earth)" : it.tone === "neutral" ? "var(--color-ink)" : "var(--color-mars)";
+        const start = o.glyph ? GLYPH_HALF : 3.5;
         return (
           <div key={it.id}>
             <svg className="absolute left-0 top-0 overflow-visible" width="1" height="1" aria-hidden>
-              <polyline points={`${a.x},${a.y} ${a.x + sx * DX * 0.55},${ly} ${lx},${ly}`} fill="none" stroke={stroke} strokeOpacity="0.85" strokeWidth="1" />
-              <circle cx={a.x} cy={a.y} r="3.5" fill="none" stroke={stroke} strokeWidth="1.25" />
+              <polyline points={`${o.x + sx * start},${o.y + sy * start} ${o.x + sx * DX * 0.55},${ly} ${lx},${ly}`} fill="none" stroke={stroke} strokeOpacity="0.85" strokeWidth="1" />
+              {/* The globe draws its own glyph for markers; a plain point gets a small square sight. */}
+              {!o.glyph && <rect x={o.x - 3.5} y={o.y - 3.5} width="7" height="7" fill="none" stroke={stroke} strokeWidth="1.25" />}
             </svg>
             <div className="absolute" style={{ left: lx, top: ly, transform: `translate(${sx > 0 ? "6px" : "calc(-100% - 6px)"}, -50%)` }}>
               {it.content}
