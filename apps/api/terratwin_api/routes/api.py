@@ -77,8 +77,19 @@ def earth_sites():
 
 @router.get("/api/earth/region")
 def earth_region(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180)):
-    """Tier-1 descriptors of the 25 km cell nearest to any Earth coordinate."""
-    return _data_or_503(lambda: tier1.cell_record(tier1.nearest_cell(lat, lon)))
+    """Tier-1 descriptors of the 25 km cell nearest to any Earth coordinate.
+
+    `requested` and `distance_km` say how far the returned cell centre is from the asked-for point; beyond
+    about one cell the values do not describe the requested location (e.g. at sea or in a coverage gap).
+    """
+    def build():
+        row, km = tier1.nearest_cell_with_distance(lat, lon)
+        rec = tier1.cell_record(row)
+        rec["requested"] = {"lat": lat, "lon": lon}
+        rec["distance_km"] = round(km, 1)
+        rec["describes_requested_point"] = km <= 18.0
+        return rec
+    return _data_or_503(build)
 
 
 @router.post("/api/analysis/mars")

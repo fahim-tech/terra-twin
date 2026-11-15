@@ -132,13 +132,19 @@ def search(site: str, mission_id: str, offset: int = 0, limit: int = 50,
     }
 
 
-def nearest_cell(lat: float, lon: float) -> int:
+def nearest_cell_with_distance(lat: float, lon: float) -> tuple[int, float]:
+    """Great-circle nearest tier-1 cell centre (handles the antimeridian), with its distance in km."""
     e = RS.earth_screen()
-    near = e[(e.lat - lat).abs() < 0.5]
-    if near.empty:
-        near = e
-    d = (near.lat - lat) ** 2 + ((near.lon - lon) * math.cos(math.radians(lat))) ** 2
-    return int(d.idxmin())
+    p1, p2 = np.radians(lat), np.radians(e.lat.to_numpy())
+    dl = np.radians(e.lon.to_numpy() - lon)
+    a = np.sin((p2 - p1) / 2) ** 2 + np.cos(p1) * np.cos(p2) * np.sin(dl / 2) ** 2
+    d = 2 * 6371.0088 * np.arcsin(np.sqrt(np.clip(a, 0, 1)))
+    i = int(np.argmin(d))
+    return int(e.index[i]), float(d[i])
+
+
+def nearest_cell(lat: float, lon: float) -> int:
+    return nearest_cell_with_distance(lat, lon)[0]
 
 
 def score_cell(site: str, mission_id: str, row: int) -> pd.Series:

@@ -111,3 +111,13 @@ def test_ranked_pool_size_reflects_gate(client):
     report = client.post("/v1/compare", json={"site": "Jezero", "mission": "terrain_geometry_only"}).json()
     assert gated["candidate_pool"]["n_ranked"] == 50   # oom_gated_key_numbers.json n_pass
     assert report["candidate_pool"]["n_ranked"] == 230
+
+
+@requires_data
+def test_region_lookup_reports_distance_and_wraps_antimeridian(client):
+    land = client.get("/api/earth/region?lat=-24.09&lon=-69.99").json()
+    assert land["distance_km"] < 18 and land["describes_requested_point"] is True
+    sea = client.get("/api/earth/region?lat=0&lon=-140").json()        # mid-Pacific
+    assert sea["distance_km"] > 300 and sea["describes_requested_point"] is False
+    fiji = client.get("/api/earth/region?lat=-16.5&lon=179.99").json()  # across the antimeridian
+    assert fiji["distance_km"] < 120
