@@ -169,7 +169,7 @@ export function App() {
         {split && <ComparisonPanel />}
 
         {fullPage && (
-          <div className="absolute inset-0 z-20 overflow-y-auto scroll-thin">
+          <div className="absolute inset-0 z-20 overflow-y-auto scroll-thin bg-space/80">
             <Suspense fallback={<div className="p-10"><Spinner label="Loading" /></div>}>
               {stage === "evidence" ? <EvidenceView /> : <ReportView />}
             </Suspense>
@@ -199,7 +199,7 @@ function SidePanel({ side, open, onToggle, children }: { side: "left" | "right";
         className={cx(
           "panel no-print absolute z-10 flex flex-col overflow-hidden shadow-2xl shadow-black/40 transition-all duration-500 ease-[var(--ease-out-soft)]",
           // mobile: right panel becomes a bottom sheet; left panel is hidden behind its toggle
-          left ? "inset-x-2 top-2 max-h-[60%] rounded-2xl md:inset-x-auto md:bottom-3 md:left-3 md:top-3 md:max-h-none md:w-[300px]"
+          left ? "inset-x-2 top-12 max-h-[60%] rounded-2xl md:inset-x-auto md:bottom-3 md:left-3 md:top-3 md:max-h-none md:w-[300px]"
                : "inset-x-0 bottom-0 max-h-[58%] rounded-t-2xl md:inset-x-auto md:bottom-3 md:right-3 md:top-3 md:max-h-none md:w-[348px] md:rounded-2xl",
           open ? "translate-x-0 opacity-100" : cx("pointer-events-none opacity-0", left ? "-translate-y-4 md:-translate-x-6 md:translate-y-0" : "translate-y-6 md:translate-x-6 md:translate-y-0"),
           left && !open && "invisible",

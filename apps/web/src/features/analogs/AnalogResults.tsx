@@ -95,7 +95,7 @@ export function AnalogResults() {
             {t2.operator.status !== "ok" && (
               <div className="mt-3 space-y-2">
                 <Note tone="warning">No similarity score is shown: the target-specific MOLA observation operator is unavailable here, and the app does not substitute the uncorrected comparison.</Note>
-                <div className="flex flex-wrap gap-1.5">{(t2.operator as { missing_inputs?: string[] }).missing_inputs?.map((x) => <Chip key={x}>{x}</Chip>)}</div>
+                <div className="flex flex-wrap gap-1.5">{(t2.operator as { missing_inputs?: string[] }).missing_inputs?.map((x) => <Chip key={x} className="whitespace-normal text-left">{x}</Chip>)}</div>
               </div>
             )}
             {t2.landcover_gate && (

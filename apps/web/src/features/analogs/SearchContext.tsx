@@ -25,7 +25,7 @@ export function SearchContext() {
             <div className="flex items-center justify-between"><span>Mission</span><span className="text-ink">{m.label}</span></div>
             <div className="flex items-center justify-between"><span>Land-cover gate</span>
               <Chip tone={m.gate_mode === "exclude" ? "warn" : "neutral"}>{m.gate_mode === "exclude" ? "exclude before ranking" : "report only"}</Chip></div>
-            <p className="pt-1 text-[11px] leading-relaxed text-faint">Mission weights are research hypotheses ({m.tier1_weights_source}). Changing mission requires a new search.</p>
+            <p className="pt-1 text-[11px] leading-relaxed text-faint">Mission weights are research hypotheses (<span className="break-all font-mono text-[10px]">{m.tier1_weights_source}</span>). Changing mission requires a new search.</p>
           </div>
         )}
       </Section>

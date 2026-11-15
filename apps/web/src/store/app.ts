@@ -47,7 +47,7 @@ export const useApp = create<AppState>((set, get) => ({
   tier: 2,
   candidateId: null,
   representation: "mars_observation_space",
-  leftOpen: true,
+  leftOpen: typeof window === "undefined" || window.innerWidth >= 768,
   rightOpen: true,
   marsLayer: "viking_color",
   earthLayer: "blue_marble_relief",
@@ -58,5 +58,5 @@ export const useApp = create<AppState>((set, get) => ({
   set: (p) => set(p),
   go: (stage) => set({ previousStage: get().stage, stage, whyOpen: false }),
   back: () => set({ stage: get().previousStage === get().stage ? "mars" : get().previousStage }),
-  select: (selection) => set({ selection, search: null, candidateId: null }),
+  select: (selection) => set({ selection, search: null, candidateId: null, ...(window.innerWidth < 768 ? { leftOpen: false, rightOpen: true } : {}) }),
 }));

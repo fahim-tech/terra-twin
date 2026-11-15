@@ -12,7 +12,7 @@ function Logo() {
         <circle cx="12.5" cy="16" r="7.5" fill="none" stroke="#EB896A" strokeWidth="1.8" />
         <circle cx="19.5" cy="16" r="7.5" fill="none" stroke="#57BDB4" strokeWidth="1.8" />
       </svg>
-      <span className="text-[14px] font-semibold tracking-[-0.01em]">TerraTwin</span>
+      <span className="hidden text-[14px] font-semibold tracking-[-0.01em] sm:inline">TerraTwin</span>
     </div>
   );
 }
@@ -43,7 +43,7 @@ export function TopBar() {
   const apiTone = health.isError ? "bad" : health.data?.research_data ? "ok" : health.data ? "warn" : "muted";
 
   return (
-    <header className="no-print relative z-30 flex h-14 shrink-0 items-center gap-4 border-b border-line/60 bg-space/80 px-4 backdrop-blur-xl md:px-5">
+    <header className="no-print relative z-30 flex h-14 shrink-0 items-center gap-2.5 sm:gap-4 border-b border-line/60 bg-space/80 px-4 backdrop-blur-xl md:px-5">
       <Logo />
       <div className="hidden h-5 w-px bg-line md:block" />
       <div className="hidden min-w-0 items-center gap-2 text-[12.5px] text-muted md:flex">
@@ -55,7 +55,7 @@ export function TopBar() {
           <ArrowLeft className="h-3.5 w-3.5" /> Back to globe
         </button>
       ) : (
-        <nav aria-label="Workflow" className="ml-1 hidden items-center gap-0.5 rounded-lg bg-surface/80 p-0.5 ring-1 ring-line/60 sm:flex">
+        <nav aria-label="Workflow" className="ml-0 flex items-center gap-0.5 rounded-lg bg-surface/80 p-0.5 ring-1 ring-line/60 sm:ml-1">
           {STAGES.map((s) => {
             const disabled = s.id !== "mars" && !search;
             return (
@@ -63,7 +63,7 @@ export function TopBar() {
                 title={disabled ? "Select a Mars location and run Find Earth Analogs first" : undefined}
                 className={cx("rounded-md px-2.5 py-1 text-[12px] font-medium transition-colors disabled:opacity-35",
                   stage === s.id ? cx("bg-elevated", s.id === "mars" ? "text-mars" : "text-earth") : "text-muted hover:text-ink")}>
-                {s.label}
+                {s.id === "earth" ? <><span className="sm:hidden">Earth</span><span className="hidden sm:inline">{s.label}</span></> : s.label}
               </button>
             );
           })}

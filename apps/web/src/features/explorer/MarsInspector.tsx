@@ -68,7 +68,7 @@ export function MarsInspector() {
         const t2 = res.tier2.candidates[0]?.id;
         const t1 = res.tier1?.candidates[0]?.region_id;
         const first = t2 ? `t2:${t2}` : t1 ? `t1:${t1}` : null;
-        set({ search: res, candidateId: first, tier: res.tier2.candidates.length ? 2 : 1 });
+        set({ search: res, candidateId: first, tier: res.tier2.candidates.length || !res.tier1 ? 2 : 1 });
         go("earth");
       },
     });
@@ -100,7 +100,7 @@ export function MarsInspector() {
                 <div className="space-y-2.5">
                   <Note tone="warning">{a.unavailable?.reason}</Note>
                   <div className="flex flex-wrap gap-1.5">
-                    {a.unavailable?.missing_inputs.map((x) => <Chip key={x}>{x}</Chip>)}
+                    {a.unavailable?.missing_inputs.map((x) => <Chip key={x} className="whitespace-normal text-left">{x}</Chip>)}
                   </div>
                 </div>
               )}
