@@ -1,12 +1,12 @@
 import { motion } from "motion/react";
 import { cx } from "../components/ui";
 import { formatLat, formatLon } from "../lib/geodesy";
-import { useApiReachable, useDatasets, useEarthPool, useHealth, useSites } from "../services/api";
+import { useApiReachable, useDatasets, useEarthPool, useEvidence, useHealth, useResearchSummary, useSites } from "../services/api";
 import { useGisStatus } from "../services/gis";
 import { useGlobes } from "../store/globes";
 import { gisSummary } from "./gisStatus";
 import { useImageryCredit } from "./globeSources";
-import { firstInt, type Readout, readoutGroups } from "./introStats";
+import { firstInt, type Readout, readoutGroups, storyLines } from "./introStats";
 
 /** The intro light is a presentation light (globe-entry.ts setLight "intro"): say so wherever the terminator shows. */
 const LIGHT_NOTE = "Presentation light · not solar";
@@ -41,6 +41,18 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
     gridM: firstInt(ds("mars_ez_tier1")?.native_resolution, /(\d+)\s*m MOLA/),
   });
   const jezero = sites.data?.find((s) => s.id === "Jezero") ?? null;
+  const summary = useResearchSummary();
+  const evidence = useEvidence();
+  const mrr = (m: string) => {
+    const rows = (evidence.data as { synthetic_benchmark?: { mrr_ci?: { method: string; MRR: number }[] } } | undefined)?.synthetic_benchmark?.mrr_ci;
+    return rows?.find((r) => r.method === m)?.MRR ?? null;
+  };
+  const story = storyLines({
+    jezeroObserved: jezero?.observed_fraction ?? null,
+    cells: firstInt(ds("earth_global_screen")?.coverage, /([\d,]+)\s+land cells/),
+    finding: summary.data?.find((s) => s.site === "Jezero")?.exclude ?? null,
+    mrr: { baseline: mrr("M0_baseline"), oom: mrr("M2_OOM") },
+  });
   const rise = (i: number) => ({ initial: { opacity: 0, y: 10 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const, delay: 0.08 + i * 0.06 } });
 
   const reach = useApiReachable();
@@ -89,10 +101,21 @@ export function Intro({ onStart, onJezero }: { onStart: () => void; onJezero: ()
         <motion.p {...rise(2)} className="label-caps on-imagery mt-3 whitespace-nowrap tracking-[0.3em] text-muted max-sm:tracking-[0.18em] max-xs:tracking-[0.12em] landscape:md:mt-4 short:!mt-2 short:!tracking-[0.18em]">
           Mars–Earth terrain analog system
         </motion.p>
-        <motion.p {...rise(3)} className="mt-5 max-w-[470px] text-body text-muted sm:text-lead landscape:md:mt-6 short:hidden landscape:[@media(max-height:820px)]:hidden">
-          Survey candidate landing zones on Mars, measure their terrain, and screen Earth&rsquo;s land for comparable
-          ground. Research comparisons re-observe Earth the way NASA&rsquo;s MOLA altimeter saw Mars.
-        </motion.p>
+        {/* Problem → method → finding, every figure read from the API. */}
+        <motion.dl {...rise(3)} aria-label="What TerraTwin does" className="mt-5 max-w-[540px] space-y-2 landscape:md:mt-6 short:hidden">
+          {([["Problem", story.problem], ["Method", story.method], ["Finding", story.finding]] as const).map(([k, v]) => v && (
+            <div key={k} className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-3">
+              <dt className={cx("kicker pt-[3px] text-[10px]", k === "Finding" ? "text-mars" : "text-faint")}>{k}</dt>
+              <dd className={cx("text-caption leading-[1.5]", k === "Finding" ? "text-ink" : "text-muted")}>
+                {v}
+                {k === "Finding" && jezero && (
+                  <button type="button" onClick={onJezero} className="ml-1.5 underline decoration-faint/60 underline-offset-[3px] hover:text-mars">Open it →</button>
+                )}
+              </dd>
+            </div>
+          ))}
+          <p className="pl-[84px] text-caption text-faint">{story.caveat}</p>
+        </motion.dl>
 
         {/* Short landscape: commands come first, in the first screen. */}
         <motion.div {...rise(4)} className="hidden short:mt-4 short:block">

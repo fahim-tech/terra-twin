@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { firstInt, readoutGroups } from "./introStats";
+import { firstInt, readoutGroups, storyLines } from "./introStats";
 
 describe("intro figures", () => {
   it("reads the first integer from a dataset text, and nothing when it is absent", () => {
@@ -30,5 +30,23 @@ describe("intro figures", () => {
       expect(r.label.length).toBeLessThanOrEqual(16);
       expect(r.term.length).toBeGreaterThan(r.label.length);
     }
+  });
+});
+
+describe("storyLines", () => {
+  const base = { jezeroObserved: 0.3132, cells: 249165, finding: { type: "named_leader", members: ["Atacama Yungay"], leader_S: 0.614 }, mrr: { baseline: 0.2997, oom: 0.9726 } };
+  it("states problem, method and the verified Jezero finding from API figures", () => {
+    const s = storyLines(base);
+    expect(s.problem).toContain("69 % at Jezero");
+    expect(s.method).toContain("all 249,165 Earth land cell");
+    expect(s.finding).toBe("Jezero (landing site): Atacama Yungay, S 0.614, stable under all four orientations — research record over the fixed 230-window pool.");
+    expect(s.caveat).toBe("Method benefit is shown on synthetic twins only (twin recovery MRR 0.30 → 0.97); real rankings are not field-validated.");
+  });
+  it("leaves out what the API has not given and never invents a finding", () => {
+    const s = storyLines({ jezeroObserved: null, cells: null, finding: null, mrr: { baseline: null, oom: null } });
+    expect(s.problem).not.toContain("%");
+    expect(s.method).toContain("every Earth land cell");
+    expect(s.finding).toBeNull();
+    expect(storyLines({ ...base, finding: { type: "tied_set", members: ["a", "b"], leader_S: 0.7 } }).finding).toContain("a tie of 2 windows");
   });
 });
