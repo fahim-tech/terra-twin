@@ -398,7 +398,8 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
 
   return (
     <div ref={host} className="absolute inset-0">
-      <canvas ref={canvas} tabIndex={0} role="img" aria-label={label} aria-describedby={hint}
+      {/* "application": a screen reader passes the arrow keys through to the view instead of reading on. */}
+      <canvas ref={canvas} tabIndex={0} role="application" aria-roledescription="3D relief" aria-label={label} aria-describedby={hint}
         className="peer absolute inset-0 h-full w-full cursor-grab touch-none select-none focus-visible:outline-offset-[-3px]!"
         onPointerDown={(e) => {
           if (e.pointerType === "mouse" && e.button !== 0) return;
