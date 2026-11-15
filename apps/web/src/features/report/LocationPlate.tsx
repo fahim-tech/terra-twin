@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { useGlobeBus } from "../../app/globeBus";
 import { cx } from "../../components/ui";
@@ -5,6 +6,7 @@ import type { Planet } from "../../globes/protocol";
 import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
 import { fmtLat, fmtLon } from "./model";
+import { withCleanGlobe } from "./plateCapture";
 
 /** Plates are rendered top-down from this altitude (spec §12/§17). */
 export const PLATE_HEIGHT_KM = 420;
@@ -25,6 +27,7 @@ const cache = new Map<string, Promise<Shot | null>>();
  */
 export function useSnapshot(planet: Planet, lat: number, lon: number): State {
   const bus = useGlobeBus();
+  const qc = useQueryClient();
   const ready = useGlobes((s) => s.ready[planet]);
   const [state, setState] = useState<State>({ status: "loading" });
   const key = `${planet}:${lat.toFixed(5)}:${lon.toFixed(5)}:${PLATE_HEIGHT_KM}`;
@@ -42,7 +45,7 @@ export function useSnapshot(planet: Planet, lat: number, lon: number): State {
       p = h
         ? waitForStillCamera(planet)
           // A camera that never settles means the capture could show another place: no imagery rather than wrong imagery.
-          .then((ok) => (ok ? withoutDataOverlays(planet, () => h.snapshot(lat, lon, PLATE_HEIGHT_KM, PLATE_MAX_WIDTH)) : null))
+          .then((ok) => (ok ? withCleanGlobe(bus, qc, planet, () => h.snapshot(lat, lon, PLATE_HEIGHT_KM, PLATE_MAX_WIDTH)) : null))
           .catch(() => null)
         : Promise.resolve(null);
       cache.set(key, p);
@@ -55,7 +58,7 @@ export function useSnapshot(planet: Planet, lat: number, lon: number): State {
       useApp.getState().announce(r ? `${name} location plate ready` : `${name} imagery unavailable; the plate shows coordinates only`);
     });
     return () => { live = false; };
-  }, [bus, planet, lat, lon, ready, key]);
+  }, [bus, qc, planet, lat, lon, ready, key]);
 
   return state;
 }
@@ -78,34 +81,6 @@ function waitForStillCamera(planet: Planet, timeoutMs = 8000): Promise<boolean> 
     };
     tick();
   });
-}
-
-/**
- * The plate is captioned as NASA imagery, so the Earth globe's data layers (similarity field, coverage
- * raster, research-pool dots) must not be baked into it. The globe owns those layers through the app
- * store, so hide them for the capture and restore the viewer's choice afterwards. Messages to a globe
- * are delivered in order, so the removal reaches the globe before the snapshot request.
- */
-let overlayHolds = 0;
-let savedOverlays: ReturnType<typeof useApp.getState>["earthOverlays"] | null = null;
-async function withoutDataOverlays<T>(planet: Planet, run: () => Promise<T>): Promise<T> {
-  if (planet !== "earth") return run();
-  const app = useApp.getState();
-  if (overlayHolds++ === 0) {
-    savedOverlays = app.earthOverlays;
-    app.set({ earthOverlays: { similarity: false, coverage: false, pool: false } });
-  }
-  try {
-    await new Promise((r) => setTimeout(r, 120)); // let the globe sync effects post their removals
-    return await run();
-  } finally {
-    if (--overlayHolds === 0 && savedOverlays) {
-      const now = useApp.getState().earthOverlays;
-      // Restore only if nobody changed the layers meanwhile.
-      if (!now.similarity && !now.coverage && !now.pool) useApp.getState().set({ earthOverlays: savedOverlays });
-      savedOverlays = null;
-    }
-  }
 }
 
 export interface PlateFrame {
