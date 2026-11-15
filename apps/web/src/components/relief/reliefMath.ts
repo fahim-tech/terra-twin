@@ -192,6 +192,9 @@ export function corners(hx: number, hz: number): [number, number][] {
 
 const TICK = 0.016;
 
+/** North arrow on the block's top plane: from `base` to `tip` beyond the north edge (world units), with its head. */
+export const NORTH_ARROW = { base: 0.03, tip: 0.11, head: 0.026, halfWidth: 0.016 } as const;
+
 /**
  * Heightfield mesh over the full window. Vertices sit at cell centres, plus a ring at the window edge
  * that repeats the edge cell's value (a cell is an area aggregate, so its value holds out to its own
@@ -340,10 +343,10 @@ export function buildLines(m: Model): LineSet {
   // North arrow on the box's top plane, out from the north edge (row 0 is north, asserted by the
   // contract). It sits at the highest elevation, so the terrain never hides it.
   s = mark();
-  const z0 = -hz - 0.03, z1 = -hz - 0.11;
+  const z0 = -hz - NORTH_ARROW.base, z1 = -hz - NORTH_ARROW.tip;
   seg(0, zMax, z0, 0, zMax, z1);
-  seg(0, zMax, z1, -0.016, zMax, z1 + 0.026);
-  seg(0, zMax, z1, 0.016, zMax, z1 + 0.026);
+  seg(0, zMax, z1, -NORTH_ARROW.halfWidth, zMax, z1 + NORTH_ARROW.head);
+  seg(0, zMax, z1, NORTH_ARROW.halfWidth, zMax, z1 + NORTH_ARROW.head);
   const north: [number, number] = [s, mark() - s];
 
   const elevRanges: [number, number][] = [];
@@ -672,7 +675,7 @@ export function labelAnchors(m: Model): Anchor[] {
       out.push({ key: `el-${ci}-${i}`, text: i === a.length - 1 ? `${fmtNum(e)} m` : fmtNum(e), p: [x + ox, e, z + oz], kind: "elev" });
     });
   });
-  out.push({ key: "north", text: "N", p: [0, m.zMax, -hz - 0.15], kind: "north" });
+  out.push({ key: "north", text: "N", p: [0, m.zMax, -hz - NORTH_ARROW.tip], kind: "north" });
   return out;
 }
 
@@ -720,19 +723,62 @@ export interface PlacedLabel {
 /** Labels keep this far (CSS px) inside the view. */
 const LABEL_INSET = 4;
 
+export interface Rect { left: number; right: number; top: number; bottom: number }
+
+/** Screen box of a placed label (CSS px), from its approximate size and alignment. */
+export function labelRect(l: PlacedLabel): Rect {
+  const { w, h } = labelBox(l.kind, l.text);
+  const left = l.align === "left" ? l.x : l.align === "right" ? l.x - w : l.x - w / 2;
+  return { left, right: left + w, top: l.y - h / 2, bottom: l.y + h / 2 };
+}
+
+export function rectsOverlap(a: Rect, b: Rect): boolean {
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+}
+
+/**
+ * The "N" of the north arrow: just beyond the arrow's tip, along the arrow as it appears on screen (above the
+ * tip when the arrow is seen end-on), so it never sits on the arrow. It steps further out to clear the scale
+ * labels; where only an intermediate km tick (no unit, not the origin) is in the way, that tick gives way. If
+ * no spot is clear (or the tip is off screen) the letter is left out; the arrow and the compass still show north.
+ */
+function placeNorth(m: Model, a: Anchor, cam: Camera, width: number, height: number, others: PlacedLabel[]): { label: PlacedLabel; drop: string[] } | null {
+  const top = worldY(m, m.zMax, cam.ys);
+  const tip = project(cam.viewProj, [0, top, -m.hz - NORTH_ARROW.tip], width, height);
+  const base = project(cam.viewProj, [0, top, -m.hz - NORTH_ARROW.base], width, height);
+  if (!tip.visible || !base.visible) return null;
+  const len = Math.hypot(tip.x - base.x, tip.y - base.y);
+  const [dx, dy] = len > 3 ? [(tip.x - base.x) / len, (tip.y - base.y) / len] : [0, -1];
+  const box = labelBox("north", a.text);
+  const reach = (Math.abs(dx) * box.w) / 2 + (Math.abs(dy) * box.h) / 2 + 3; // tip to the letter's centre
+  const minor = (l: PlacedLabel) => l.kind === "km" && l.text !== "0" && !l.text.includes("km");
+  for (const strict of [true, false]) {
+    for (let k = 0; k < 4; k++) {
+      const x = tip.x + dx * (reach + 5 * k), y = tip.y + dy * (reach + 5 * k);
+      const r = { left: x - box.w / 2, right: x + box.w / 2, top: y - box.h / 2, bottom: y + box.h / 2 };
+      if (r.left < LABEL_INSET || r.right > width - LABEL_INSET || r.top < LABEL_INSET || r.bottom > height - LABEL_INSET) continue;
+      const hits = others.filter((l) => rectsOverlap(labelRect(l), r));
+      if (hits.length && (strict || !hits.every(minor))) continue;
+      return { label: { key: a.key, text: a.text, kind: "north", x, y, align: "center" }, drop: hits.map((l) => l.key) };
+    }
+  }
+  return null;
+}
+
 /**
  * Screen positions of the scale labels for one frame. Labels whose anchor is behind the camera or outside
  * the view are dropped, and a label near the border is nudged inside it; a scale too foreshortened to read
  * keeps only its ends (the unit sits on the last label), and the elevation scale keeps two heights whenever
  * they fit; elevation labels sit on the outer side of their corner. Seen from the north, both km scales
  * end on the near corner with different values, so those two labels run apart along their own edges.
+ * The north letter is placed last, clear of its arrow and of the scales (`placeNorth`).
  */
 export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: number, height: number): PlacedLabel[] {
   const place = axisPlacement(cam);
   const centre = project(cam.viewProj, cam.target, width, height);
   const groups = new Map<string, { a: Anchor; x: number; y: number }[]>();
   for (const a of anchors) {
-    if (!anchorShown(a, place)) continue;
+    if (a.kind === "north" || !anchorShown(a, place)) continue;
     const s = project(cam.viewProj, [a.p[0], worldY(m, a.p[1], cam.ys), a.p[2]], width, height);
     if (!s.visible || s.x < 0 || s.x > width || s.y < 0 || s.y > height) continue;
     const g = a.kind === "km" ? a.key.split("-")[1] : a.kind;
@@ -756,7 +802,7 @@ export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: nu
     for (let i = 1; i < list.length; i++) {
       gap = Math.min(gap, g === "elev" ? Math.abs(list[i].y - list[i - 1].y) : Math.hypot(list[i].x - list[i - 1].x, list[i].y - list[i - 1].y));
     }
-    const need = g === "elev" ? 15 : g === "north" ? 0 : 34;
+    const need = g === "elev" ? 15 : 34;
     const endsFit = gap * (list.length - 1) >= (g === "elev" ? need : need * 2);
     list.forEach((it, i) => {
       const ends = i === list.length - 1 || (i === 0 && endsFit);
@@ -770,7 +816,10 @@ export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: nu
       out.push({ key: it.a.key, text: it.a.text, kind: it.a.kind, x: it.x + dx, y, align });
     });
   }
-  return out;
+  const north = anchors.find((a) => a.kind === "north");
+  const n = north ? placeNorth(m, north, cam, width, height, out) : null;
+  if (!n) return out;
+  return [...out.filter((l) => !n.drop.includes(l.key)), n.label];
 }
 
 // ---------------------------------------------------------------- shading shared by WebGL and 2D

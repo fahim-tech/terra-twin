@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   anchorShown, ariaSummary, axisPlacement, baseElevation, boxEdges, buildModel, camera, contourInterval, contourSegments, gradients, gridStats,
-  fitDistance, fmtHeading, fmtPitch, hillshade, homePose, labelAnchors, labelBox, layoutLabels, meshElevation, niceStep, niceTicks, pickCell, project, representationNote, sunVector, TINT,
+  fitDistance, fmtHeading, fmtPitch, hillshade, homePose, labelAnchors, labelBox, layoutLabels, meshElevation, niceStep, niceTicks, NORTH_ARROW, pickCell, project, representationNote, sunVector, TINT,
   toGrid, worldY, type Grid,
 } from "./reliefMath";
 
@@ -313,6 +313,35 @@ describe("scale labels from every side", () => {
     expect(n.key).toBe("km-e-5");
     expect(new Set([e.align, n.align])).toEqual(new Set(["left", "right"]));
     expect(placed.some((l) => l.key === "km-e-0")).toBe(true); // the east scale's "0" sits at its far (south) end
+  });
+
+  it("sets the north letter beyond its arrow and clear of every other label, from every side and tilt", () => {
+    let shown = 0, total = 0;
+    for (const [w, h] of [[880, 460], [340, 252], [690, 300]]) {
+      for (const elDeg of [8, 20, 30, 45, 60, 88]) {
+        for (let az = 0; az < 360; az += 15) {
+          const c = camera(real, { ...homePose(4), az: (az * Math.PI) / 180, el: (elDeg * Math.PI) / 180 }, w, h);
+          const placed = layoutLabels(real, anchors, c, w, h);
+          const n = placed.find((l) => l.kind === "north");
+          total++;
+          if (!n) continue;
+          shown++;
+          const nb = box(n);
+          for (const l of placed) if (l !== n) expect(overlap(nb, box(l))).toBe(false);
+          const top = worldY(real, real.zMax, c.ys);
+          for (const z of [NORTH_ARROW.base, NORTH_ARROW.tip]) {
+            const p = project(c.viewProj, [0, top, -real.hz - z], w, h);
+            expect(p.x > nb.left && p.x < nb.right && p.y > nb.top && p.y < nb.bottom).toBe(false); // never on its arrow
+          }
+        }
+      }
+    }
+    expect(shown / total).toBeGreaterThan(0.95);
+    // The home view and the plan view always name north.
+    for (const el of [30, 88]) {
+      const c = camera(real, { ...homePose(4), el: (el * Math.PI) / 180 }, 340, 252);
+      expect(layoutLabels(real, anchors, c, 340, 252).some((l) => l.kind === "north")).toBe(true);
+    }
   });
 
   it("writes a single 0 where the scales meet at the south-west corner", () => {
