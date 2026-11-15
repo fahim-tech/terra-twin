@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { Disclosure, Measure, Term } from "../../components/primitives";
 import { Button, cx } from "../../components/ui";
+import { figureDigits, legendNumber, pointSurface, pointTerrain, unitSuffix } from "../../components/datalayers/model";
+import { type ContextPoint, type GridInfo, type GridPoint, useContextPoint, useGridInfo, useGridPoint } from "../../services/gis";
 import { useApp } from "../../store/app";
 import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, Tier1Candidate } from "../../types/contracts";
@@ -38,6 +40,9 @@ export function EarthLookup({ search }: { search: AnalogSearch }) {
   const [q, setQ] = useState<{ lat: number; lon: number } | null>(null);
   const candidateId = useApp((s) => s.candidateId);
 
+  const grid = useGridPoint("earth", q);
+  const context = useContextPoint("earth", q);
+  const gridInfo = useGridInfo("earth", !!q);
   const r = useQuery({
     queryKey: ["earthLookup", q, site, target.mission, !!t1],
     enabled: !!q,
@@ -61,6 +66,12 @@ export function EarthLookup({ search }: { search: AnalogSearch }) {
     }
     if (r.isError) useApp.getState().announce(`Lookup failed: ${(r.error as Error).message}`, true);
   }, [r.data, r.isError, r.error]);
+
+  useEffect(() => {
+    if (!grid.data) return;
+    const s = pointSurface(grid.data.values, grid.data.surface_class_label, gridInfo.data);
+    useApp.getState().announce(`1 km grid at the point: ${s.label ?? "surface class not stated"}.`);
+  }, [grid.data, gridInfo.data]);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -154,6 +165,132 @@ export function EarthLookup({ search }: { search: AnalogSearch }) {
           )}
         </div>
       )}
+      {q && <GridAtPoint q={grid} info={gridInfo.data} />}
+      {q && <ContextAtPoint q={context} />}
     </Disclosure>
+  );
+}
+
+const fig = (v: number, unit: string) => legendNumber(v, figureDigits(unit, v));
+
+/** Status line for a GIS query: loading, or why it failed (a 503 says the grid is not connected on this server). */
+function QueryState({ q, what }: { q: { isPending: boolean; isError: boolean; error: unknown }; what: string }) {
+  if (q.isError) {
+    return <p className="flex items-baseline gap-2 px-3 py-2.5 text-caption text-ink"><StatusMark state="struck" className="translate-y-[-1px]" />{what} not available: {(q.error as Error).message}</p>;
+  }
+  return q.isPending ? <p className="px-3 py-2.5 text-caption text-muted">Reading the {what.toLowerCase()}…</p> : null;
+}
+
+/**
+ * The ~1 km grid cell under the typed point (/api/gis/grid/earth/point): its surface class, then (land only)
+ * the terrain descriptors with their units, the land shares and the flags the grid set. An ocean cell shows its
+ * class, never the elevation of 0 the grid stores for it.
+ */
+function GridAtPoint({ q, info }: { q: ReturnType<typeof useGridPoint>; info: GridInfo | undefined }) {
+  const d: GridPoint | undefined = q.data;
+  const surface = d ? pointSurface(d.values, d.surface_class_label, info) : null;
+  const terrain = d && surface?.land ? pointTerrain(d.values, d.units, info) : [];
+  const share = (k: string) => (d && typeof d.values[k] === "number" ? (d.values[k] as number) : null);
+  const flagText = (f: string) => {
+    const bit = Number(f);
+    return Number.isFinite(bit) && info?.flags?.[String(bit)] ? info.flags[String(bit)] : f;
+  };
+  const footprints = (d as { footprints?: { local?: string; window?: string } } | undefined)?.footprints;
+  return (
+    <section aria-label="1 km grid at this point" className="mt-3 border border-line-strong">
+      <div className="flex items-baseline justify-between gap-3 bg-white/[0.035] px-3 py-2">
+        <span className="kicker !text-ink/85">1 km grid at this point</span>
+        {d && <span className="num text-num-sm text-ink">{coord(d.cell.lat, d.cell.lon, 3)}</span>}
+      </div>
+      <QueryState q={q} what="1 km grid" />
+      {d && surface && (
+        <>
+          <Readouts className="border-b-0" label="Grid cell">
+            <Readout className="px-3" label="Surface">
+              <span className="text-ink">{surface.label ?? "—"}</span>
+              {!surface.land && surface.label && <span className="text-muted"> · no land terrain value at this cell</span>}
+            </Readout>
+            <Readout className="px-3" label="Land share">
+              <Measure value={share("land_frac_pct")} unit="%" digits={0} className="text-ink" /> <span className="text-muted">of the cell</span>
+              {share("window_valid_pct") !== null && <span className="text-muted"> · <Measure value={share("window_valid_pct")} unit="%" digits={0} className="text-ink" /> valid land in the 25 km window</span>}
+            </Readout>
+          </Readouts>
+          {terrain.length > 0 && (
+            <dl aria-label="Grid terrain descriptors" className="grid grid-cols-2 border-t border-line">
+              {terrain.map((t, i) => (
+                <div key={t.key} className={cx("min-w-0 px-3 py-2", i % 2 === 1 && "border-l border-line", i >= 2 && "border-t border-line")}>
+                  <dt className={cx(CAPS, "truncate")} title={t.units ? `${t.label} · ${t.units}` : t.label}>{t.label}</dt>
+                  <dd className="num mt-1 text-num text-ink">{t.value === null ? "—" : <>{fig(t.value, t.unit)}{t.unit && <span className="text-num-sm text-muted"> {t.unit}</span>}</>}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          <div className="space-y-1.5 border-t border-line px-3 py-2.5">
+            {d.flags_set.length > 0
+              ? d.flags_set.map((f) => <p key={f} className="flex items-baseline gap-2 text-caption text-ink"><StatusMark state="caution" className="translate-y-[-1px]" />{flagText(f)}</p>)
+              : <p className="text-caption text-faint">No cell flags set.</p>}
+            {footprints?.local && <p className="text-caption text-faint">Cell: {footprints.local}{footprints.window && <> · window descriptors: {footprints.window}</>}.</p>}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+const CONTEXT_LABEL: Record<string, string> = {
+  aridity_index: "Aridity index",
+  koppen_geiger_1991_2020: "Köppen–Geiger class, 1991–2020",
+  permafrost_probability: "Permafrost probability",
+};
+const contextLabel = (k: string) => CONTEXT_LABEL[k] ?? k.replace(/_/g, " ");
+
+/**
+ * Climate context at the typed point (/api/gis/context/earth/point). Context only: never a similarity feature,
+ * weight or confidence. Each value with its units, or the payload's reason it is missing; native resolution and
+ * comparability on demand.
+ */
+function ContextAtPoint({ q }: { q: ReturnType<typeof useContextPoint> }) {
+  const d: ContextPoint | undefined = q.data;
+  return (
+    <section aria-label="Context, not used in similarity" className="mt-3 border border-line-strong">
+      <div className="flex items-baseline justify-between gap-3 bg-white/[0.035] px-3 py-2">
+        <span className="kicker !text-ink/85">Context · not used in similarity</span>
+      </div>
+      <QueryState q={q} what="Context" />
+      {d && (
+        <>
+          <Readouts className="border-b-0" label="Context layers">
+            {Object.entries(d.layers).map(([k, l]) => {
+              const desc = (l as { class_description?: string | null }).class_description;
+              const unit = unitSuffix(l.units);
+              return (
+                <Readout key={k} className="px-3" label={contextLabel(k)}>
+                  {l.value === null || l.value === undefined
+                    ? <span className="text-muted">— · {l.missing_reason ?? "no value"}</span>
+                    : typeof l.value === "number"
+                      ? <><span className="num text-ink">{fig(l.value, unit)}</span><span className="text-muted"> {l.units}</span></>
+                      : <><span className="num text-ink">{l.value}</span>{desc && <span className="text-muted"> · {desc}</span>}</>}
+                  <span className="text-faint"> · {l.feature_state}</span>
+                </Readout>
+              );
+            })}
+          </Readouts>
+          <div className="border-t border-line px-3 py-2.5">
+            {(d.rules ?? []).map((r) => <p key={r} className="text-caption text-faint">{r.charAt(0).toUpperCase() + r.slice(1)}.</p>)}
+            <Disclosure summary="Resolution and comparability" className="mt-1.5">
+              <dl className="space-y-2 text-caption">
+                {Object.entries(d.layers).map(([k, l]) => (
+                  <div key={k}>
+                    <dt className="text-ink/85">{contextLabel(k)}</dt>
+                    <dd className="text-muted">Native resolution: <span className="text-ink/85">{l.native_resolution ?? "not stated"}</span></dd>
+                    {l.comparability && <dd className="text-muted">{l.comparability}</dd>}
+                  </div>
+                ))}
+              </dl>
+            </Disclosure>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
