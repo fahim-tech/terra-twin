@@ -7,7 +7,7 @@ import type { OutcomeKind } from "../../components/marks";
 import { decisionG5Label, GLOSSARY, zoneName } from "../../lib/glossary";
 import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch } from "../../types/contracts";
-import { type CandidateView, screenCellKm } from "../analogs/candidates";
+import { type CandidateView, measuresOf, screenCellKm, T2_MEASURES } from "../analogs/candidates";
 import { tiedWindows, tiedWindowsListed } from "../analogs/readout";
 
 export type VerdictKind = "leader" | "tie_member" | "not_member" | "screening" | "no_convincing" | "insufficient";
@@ -73,7 +73,7 @@ export function measuresLabel(c: CandidateView): string | null {
     return used !== undefined && c.coverage !== null ? `${used}/${Math.round(used / Math.max(c.coverage, 1e-9))} measures` : null;
   }
   if (c.coverage === null) return null;
-  return `${Math.round(c.coverage * 8)}/8 measures`;
+  return `${measuresOf(c.coverage, T2_MEASURES)}/${T2_MEASURES} measures`;
 }
 
 /** The basis line printed under every score. The cell size is the record's; without it the clause is omitted. */

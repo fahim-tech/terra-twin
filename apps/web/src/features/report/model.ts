@@ -9,7 +9,7 @@ import { decisionG5Label, G5 } from "../../lib/glossary";
 import { clock, marsTime } from "../../lib/instruments";
 import { searchTarget, type SearchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, MissionProfile, Tier1Candidate, Tier2Candidate } from "../../types/contracts";
-import { memberOrder, researchWindowKm, screenCellKm } from "../analogs/candidates";
+import { memberOrder, researchWindowKm, screenCellKm, T2_MEASURES } from "../analogs/candidates";
 import { tiedWindowsListed } from "../analogs/readout";
 import { interpret, PLANETARY_DIFFERENCES, TIER1_SPECS } from "../comparison/science";
 import { indexLabel } from "./typeset";
@@ -49,7 +49,8 @@ export function fmtLat(lat: number, d = 2) { return formatLat(lat, d); }
 export function fmtLon(lon: number, d = 2) { return formatLon(lon, d); }
 export function fmtCoord(lat: number, lon: number, d = 2) { return `${formatLat(lat, d)} ${formatLon(lon, d)}`; }
 
-const T2_DESCRIPTORS = 8;
+/** Descriptor counts: the research method's own (shared with the Earth readouts) and the screen's spec table. */
+const T2_DESCRIPTORS = T2_MEASURES;
 const T1_DESCRIPTORS = Object.keys(TIER1_SPECS).length;
 
 export function resolveCandidate(search: AnalogSearch | null, candidateId: string | null): ReportCandidate | null {
@@ -169,7 +170,7 @@ export function dimensions(c: ReportCandidate, cellKm: number | null = null): { 
   // Percentages as every view prints them ("100%"); a missing fraction is said, never 0.
   const pc = (v: number | null | undefined) => (v === null || v === undefined ? "—" : `${Math.round(v * 100)}%`);
   return [
-    { name: "Terrain and geomorphology", status: "evaluated", detail: c.tier === 2 ? `8 multiscale terrain descriptors, compared with Earth as MOLA would observe it${c.t2 ? ` (${c.t2.window_km} km window)` : ""}.` : `7 global-screen terrain descriptors on ${cellKm !== null ? `${cellKm} km ` : ""}screening cells, Earth as measured.` },
+    { name: "Terrain and geomorphology", status: "evaluated", detail: c.tier === 2 ? `${T2_DESCRIPTORS} multiscale terrain descriptors, compared with Earth as MOLA would observe it${c.t2 ? ` (${c.t2.window_km} km window)` : ""}.` : `${T1_DESCRIPTORS} global-screen terrain descriptors on ${cellKm !== null ? `${cellKm} km ` : ""}screening cells, Earth as measured.` },
     { name: "Engineering and operations", status: lc?.available ? "partial" : "not_evaluated", detail: lc?.available ? `Exposed-ground check only: ${pc(lc.frac_bare_like)} bare-like, ${pc(lc.frac_vegetated)} vegetated (ESA WorldCover 2021). Trafficability, access and permits not assessed.` : "No surface-cover or access data for this candidate." },
     { name: "Geological materials", status: "not_evaluated", detail: "No lithology or mineralogy dataset is connected for either planet." },
     { name: "Surface processes", status: "not_evaluated", detail: "Process relationships need geological evidence; terrain geometry alone cannot establish them." },

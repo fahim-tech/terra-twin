@@ -7,7 +7,7 @@ import { cx, pct } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { G5 } from "../../lib/glossary";
 import type { AnalogSearch } from "../../types/contracts";
-import { type CandidateView, researchWindowKm, screenCellKm } from "../analogs/candidates";
+import { type CandidateView, researchWindowKm, screenCellKm, T1_MEASURES, T2_MEASURES } from "../analogs/candidates";
 import { CompareTerm as Term } from "./CompareTerm";
 import { useCompareStage, WHY_DRAWER_WIDTH_CSS, whyDrawerWidth } from "./layout";
 import { NO_RING, PlanetLabel, SectionRule } from "./marks";
@@ -107,16 +107,17 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
         <Section index={next()} title="What produced S" basis={c.tier === 2 ? "research descriptors" : "global-screen descriptors"}>
           {c.tier === 2 ? (
             <>
+              {/* Counts as figures, as every view prints them ("8 measures"), each kept with its word. */}
               <p className="text-label font-normal leading-relaxed text-ink">
-                S comes from eight research descriptors on the {winKm !== null ? `${winKm}\u00a0km ` : ""}research windows, and their values are not loaded here. The two lists
-                below are global-screen context (seven descriptors{cellKm !== null ? `, ${cellKm}\u00a0km cells` : ""}, Earth as measured), not what produced S.
+                S comes from {T2_MEASURES}{"\u00a0"}research descriptors on the {winKm !== null ? `${winKm}\u00a0km ` : ""}research windows, and their values are not loaded here. The two lists
+                below are global-screen context ({T1_MEASURES}{"\u00a0"}descriptors{cellKm !== null ? `, ${cellKm}\u00a0km cells` : ""}, Earth as measured), not what produced S.
               </p>
               <dl className="mt-2.5 text-caption">
                 <Pair term="Not loaded"><span className="text-muted">{reasons.mars} {c.t2 && search.tier2.representation === "mars_observation_space" ? reasons.earthOom : ""}</span></Pair>
               </dl>
             </>
           ) : (
-            <p className="text-label font-normal leading-relaxed text-ink">These seven global-screen descriptors are the ones the screening score above was computed from.</p>
+            <p className="text-label font-normal leading-relaxed text-ink">These {T1_MEASURES}{" "}global-screen descriptors are the ones the screening score above was computed from.</p>
           )}
         </Section>
 

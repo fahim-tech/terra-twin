@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { G5 } from "../../lib/glossary";
 import { clock, marsTime } from "../../lib/instruments";
 import type { AnalogSearch } from "../../types/contracts";
+import { candidateList, T1_MEASURES, T2_MEASURES } from "../analogs/candidates";
+import { DIMENSIONS } from "../comparison/RelevanceMode";
 import {
-  buildCsv, buildReportJson, candidateRole, CSV_COLUMNS, decisionHeadline, decisionLabel, decisionMemberRows, decisionMembers, dossierSections,
+  buildCsv, buildReportJson, candidateRole, CSV_COLUMNS, decisionHeadline, decisionLabel, decisionMemberRows, decisionMembers, dimensions, dossierSections,
   footprintRobustness, generatedStamp, limitations, provenanceSummary, resolveCandidate, terrainRows,
 } from "./model";
 
@@ -202,5 +204,22 @@ describe("dossier layout", () => {
     const q = provenanceSummary(off);
     expect(q.find((l) => l.body === "mars")!.items).toEqual(["No Mars measurement for this target"]);
     expect(q.find((l) => l.body === "earth")!.items).toEqual(["No Earth comparison ran"]);
+  });
+
+  it("names the dimensions of analogy as the comparison does, counting descriptors as figures", () => {
+    const s = makeSearch("named_leader");
+    const landcover = { available: true, frac_bare_like: 1, frac_vegetated: 0 };
+    (s.tier2.candidates[0] as { landcover?: unknown }).landcover = landcover;
+    const c = resolveCandidate(s, "t2:Atacama Yungay")!;
+    const view = candidateList(s).find((x) => x.id === "t2:Atacama Yungay")!;
+    const dossier = dimensions(c);
+    const strip = DIMENSIONS(view);
+    expect(dossier.map((d) => [d.name, d.status])).toEqual(strip.map((d) => [d.name, d.status]));
+    expect(dossier[0].detail.startsWith(`${T2_MEASURES} multiscale terrain descriptors`)).toBe(true);
+    expect(strip[0].detail.startsWith(`${T2_MEASURES} multiscale terrain descriptors`)).toBe(true);
+    // Percentages as every view prints them.
+    expect(dossier[1].detail).toBe(strip[1].detail);
+    const cell = resolveCandidate(s, "t1:gmted25k:207754")!;
+    expect(dimensions(cell, 25)[0].detail.startsWith(`${T1_MEASURES} global-screen terrain descriptors on 25 km`)).toBe(true);
   });
 });
