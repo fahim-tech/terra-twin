@@ -39,7 +39,7 @@ const TIN_EDGES = (() => {
 })();
 
 const hair = { vectorEffect: "non-scaling-stroke" as const, strokeWidth: 1 };
-const label = { className: "fill-faint font-mono", fontSize: 7.6, style: { letterSpacing: "0.04em" } };
+const label = { className: "fill-faint font-mono", fontSize: 8, style: { letterSpacing: "0.03em" } };
 
 function Plate({ view, children }: { view: string; children: ReactNode }) {
   return (
@@ -321,7 +321,7 @@ export function ProcessFigure({ m, fig }: { m: EvidenceModel; fig?: string }) {
                 <h3 className="m-0 text-[12px] font-semibold uppercase leading-none tracking-[0.12em] text-ink">{s.title}</h3>
               </div>
               {/* Only the drawing dims when another stage is in focus; text keeps full contrast. */}
-              <div className={cx("frame mt-3.5 bg-white/[0.015] px-2.5 py-2 transition-opacity duration-200 [--frame-l:7px] motion-reduce:transition-none",
+              <div className={cx("frame mt-3.5 bg-white/[0.015] px-2.5 py-2 transition-opacity duration-200 [--frame-l:7px] motion-reduce:transition-none xl:px-1",
                 on ? "[--frame-c:rgb(242_244_245/0.85)]" : "[--frame-c:rgb(242_244_245/0.32)]", dim && "opacity-40")}>
                 <div className="mx-auto max-w-[360px]">{s.art}</div>
               </div>
