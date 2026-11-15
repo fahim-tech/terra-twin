@@ -11,7 +11,7 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
-from ..services import gis, gis_tiles, research_store as RS
+from ..services import factors, gis, gis_tiles, research_store as RS
 from ..services.catalog import MISSION_BY_ID
 
 router = APIRouter(prefix="/api/gis", tags=["gis"])
@@ -57,6 +57,14 @@ def mars_features(lat: float = Lat, lon: float = Lon):
     """GIS Mars feature record (gis-contract-1.0 §6) of the 50 km window at any coordinate, with its tier-1
     200 km record, observation support (metadata only) and operator status."""
     return _call(gis.mars_features, lat, lon)
+
+
+@router.get("/mars/factors")
+def mars_factors(lat: float = Lat, lon: float = Lon):
+    """Additional Mars scientific layers (mars-factors-1.0): characterization only, never similarity. Always 200;
+    each factor carries its own status (available, not_integrated, outside_coverage, unavailable,
+    unsupported_resolution, error)."""
+    return factors.mars_factors(lat, lon)
 
 
 @router.get("/tier1")
