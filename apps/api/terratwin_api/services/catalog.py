@@ -136,3 +136,22 @@ DATASETS: list[Dataset] = [
     Dataset(id="gibs_blue_marble", title="NASA Blue Marble shaded relief (GIBS)", planet="earth", role="Globe imagery",
             status="visualization_only", native_resolution="500 m", url="https://gibs.earthdata.nasa.gov/"),
 ]
+
+
+def datasets_now() -> list[dict]:
+    """The catalogue as this server sees it: the GIS rasters read ``connected`` when their configured paths
+    exist (``TERRATWIN_MOLA_MOSAIC``, ``TERRATWIN_MEGDR_COUNTS_DIR``), otherwise the static status above."""
+    from ..config import settings
+
+    out = []
+    for d in DATASETS:
+        rec = d.model_dump()
+        if d.id == "mola_mosaic" and settings.mola_mosaic is not None and settings.mola_mosaic.is_file():
+            rec["status"] = "connected"
+        elif d.id == "mola_counts_tiles" and settings.megdr_counts_dir is not None and settings.megdr_counts_dir.is_dir():
+            n = len(list(settings.megdr_counts_dir.glob("megc*hb.img")))
+            if n:
+                rec["status"] = "connected"
+                rec["coverage"] = f"{n} of 16 tiles connected on this server; 10 of 16 cover the 39 EZs"
+        out.append(rec)
+    return out

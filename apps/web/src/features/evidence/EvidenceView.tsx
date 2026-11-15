@@ -472,12 +472,14 @@ function Controls({ m }: { m: EvidenceModel }) {
 /* ---- provenance -------------------------------------------------------------------------------- */
 
 /**
- * Dataset status with the shared status marks plus the word, never colour alone: filled = imported, half =
+ * Dataset status with the shared status marks plus the word, never colour alone: filled = imported (or a GIS
+ * raster connected on the API server), half =
  * partial, outlined = visualization only (never measured), struck = missing (not in this package). A
  * missing dataset is a gap in the inputs, not a fault, so it is not drawn red.
  */
 const STATUS: Record<string, { word: string; cls: string; mark: StatusKind }> = {
   imported: { word: "Imported", cls: "text-ink", mark: "on" },
+  connected: { word: "Connected", cls: "text-ink", mark: "on" },
   partial: { word: "Partial", cls: "text-ink", mark: "partial" },
   missing: { word: "Missing", cls: "text-muted", mark: "struck" },
   visualization_only: { word: "Visualization only", cls: "text-muted", mark: "off" },
