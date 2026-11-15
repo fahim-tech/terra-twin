@@ -8,7 +8,7 @@ import type { AnalogSearch, Tier1Candidate } from "../../types/contracts";
 import { coord, T1_MEASURES } from "./candidates";
 import { EarthRegion, getJson, innerBox, parseLatLon, regionPath } from "./earthApi";
 import { useEarthLocal } from "./earthLocal";
-import { CAPS, Readout, Readouts, StatusMark } from "./instruments";
+import { AnalogMark, CAPS, Readout, Readouts, StatusMark } from "./instruments";
 import { measuresText, sText } from "./readout";
 import { chooseCandidate } from "./tierMemory";
 import { mergeByRank, tier1InView } from "./viewQuery";
@@ -139,7 +139,7 @@ export function EarthLookup({ search }: { search: AnalogSearch }) {
           </dl>
           <div className="space-y-1.5 border-t border-line px-3 py-2.5">
             <p className="text-caption text-muted">
-              {data.region.known_analog.status === "near_documented_analog" ? <><span aria-hidden className="mr-1.5 text-muted">◆</span>Near documented analog {data.region.known_analog.name}</> : "Not in the reference set — not a claim of novelty."}
+              {data.region.known_analog.status === "near_documented_analog" ? <><AnalogMark className="mr-1.5 translate-y-[-0.5px]" />Near documented analog {data.region.known_analog.name}</> : "Not in the reference set — not a claim of novelty."}
             </p>
             {data.region.quality_flags.filter((f) => f.severity !== "info").map((f) => (
               <p key={f.code} className="flex items-baseline gap-2 text-caption text-ink"><StatusMark state="caution" className="translate-y-[-1px]" />{f.message}</p>

@@ -7,7 +7,7 @@ import { useGlobes } from "../../store/globes";
 import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, Tier1Candidate } from "../../types/contracts";
 import { type CandidateView, candidateList, coord, groupNearTop, screenCellKm, unorderedMembers } from "./candidates";
-import { ACTION, ReadoutStrip, rowClass, SectionHead, SegmentedField, SelectionBar } from "./instruments";
+import { ACTION, AnalogMark, ReadoutStrip, rowClass, SectionHead, SegmentedField, SelectionBar, StatusMark } from "./instruments";
 import { sSpoken, sText } from "./readout";
 import { chooseCandidate } from "./tierMemory";
 import { contiguousCount, mergeByRank, tier1InView, type ViewBox, viewBox } from "./viewQuery";
@@ -30,9 +30,14 @@ function CellTableHead({ ranked }: { ranked: boolean }) {
   );
 }
 
+/** Row flags, drawn as marks (never typed glyphs): amber square = data-quality flag, outlined diamond = near a documented analog. */
+function CellFlag({ flagged, near }: { flagged: boolean; near: boolean }) {
+  return flagged ? <StatusMark state="caution" /> : near ? <AnalogMark /> : null;
+}
+
 function CellRow({ c, on, approx }: { c: CandidateView; on: boolean; approx: boolean }) {
   const near = c.t1?.known_analog.status === "near_documented_analog";
-  const flagged = c.t1?.quality_flags.some((f) => f.severity !== "info");
+  const flagged = !!c.t1?.quality_flags.some((f) => f.severity !== "info");
   const flagText = [near && `near documented analog ${c.t1?.known_analog.name ?? ""}`.trim(), flagged && "quality flag"].filter(Boolean).join(", ");
   return (
     <li>
@@ -44,9 +49,7 @@ function CellRow({ c, on, approx }: { c: CandidateView; on: boolean; approx: boo
         <span className={cx("num truncate text-num-sm", on ? "text-earth" : "text-ink")}>{coord(c.lat, c.lon)}</span>
         {/* No length bars: a bar would read as an order, and cells near the top are not ranked against each other. */}
         <span className="num whitespace-nowrap text-right text-num text-ink"><span aria-hidden className="text-faint md:hidden">S </span>{sText(c.score)}</span>
-        <span aria-hidden className="text-center text-caption leading-none" title={flagText || undefined}>
-          {flagged ? <span className="text-warn">⚠</span> : near ? <span className="text-muted">◆</span> : null}
-        </span>
+        <span aria-hidden className="grid place-items-center" title={flagText || undefined}><CellFlag flagged={flagged} near={near} /></span>
       </button>
     </li>
   );
@@ -214,7 +217,10 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
       {!box && search.mars.site && (
         <p id={zoomHintId} className="mt-1.5 text-caption text-muted">Zoom in to a region to rank its cells — the whole-globe view is too wide.</p>
       )}
-      <p className="mt-3 text-caption text-faint"><span className="text-muted">◆</span> near a documented analog · <span className="text-warn">⚠</span> data-quality flag. {t1.disclaimer}</p>
+      <p className="mt-3 text-caption text-faint">
+        <span className="whitespace-nowrap"><AnalogMark className="mr-1.5 translate-y-[-0.5px]" />near a documented analog</span> ·{" "}
+        <span className="whitespace-nowrap"><StatusMark state="caution" className="mr-1.5 translate-y-[-1px]" />data-quality flag</span>. {t1.disclaimer}
+      </p>
     </section>
   );
 }

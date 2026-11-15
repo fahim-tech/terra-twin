@@ -27,6 +27,18 @@ export function StatusMark({ state, tone = "ink", className }: { state: MarkStat
   return <span aria-hidden className={cx("inline-block h-1.5 w-1.5 shrink-0", fill, className)} />;
 }
 
+/**
+ * "Near a documented analog": a 1 px outlined diamond, drawn rather than typed, so it renders the same on
+ * every platform (a text ◆ / ⚠ can turn into an emoji). Decorative: always paired with words or a label.
+ */
+export function AnalogMark({ className }: { className?: string }) {
+  return (
+    <svg aria-hidden viewBox="0 0 8 8" className={cx("inline-block h-2 w-2 shrink-0 text-muted", className)}>
+      <path d="M4 0.75 7.25 4 4 7.25 0.75 4Z" fill="none" stroke="currentColor" strokeWidth="1" />
+    </svg>
+  );
+}
+
 /** Caps label that also sets a glossary <Term> inside it in caps, left-aligned (buttons inherit neither). */
 export const CAPS = "kicker [&_button]:text-left [&_button]:uppercase";
 
