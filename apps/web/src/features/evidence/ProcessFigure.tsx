@@ -1,4 +1,7 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { cx } from "../../components/ui";
+import { Gloss } from "./Gloss";
+import { jumpTo } from "./jump";
 import { fmtNum, fmtPct, type EvidenceModel } from "./model";
 
 /**
@@ -144,38 +147,48 @@ function Warp() {
   );
 }
 
-interface Stage { n: string; title: string; documented: string; constant: ReactNode; art: ReactNode; caption: string }
+
+interface Stage { n: string; title: string; chain: string | null; constant: ReactNode; art: ReactNode; caption: ReactNode; evidence: { id: string; label: string } }
 
 export function ProcessFigure({ m }: { m: EvidenceModel }) {
   const st = m.method.stages;
-  const doc = (i: number, fallback: string) => st[i]?.detail || fallback;
   const sel = m.interp.rows.find((r) => r.selected);
   const linShift = m.interp.rows.find((r) => r.interpolator === "linear" && r.halfshift);
   const linNo = m.interp.rows.find((r) => r.interpolator === "linear" && !r.halfshift);
   const gridM = st[3]?.detail.match(/(\d+(?:\.\d+)?)\s*m\b/)?.[1] ?? null;
+  const [active, setActive] = useState<number | null>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const lit = hover ?? active;
 
   const stages: Stage[] = [
     {
-      n: "1", title: st[0]?.title ?? "Sampling", documented: doc(0, "MEGDR bins with ≥1 shot"), art: <Sampling />,
-      caption: "Laser shots fall along north–south ground tracks. Only bins hit by at least one shot hold a measurement.",
+      n: "1", title: st[0]?.title ?? "Sampling", chain: st[0]?.raw ?? null, art: <Sampling />,
+      caption: <>Laser shots fall along north–south ground tracks. Only <Gloss k="megdr" /> bins hit by at least one shot hold a measurement.</>,
       constant: <><span className="num text-ink">{fmtPct(m.support.median)}</span> of bins observed <span className="text-faint">(median of {m.support.rows.length} zones)</span></>,
+      evidence: { id: "ev-support", label: "Observation support" },
     },
     {
-      n: "2", title: st[1]?.title ?? "Interpolation", documented: doc(1, "linear Delaunay interpolation of empty bins"), art: <Interpolation />,
+      n: "2", title: st[1]?.title ?? "Interpolation", chain: st[1]?.raw ?? null, art: <Interpolation />,
       caption: "Empty bins are filled from triangles drawn between the observed shots.",
       constant: sel ? <>{sel.label} chosen · paired error <span className="num text-ink">{fmtNum(sel.error)}</span> <span className="text-faint">(lowest of {m.interp.rows.length})</span></> : <span className="text-faint">Selection not in payload</span>,
+      evidence: { id: "ev-selection", label: "Operator choice" },
     },
     {
-      n: "3", title: st[2]?.title ?? "Half-pixel blend", documented: doc(2, "half-pixel column blend (measured)"), art: <Blend />,
-      caption: "Adjacent columns are blended, moving the grid half a pixel — a registration offset measured in the Mars data.",
+      n: "3", title: st[2]?.title ?? "Half-pixel blend", chain: st[2]?.raw ?? null, art: <Blend />,
+      caption: "Adjacent columns are blended, moving the grid half a pixel — a registration offset measured in the Mars data, not yet confirmed by USGS metadata.",
       constant: linShift && linNo ? <>With ½ px <span className="num text-ink">{fmtNum(linShift.error)}</span> vs without <span className="num text-ink">{fmtNum(linNo.error)}</span> <span className="text-faint">paired error</span></> : <span className="text-faint">Measurement not in payload</span>,
+      evidence: { id: "ev-selection", label: "Operator choice" },
     },
     {
-      n: "4", title: st[3]?.title ?? "Warp", documented: doc(3, "bilinear warp to 463 m AEQD window"), art: <Warp />,
-      caption: "The result is resampled onto a square, equidistant window centred on the site, so Mars and Earth share one grid.",
+      n: "4", title: st[3]?.title ?? "Warp", chain: st[3]?.raw ?? null, art: <Warp />,
+      caption: <>The result is resampled onto a square, equidistant (<Gloss k="aeqd" />) window centred on the site, so Mars and Earth share one grid.</>,
       constant: <><span className="num text-ink">{gridM ?? "—"}</span> m grid · <span className="num text-ink">{m.coverage.tier2Km ?? "—"}</span> km window</>,
+      evidence: { id: "ev-coverage", label: "Coverage" },
     },
   ];
+
+  const step = (d: 1 | -1) => setActive((a) => (a === null ? (d === 1 ? 0 : stages.length - 1) : (a + d + stages.length) % stages.length));
+  const current = active !== null ? stages[active] : null;
 
   return (
     <figure className="m-0" aria-labelledby="ev-process-title">
@@ -184,22 +197,50 @@ export function ProcessFigure({ m }: { m: EvidenceModel }) {
         <span className="rounded-full border border-dashed border-line-strong px-2.5 py-[3px] text-caption text-muted">Schematic — not data</span>
       </div>
       <p className="mt-1 max-w-[62ch] text-caption text-muted">
-        Every Earth window passes through the selected Mars site's own four-stage observation chain before it is compared. The drawings show what each stage does; the numbers under them are the documented constants.
+        Every Earth window passes through the selected Mars site's own four-stage observation chain before it is compared. The drawings show what each stage does;
+        under each is a measured value from the research package and, in mono, the documented chain step.
       </p>
-      <ol className="mt-6 grid list-none grid-cols-1 gap-x-6 gap-y-8 p-0 min-[520px]:grid-cols-2 lg:grid-cols-4">
-        {stages.map((s, i) => (
-          <li key={s.n} className="relative min-w-0">
-            <div className="flex h-6 items-center gap-2">
-              <span className="num text-num-sm text-faint">{s.n.padStart(2, "0")}</span>
-              <span className="text-label text-ink">{s.title}</span>
-              {i < stages.length - 1 && <span aria-hidden className="ml-auto hidden text-faint lg:inline">→</span>}
-            </div>
-            <div className="mt-3 rounded-control bg-ink/[0.025] px-1 py-2"><div className="mx-auto max-w-[260px]">{s.art}</div></div>
-            <p className="mt-3 text-caption text-muted">{s.caption}</p>
-            <p className="mt-2 text-caption text-muted">{s.constant}</p>
-            <p className="mt-1 font-mono text-[11px] leading-snug text-faint">{st[i]?.raw ?? s.documented}</p>
-          </li>
-        ))}
+
+      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-label="Step through the stages">
+        <button type="button" onClick={() => step(-1)} aria-label="Previous stage"
+          className="hit inline-grid h-8 w-8 place-items-center rounded-control text-muted hover:bg-elevated hover:text-ink">←</button>
+        <button type="button" onClick={() => step(1)} aria-label="Next stage"
+          className="hit inline-grid h-8 w-8 place-items-center rounded-control text-muted hover:bg-elevated hover:text-ink">→</button>
+        <span className="text-caption text-muted" aria-live="polite">
+          {current ? <>Stage <span className="num text-ink">{current.n}</span> of {stages.length} · <span className="text-ink">{current.title}</span></> : "Step through the four stages"}
+        </span>
+        {current && (
+          <button type="button" onClick={() => setActive(null)} className="hit rounded-control px-2 py-1 text-caption text-faint hover:bg-elevated hover:text-ink">Show all</button>
+        )}
+      </div>
+
+      <ol className="mt-5 grid list-none grid-cols-1 gap-x-6 gap-y-8 p-0 min-[520px]:grid-cols-2 lg:grid-cols-4">
+        {stages.map((s, i) => {
+          const on = lit === i;
+          const dim = lit !== null && !on;
+          return (
+            <li key={s.n} aria-current={active === i ? "step" : undefined}
+              onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
+              className={cx("relative min-w-0 rounded-control transition-opacity duration-200 motion-reduce:transition-none", dim && "opacity-45")}>
+              <div className="flex h-6 items-center gap-2">
+                <span className={cx("num text-num-sm", on ? "text-ink" : "text-faint")}>{s.n.padStart(2, "0")}</span>
+                <span className="text-label text-ink">{s.title}</span>
+                {i < stages.length - 1 && <span aria-hidden className="ml-auto hidden text-faint lg:inline">→</span>}
+              </div>
+              <div className={cx("mt-3 rounded-control px-1 py-2 transition-[box-shadow,background] duration-200 motion-reduce:transition-none", on ? "bg-ink/[0.05] shadow-[inset_0_0_0_1px_rgb(255_255_255/.14)]" : "bg-ink/[0.025]")}>
+                <div className="mx-auto max-w-[260px]">{s.art}</div>
+              </div>
+              <p className="mt-3 text-caption text-muted">{s.caption}</p>
+              <p className="mt-2 text-caption text-muted">{s.constant}</p>
+              <p className="mt-1 font-mono text-[11px] leading-snug text-faint">{s.chain ?? "Chain step not in payload"}</p>
+              <button type="button" onClick={() => jumpTo(s.evidence.id)} onFocus={() => setHover(i)} onBlur={() => setHover(null)}
+                aria-label={`Go to the evidence for ${s.title.toLowerCase()}: ${s.evidence.label}`}
+                className="hit -mx-1 mt-1.5 inline-flex items-center gap-1 whitespace-nowrap rounded-control px-1 py-1 text-caption text-muted hover:text-ink">
+                <span aria-hidden>↓</span><span className="underline decoration-line-strong underline-offset-[3px]">{s.evidence.label}</span>
+              </button>
+            </li>
+          );
+        })}
       </ol>
     </figure>
   );
