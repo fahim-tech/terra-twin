@@ -102,16 +102,17 @@ function Cell({ label, children, className }: { label: ReactNode; children: Reac
 }
 
 /**
- * Collapsed readout on desktop and tablet: telemetry cells divided by hairlines. Wide strips put the pair,
- * score, decision and the Why action on one row; narrower ones (tablet, or beside the Why drawer) wrap
- * the decision onto a second row. The scope line runs along the foot.
+ * Collapsed readout on desktop and tablet: telemetry cells divided by hairlines. Wide strips (container
+ * ≥ 1080 px) put the pair, score, decision and the Why action on one row; narrower ones (tablets) wrap the
+ * decision onto a second row. Beside the open Why drawer (`narrow`) the Why cell is left out. The scope
+ * line runs along the foot.
  */
 export function TelemetryReadout({ c, basis, targets, verdict, onWhy, narrow }: ReadoutProps & { narrow: boolean }) {
   return (
     <>
-      <div className={cx("grid min-h-0 grid-rows-[auto_1fr_auto]", narrow
-        ? "grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.15fr)]"
-        : "grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.15fr)] @min-[1080px]:grid-cols-[minmax(0,0.95fr)_minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1.55fr)_auto] @min-[1080px]:grid-rows-[auto_1fr]")}>
+      <div className={cx("grid min-h-0 grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.15fr)] grid-rows-[auto_1fr_auto] @min-[1080px]:grid-rows-[auto_1fr]", narrow
+        ? "@min-[1080px]:grid-cols-[minmax(0,0.95fr)_minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1.55fr)]"
+        : "@min-[1080px]:grid-cols-[minmax(0,0.95fr)_minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1.55fr)_auto]")}>
         {/* The pair is the stage heading; the planet kickers and roles are visual only. */}
         <h2 data-stage-heading="compare" tabIndex={-1} style={NO_RING} className="col-span-2 col-start-1 row-start-1 grid grid-cols-subgrid">
           <span className="sr-only">Comparing </span>
@@ -128,9 +129,8 @@ export function TelemetryReadout({ c, basis, targets, verdict, onWhy, narrow }: 
           <p className="mt-2 text-caption text-ink/85">{basis}</p>
         </Cell>
 
-        <Cell label="Decision" className={cx("border-line", narrow
-          ? "col-span-3 col-start-1 row-start-3 border-t"
-          : "col-span-2 col-start-1 row-start-3 border-t @min-[1080px]:col-span-1 @min-[1080px]:col-start-4 @min-[1080px]:row-span-2 @min-[1080px]:row-start-1 @min-[1080px]:border-l @min-[1080px]:border-t-0")}>
+        <Cell label="Decision" className={cx("col-start-1 row-start-3 border-t border-line @min-[1080px]:col-span-1 @min-[1080px]:col-start-4 @min-[1080px]:row-span-2 @min-[1080px]:row-start-1 @min-[1080px]:border-l @min-[1080px]:border-t-0",
+          narrow ? "col-span-3" : "col-span-2")}>
           <div className="mt-2"><VerdictLine verdict={verdict} /></div>
           <p className="mt-1 text-caption text-muted">{verdict.detail}</p>
         </Cell>
