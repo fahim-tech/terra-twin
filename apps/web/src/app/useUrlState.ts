@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { formatLat, formatLon, normLon } from "../lib/geodesy";
+import { zoneName } from "../lib/glossary";
 import { api } from "../services/api";
 import { type Stage, useApp } from "../store/app";
 import { searchTarget } from "../store/searchTarget";
@@ -78,7 +79,7 @@ async function applyUrl(u: UrlState) {
   let lat = u.lat, lon = u.lon, siteId: string | null = null, label = "";
   if (u.site) {
     const site = (await api.sites().catch(() => [])).find((x) => x.id === u.site);
-    if (site) { lat = site.lat; lon = site.lon; siteId = site.id; label = site.name; }
+    if (site) { lat = site.lat; lon = site.lon; siteId = site.id; label = zoneName(site.id); }
   }
   if (lat !== null && lon !== null) {
     lon = normLon(lon);

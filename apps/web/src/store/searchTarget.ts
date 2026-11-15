@@ -1,4 +1,5 @@
 import { formatLat, formatLon } from "../lib/geodesy";
+import { zoneName } from "../lib/glossary";
 import type { AnalogSearch } from "../types/contracts";
 import type { Selection } from "./app";
 
@@ -20,9 +21,10 @@ export function searchTarget(search: AnalogSearch | null): SearchTarget | null {
   const req = search.request as { lat?: number; lon?: number; mission?: string; footprint_km?: number } | undefined;
   const lat = req?.lat ?? search.mars.coordinate.lat;
   const lon = req?.lon ?? search.mars.coordinate.lon;
-  const siteName = (search.mars as { site_name?: string }).site_name;
   return {
-    label: search.mars.site ? siteName ?? search.mars.site.replace(/_/g, " ") : `${formatLat(lat, 2)}, ${formatLon(lon, 2)}`,
+    // Zone names come from one helper everywhere (zoneName), never from the API's site_name, which keeps
+    // misspellings such as "Acidalia Plantia".
+    label: search.mars.site ? zoneName(search.mars.site) : `${formatLat(lat, 2)}, ${formatLon(lon, 2)}`,
     siteId: search.mars.site ?? null,
     lat, lon,
     mission: req?.mission ?? "landing_site",
