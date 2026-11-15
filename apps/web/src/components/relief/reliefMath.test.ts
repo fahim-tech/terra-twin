@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   anchorShown, ariaSummary, axisPlacement, baseElevation, boxEdges, buildModel, camera, contourInterval, contourSegments, gradients, gridStats,
-  fitDistance, fmtPitch, hillshade, homePose, labelAnchors, layoutLabels, niceStep, niceTicks, pickCell, project, representationNote, sunVector, TINT, toGrid,
-  worldY, type Grid,
+  fitDistance, fmtPitch, hillshade, homePose, labelAnchors, labelBox, layoutLabels, niceStep, niceTicks, pickCell, project, representationNote, sunVector, TINT,
+  toGrid, worldY, type Grid,
 } from "./reliefMath";
 
 /** Plane z = a·east + b·north on a north-up grid (row 0 = north). */
@@ -180,6 +180,76 @@ describe("framing and probe", () => {
     expect(placed.some((l) => l.text === "N")).toBe(true);
     expect(placed.filter((l) => l.kind === "elev").every((l) => l.align === "left" || l.align === "right")).toBe(true);
     expect(placed.filter((l) => l.kind === "km").every((l) => /^km-(s|w)-/.test(l.key))).toBe(true);
+  });
+});
+
+describe("scale labels from every side", () => {
+  const real = buildModel(plane(108, 108, 463.0935415503709, 0.004, 0.012))!;
+  const anchors = labelAnchors(real);
+  const box = (l: { kind: "km" | "elev" | "north"; text: string; x: number; y: number; align: string }) => {
+    const { w, h } = labelBox(l.kind, l.text);
+    const left = l.align === "left" ? l.x : l.align === "right" ? l.x - w : l.x - w / 2;
+    return { left, right: left + w, top: l.y - h / 2, bottom: l.y + h / 2 };
+  };
+  const overlap = (a: ReturnType<typeof box>, b: ReturnType<typeof box>) =>
+    a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  const view = (azDeg: number, w = 880, h = 460) => {
+    const c = camera(real, { ...homePose(4), az: (azDeg * Math.PI) / 180 }, w, h);
+    return layoutLabels(real, anchors, c, w, h);
+  };
+
+  it("keeps the two km scales apart where they meet, from every quadrant", () => {
+    for (const az of [20, 70, 115, 160, 205, 250, 295, 340]) {
+      const km = view(az).filter((l) => l.kind === "km").map(box);
+      for (let i = 0; i < km.length; i++) for (let j = i + 1; j < km.length; j++) expect(overlap(km[i], km[j])).toBe(false);
+    }
+  });
+
+  it("shows both scale ends at the near corner when seen from the north-east", () => {
+    const placed = view(45);
+    const e = placed.find((l) => l.text === "50 km E")!, n = placed.find((l) => l.text === "50 km N")!;
+    expect(e.key).toBe("km-n-5");
+    expect(n.key).toBe("km-e-5");
+    expect(new Set([e.align, n.align])).toEqual(new Set(["left", "right"]));
+    expect(placed.some((l) => l.key === "km-e-0")).toBe(true); // the east scale's "0" sits at its far (south) end
+  });
+
+  it("writes a single 0 where the scales meet at the south-west corner", () => {
+    const zeros = view(205).filter((l) => l.kind === "km" && l.text === "0");
+    expect(zeros.map((l) => l.key)).toEqual(["km-s-0"]);
+  });
+
+  it("keeps every label inside the view", () => {
+    for (const [w, h] of [[880, 460], [390, 380], [300, 520]]) {
+      for (const az of [0, 60, 115, 205, 295]) {
+        for (const l of view(az, w, h)) {
+          const b = box(l);
+          expect(b.left).toBeGreaterThanOrEqual(4 - 1e-6);
+          expect(b.right).toBeLessThanOrEqual(w - 4 + 1e-6);
+          expect(b.top).toBeGreaterThanOrEqual(4 - 1e-6);
+          expect(b.bottom).toBeLessThanOrEqual(h - 4 + 1e-6);
+        }
+      }
+    }
+  });
+
+  it("labels two heights on the elevation scale whenever they fit", () => {
+    // Find a framing where neighbouring elevation ticks are 7.5–15 px apart: too close for every label,
+    // but the lowest and highest still have room.
+    let found = false;
+    for (let zoom = 0.6; zoom <= 4 && !found; zoom += 0.05) {
+      const c = camera(real, { ...homePose(4), zoom }, 880, 460);
+      const place = axisPlacement(c);
+      const ys = anchors.filter((a) => a.kind === "elev" && anchorShown(a, place))
+        .map((a) => project(c.viewProj, [a.p[0], worldY(real, a.p[1], c.ys), a.p[2]], 880, 460).y);
+      const gap = Math.min(...ys.slice(1).map((y, i) => Math.abs(y - ys[i])));
+      if (ys.length < 3 || gap >= 15 || gap * (ys.length - 1) < 15) continue;
+      found = true;
+      const elev = layoutLabels(real, anchors, c, 880, 460).filter((l) => l.kind === "elev");
+      expect(elev).toHaveLength(2);
+      expect(elev[1].text).toMatch(/ m$/); // the unit stays on the highest label
+    }
+    expect(found).toBe(true);
   });
 });
 

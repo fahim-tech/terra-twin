@@ -603,15 +603,31 @@ export function labelAnchors(m: Model): Anchor[] {
   return out;
 }
 
-/** Is this anchor shown for the current axis placement? The km scales share one "0" at their corner. */
+/**
+ * Is this anchor shown for the current axis placement? Km distances run from the south-west corner on
+ * every edge. Seen from the south, the west or east scale's "0" would sit on the near corner beside the
+ * south scale's own corner label ("0" at SW, "50 km E" at SE), so it is left to that one; seen from the
+ * north, that "0" is at the far end of its edge and is shown.
+ */
 export function anchorShown(a: Anchor, place: Placement): boolean {
   if (a.kind === "north") return true;
   if (a.kind === "km") {
     const [, edge, i] = a.key.split("-");
-    if (edge === place.we[0]) return i !== "0";
+    if (edge === place.we[0]) return !(i === "0" && place.ns === "south");
     return edge === place.ns[0];
   }
   return a.key.startsWith(`el-${place.corner}-`);
+}
+
+/** Label type per kind (CSS px), as the live view sets it: IBM Plex Mono advances 0.6 em per character. */
+const LABEL_TYPE: Record<Anchor["kind"], { size: number; pad: number }> = {
+  km: { size: 10.5, pad: 0 }, elev: { size: 11, pad: 6 }, north: { size: 12, pad: 0 },
+};
+
+/** Approximate box of a scale label in CSS px (width includes the label's side padding). */
+export function labelBox(kind: Anchor["kind"], text: string): { w: number; h: number } {
+  const t = LABEL_TYPE[kind];
+  return { w: text.length * t.size * 0.6 + 2 * t.pad, h: t.size * 1.3 };
 }
 
 export function worldY(m: Model, elevation: number, ys: number): number {
@@ -628,10 +644,15 @@ export interface PlacedLabel {
   align: "left" | "center" | "right";
 }
 
+/** Labels keep this far (CSS px) inside the view. */
+const LABEL_INSET = 4;
+
 /**
- * Screen positions of the scale labels for one frame. Labels behind the camera or far outside the view
- * are dropped; a scale too foreshortened to read keeps only its ends (the unit sits on the last label);
- * elevation labels sit on the outer side of their corner.
+ * Screen positions of the scale labels for one frame. Labels whose anchor is behind the camera or outside
+ * the view are dropped, and a label near the border is nudged inside it; a scale too foreshortened to read
+ * keeps only its ends (the unit sits on the last label), and the elevation scale keeps two heights whenever
+ * they fit; elevation labels sit on the outer side of their corner. Seen from the north, both km scales
+ * end on the near corner with different values, so those two labels run apart along their own edges.
  */
 export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: number, height: number): PlacedLabel[] {
   const place = axisPlacement(cam);
@@ -640,11 +661,22 @@ export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: nu
   for (const a of anchors) {
     if (!anchorShown(a, place)) continue;
     const s = project(cam.viewProj, [a.p[0], worldY(m, a.p[1], cam.ys), a.p[2]], width, height);
-    if (!s.visible || s.x < -60 || s.x > width + 60 || s.y < -20 || s.y > height + 20) continue;
+    if (!s.visible || s.x < 0 || s.x > width || s.y < 0 || s.y > height) continue;
     const g = a.kind === "km" ? a.key.split("-")[1] : a.kind;
     if (!groups.has(g)) groups.set(g, []);
     groups.get(g)!.push({ a, x: s.x, y: s.y });
   }
+  // The near corner, and the far end of each labelled edge, on the floor (world y 0).
+  const cx = place.we === "west" ? -m.hx : m.hx, cz = place.ns === "north" ? -m.hz : m.hz;
+  const nearCorner = project(cam.viewProj, [cx, 0, cz], width, height);
+  const halfStep = (m.kmTicks.stepKm * 1000 * m.scale) / 2;
+  const cornerAlign = (g: string, a: Anchor): PlacedLabel["align"] | null => {
+    if (place.ns !== "north" || a.kind !== "km") return null;
+    const xAxis = g === "n" || g === "s";
+    if (Math.abs(xAxis ? a.p[0] - cx : a.p[2] - cz) > halfStep) return null;
+    const far = project(cam.viewProj, xAxis ? [-cx, 0, cz] : [cx, 0, -cz], width, height);
+    return far.x < nearCorner.x ? "right" : "left"; // the text runs along its edge, away from the corner
+  };
   const out: PlacedLabel[] = [];
   for (const [g, list] of groups) {
     let gap = Infinity;
@@ -652,11 +684,17 @@ export function layoutLabels(m: Model, anchors: Anchor[], cam: Camera, width: nu
       gap = Math.min(gap, g === "elev" ? Math.abs(list[i].y - list[i - 1].y) : Math.hypot(list[i].x - list[i - 1].x, list[i].y - list[i - 1].y));
     }
     const need = g === "elev" ? 15 : g === "north" ? 0 : 34;
+    const endsFit = gap * (list.length - 1) >= (g === "elev" ? need : need * 2);
     list.forEach((it, i) => {
-      const ends = i === list.length - 1 || (i === 0 && gap * (list.length - 1) >= need * 2);
+      const ends = i === list.length - 1 || (i === 0 && endsFit);
       if (gap < need && !ends) return;
-      const align = it.a.kind === "elev" ? (it.x >= (centre.visible ? centre.x : width / 2) ? "left" : "right") : "center";
-      out.push({ key: it.a.key, text: it.a.text, kind: it.a.kind, x: it.x, y: it.y, align });
+      const align = it.a.kind === "elev" ? (it.x >= (centre.visible ? centre.x : width / 2) ? "left" : "right")
+        : cornerAlign(g, it.a) ?? "center";
+      const box = labelBox(it.a.kind, it.a.text);
+      const left = align === "left" ? it.x : align === "right" ? it.x - box.w : it.x - box.w / 2;
+      const dx = Math.max(0, LABEL_INSET - left) - Math.max(0, left + box.w - (width - LABEL_INSET));
+      const y = Math.min(height - LABEL_INSET - box.h / 2, Math.max(LABEL_INSET + box.h / 2, it.y));
+      out.push({ key: it.a.key, text: it.a.text, kind: it.a.kind, x: it.x + dx, y, align });
     });
   }
   return out;
