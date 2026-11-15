@@ -138,3 +138,27 @@ export const VisualizationLegend = z.object({
   tier1_coverage: z.object({ rgba: z.array(z.number()), label: z.string(), pixel_rule: z.string() }),
 });
 export type VisualizationLegend = z.infer<typeof VisualizationLegend>;
+
+// ---------------------------------------------------------------- terrain relief (elevation grids)
+/** Grid layout, asserted rather than assumed: a change of convention must fail loudly, not draw mirrored terrain. */
+export const ReliefOrientation = z.object({
+  row0: z.literal("north"), col0: z.literal("west"), order: z.literal("row-major"), frame: z.string(),
+}).loose();
+
+/**
+ * Elevation grid for a relief view (`GET /api/earth/pool/{id}/relief`; Mars uses the same shape once a
+ * MOLA reader is connected). Metres, row-major, null where a cell has no elevation (never 0).
+ */
+export const Relief = z.object({
+  id: z.string(), lat: z.number(), lon: z.number(), kind: z.string(), planet: z.enum(["earth", "mars"]),
+  rows: z.number().int().positive(), cols: z.number().int().positive(),
+  cell_m: z.number().positive(), window_km: z.number().positive(), units: z.literal("m"),
+  z_min: num, z_max: num, valid_fraction: z.number().min(0).max(1),
+  elevation: z.array(num),
+  orientation: ReliefOrientation,
+  source: z.object({
+    dataset: z.string(), title: z.string(), representation: Representation, note: z.string(),
+    nodata: z.string().optional(), vertical_reference: z.string().optional(),
+  }).loose(),
+}).loose().refine((r) => r.elevation.length === r.rows * r.cols, { message: "elevation must hold rows × cols values" });
+export type Relief = z.infer<typeof Relief>;

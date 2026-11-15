@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { AnalogSearch, MarsAnalysis, MarsSite, MissionProfile, PoolWindow, ResearchSiteSummary, Tier1Result, VisualizationLegend } from "../types/contracts";
+import { AnalogSearch, MarsAnalysis, MarsSite, MissionProfile, PoolWindow, Relief, ResearchSiteSummary, Tier1Result, VisualizationLegend } from "../types/contracts";
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
 
@@ -51,6 +51,10 @@ export const api = {
   coverageRasterUrl: () => `${API_BASE}/api/visualization/tier1-coverage.png`,
   tier1Page: (site: string, mission: string, offset: number, limit: number) =>
     request(`/api/analysis/tier1/candidates?site=${encodeURIComponent(site)}&mission=${mission}&offset=${offset}&limit=${limit}`, Tier1Result),
+  /** Elevation grid of one 50 km research-pool window (Earth as measured). Ids may contain spaces and "#". */
+  relief: (id: string) => request(`/api/earth/pool/${encodeURIComponent(id)}/relief`, Relief),
+  /** Mars elevation grid for an Exploration Zone: 503 "MOLA mosaic not connected" until the GIS workstream connects it. */
+  marsRelief: (site: string) => request(`/api/mars/relief?site=${encodeURIComponent(site)}`, Relief),
 };
 
 export interface DatasetsResponse {
@@ -83,3 +87,9 @@ export const useEarthPool = () => useQuery({ queryKey: ["earthPool"], queryFn: a
 export const useLegend = () => useQuery({ queryKey: ["legend"], queryFn: api.legend });
 
 export const useFindAnalogs = () => useMutation({ mutationFn: api.findAnalogs });
+
+export const useRelief = (id: string | null | undefined) =>
+  useQuery({ queryKey: ["relief", id], queryFn: () => api.relief(id!), enabled: !!id });
+/** A 503 here is a state (the mosaic is not connected), not a transient failure, so it is never retried. */
+export const useMarsRelief = (site: string | null | undefined) =>
+  useQuery({ queryKey: ["marsRelief", site], queryFn: () => api.marsRelief(site!), enabled: !!site, retry: false });
