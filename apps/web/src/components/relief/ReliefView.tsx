@@ -286,7 +286,8 @@ function ReliefScene({ relief, planet, name, compact, sceneHeight, defaultExagge
     const text = typeof say === "function" ? say(orbit) : say;
     if (text) announce(text);
   };
-  const label = ariaSummary(relief, ve, planet, mode);
+  // Named as the host names it ("Window 233 · roughness decile 8", "Atacama Yungay"), not by its internal id.
+  const label = ariaSummary({ ...relief, id: name }, ve, planet, mode);
   // "float": the controls sit in the scene's lower corners from sm up (a deck row below on phones and for the 2D map).
   const float = controls === "float" && mode === "3d";
   // Floating, the control carries its label in words above it; in the deck row it is the compact "V.E." group. Both may
