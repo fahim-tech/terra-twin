@@ -10,7 +10,7 @@ import { useGlobes } from "../../store/globes";
 import { fmtLat, fmtLon } from "./model";
 import { DISPLAY } from "./parts";
 import { withCleanGlobe } from "./plateCapture";
-import { type EdgeTick, formatTick, nadirKmPerPx, plateBody, plateCamera, type PlateTicks, plateTicks, visibleRect } from "./plateGeometry";
+import { type EdgeTick, formatTick, groundAt, nadirKmPerPx, plateBody, plateCamera, type PlateTicks, plateTicks, visibleRect } from "./plateGeometry";
 import { splitDesignation } from "./typeset";
 
 /** Plates are rendered top-down from this altitude (spec §12/§17). */
@@ -118,12 +118,24 @@ export function LocationPlate({ planet, plate, lat, lon, frame, kicker, name, im
     const cam = plateCamera(plateBody(planet, ION_TOKEN), lat, lon, PLATE_HEIGHT_KM, w, h);
     const rect = visibleRect(w, h, PLATE_ASPECT);
     const kmPerPx = nadirKmPerPx(cam);
-    return { rect, kmPerPx, ticks: plateTicks(cam, rect), bar: niceScale(kmPerPx * 1000, rect.w * 0.3) };
+    return { cam, rect, kmPerPx, ticks: plateTicks(cam, rect), bar: niceScale(kmPerPx * 1000, rect.w * 0.3) };
   }, [planet, lat, lon, w, h]);
   const tone = planet === "mars" ? "!text-mars" : "!text-earth";
   const planetName = planet === "mars" ? "Mars" : "Earth";
   const coord = `${fmtLat(lat, 3)} ${fmtLon(lon, 3)}`;
   const onImagery = snap.status === "ok";
+
+  // Coordinate probe: the ground coordinate under a mouse pointer, from the same camera model as the ticks.
+  const [probe, setProbe] = useState<Probe | null>(null);
+  useEffect(() => setProbe(null), [geo]);
+  const onProbe = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== "mouse" || snap.status === "loading") return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const fx = (e.clientX - r.left) / r.width;
+    const fy = (e.clientY - r.top) / r.height;
+    const g = fx >= 0 && fx <= 1 && fy >= 0 && fy <= 1 ? groundAt(geo.cam, geo.rect.x + fx * geo.rect.w, geo.rect.y + fy * geo.rect.h) : null;
+    setProbe(g ? { fx, fy, lat: g.lat, lon: g.lon } : null);
+  };
 
   return (
     <figure className="m-0 min-w-0">
@@ -137,7 +149,8 @@ export function LocationPlate({ planet, plate, lat, lon, frame, kicker, name, im
       </div>
 
       <div className="frame relative mt-3 [--frame-l:12px]" style={{ padding: MARGIN }}>
-        <div className="@container relative aspect-[4/3] w-full overflow-hidden bg-elevated ring-1 ring-ink/45 [print-color-adjust:exact]">
+        <div onPointerMove={onProbe} onPointerLeave={() => setProbe(null)}
+          className={cx("@container relative aspect-[4/3] w-full overflow-hidden bg-elevated ring-1 ring-ink/45 [print-color-adjust:exact]", snap.status !== "loading" && "cursor-crosshair")}>
           {onImagery ? (
             // Both plates are released together; the imagery cross-fades in (an opacity change, kept under reduced motion).
             <motion.img src={snap.shot.dataUrl} alt={`${planetName} imagery centred on ${coord}, seen from ${PLATE_HEIGHT_KM} km, north up, with the ${frame.label} outlined.`}
@@ -154,8 +167,9 @@ export function LocationPlate({ planet, plate, lat, lon, frame, kicker, name, im
           <WindowFrame w={w} h={h} frame={frame} kmPerPx={geo.kmPerPx} onImagery={onImagery} />
           {geo.bar && <ScaleMark label={geo.bar.label} widthCqw={(geo.bar.px / geo.rect.w) * 100} onImagery={onImagery} />}
           <NorthArrow onImagery={onImagery} />
+          {probe && <ProbeMarks probe={probe} onImagery={onImagery} />}
         </div>
-        {geo.ticks && <Neatline ticks={geo.ticks} />}
+        {geo.ticks && <Neatline ticks={geo.ticks} probe={probe} />}
       </div>
 
       <figcaption className="mt-1">
@@ -232,16 +246,44 @@ function NorthArrow({ onImagery }: { onImagery: boolean }) {
   );
 }
 
+interface Probe { fx: number; fy: number; lat: number; lon: number }
+
+/** Crosshair through the probed point with its ground coordinate beside the pointer (screen only). */
+function ProbeMarks({ probe, onImagery }: { probe: Probe; onImagery: boolean }) {
+  const line = onImagery ? "bg-white/45" : "bg-ink/35";
+  const right = probe.fx > 0.62;
+  const below = probe.fy < 0.82;
+  return (
+    <div aria-hidden className="no-print pointer-events-none absolute inset-0">
+      <span className={cx("absolute inset-y-0 w-px", line)} style={{ left: `${probe.fx * 100}%` }} />
+      <span className={cx("absolute inset-x-0 h-px", line)} style={{ top: `${probe.fy * 100}%` }} />
+      <span className="num absolute whitespace-nowrap bg-black/75 px-1.5 py-1 text-[10.5px] leading-none text-white"
+        style={{
+          ...(right ? { right: `calc(${(1 - probe.fx) * 100}% + 8px)` } : { left: `calc(${probe.fx * 100}% + 8px)` }),
+          ...(below ? { top: `calc(${probe.fy * 100}% + 8px)` } : { bottom: `calc(${(1 - probe.fy) * 100}% + 8px)` }),
+        }}>
+        {fmtLat(probe.lat, 3)} {fmtLon(probe.lon, 3)}
+      </span>
+    </div>
+  );
+}
+
 /**
  * Coordinate ticks outside the neatline: meridians on the top and bottom edges, parallels on the left and
  * right, major ticks longer. Labels on the top (longitude) and left (latitude, reading upward); labels
- * near a corner are dropped so they never collide.
+ * near a corner are dropped so they never collide. A probed point is echoed on the top and left edges.
  */
-function Neatline({ ticks }: { ticks: PlateTicks }) {
+function Neatline({ ticks, probe }: { ticks: PlateTicks; probe: Probe | null }) {
   const label = (k: EdgeTick, axis: "lat" | "lon") => (k.major && k.at > 0.06 && k.at < 0.94 ? formatTick(k.value, axis, ticks.step) : null);
   const len = (k: EdgeTick) => (k.major ? 6 : 3);
   return (
     <div aria-hidden className="pointer-events-none absolute" style={{ inset: MARGIN }}>
+      {probe && (
+        <>
+          <span className="no-print absolute bottom-full h-[9px] w-px bg-ink" style={{ left: `${probe.fx * 100}%` }} />
+          <span className="no-print absolute right-full h-px w-[9px] bg-ink" style={{ top: `${probe.fy * 100}%` }} />
+        </>
+      )}
       {ticks.top.map((k) => <span key={`t${k.value}`} className="absolute bottom-full w-px bg-ink/60" style={{ left: `${k.at * 100}%`, height: len(k) }} />)}
       {ticks.bottom.map((k) => <span key={`b${k.value}`} className="absolute top-full w-px bg-ink/60" style={{ left: `${k.at * 100}%`, height: len(k) }} />)}
       {ticks.left.map((k) => <span key={`l${k.value}`} className="absolute right-full h-px bg-ink/60" style={{ top: `${k.at * 100}%`, width: len(k) }} />)}
