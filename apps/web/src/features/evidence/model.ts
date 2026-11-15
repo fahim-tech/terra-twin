@@ -225,6 +225,14 @@ export const fmtPct = (v: number | null | undefined, d = 0) => (v === null || v 
 export const fmtNum = (v: number | null | undefined, d = 3) => (v === null || v === undefined ? "—" : v.toFixed(d));
 export const fmtInt = (v: number | null | undefined) => (v === null || v === undefined ? "—" : v.toLocaleString("en-US"));
 
+/** ISO timestamp → "2026-11-15 00:40 UTC" (any offset converted to UTC). Unparseable input is shown as given; missing as "—". */
+export function fmtStamp(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso;
+  return `${new Date(t).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
 /** Axis ticks for a [lo, hi] range at a "nice" step. */
 export function niceTicks(lo: number, hi: number, target = 5): number[] {
   const span = hi - lo;

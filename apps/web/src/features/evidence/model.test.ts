@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fixture from "./evidence.fixture.json";
-import { buildModel, niceTicks, parseStage } from "./model";
+import { buildModel, fmtStamp, niceTicks, parseStage } from "./model";
 
 describe("evidence model", () => {
   const m = buildModel(fixture);
@@ -78,5 +78,14 @@ describe("helpers", () => {
   });
   it("makes nice ticks", () => {
     expect(niceTicks(0, 1, 5)).toEqual([0, 0.2, 0.4, 0.6, 0.8, 1]);
+  });
+  it("stamps import times in UTC to the minute", () => {
+    expect(fmtStamp("2026-11-15T00:40:51+00:00")).toBe("2026-11-15 00:40 UTC");
+    expect(fmtStamp("2026-11-15T06:10:00+05:30")).toBe("2026-11-15 00:40 UTC");
+  });
+  it("shows a missing stamp as a dash and an unreadable one as given", () => {
+    expect(fmtStamp(null)).toBe("—");
+    expect(fmtStamp("")).toBe("—");
+    expect(fmtStamp("last Tuesday")).toBe("last Tuesday");
   });
 });
