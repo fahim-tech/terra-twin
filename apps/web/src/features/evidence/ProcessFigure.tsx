@@ -305,13 +305,17 @@ export function ProcessFigure({ m, fig }: { m: EvidenceModel; fig?: string }) {
         </div>
       </figcaption>
 
-      <ol className="mt-8 grid list-none grid-cols-1 gap-x-6 gap-y-12 p-0 sm:grid-cols-2 xl:grid-cols-4">
+      {/* From sm up every stage spans the same seven row tracks (subgrid), so titles, plates, captions and the
+          VALUE / CHAIN lines run straight across the plates however long each caption is. */}
+      <ol className="mt-8 grid list-none grid-cols-1 gap-x-6 gap-y-12 p-0 sm:grid-cols-2 sm:gap-y-0 xl:grid-cols-4">
         {stages.map((s, i) => {
           const on = lit === i;
           const dim = lit !== null && !on;
           const last = i === stages.length - 1;
           return (
-            <li key={i} onMouseEnter={() => setLit(i)} onMouseLeave={() => setLit(null)} className="relative min-w-0">
+            // Hover highlighting is for a mouse only: a tap would otherwise leave the other plates dimmed.
+            <li key={i} onPointerEnter={(e) => { if (e.pointerType === "mouse") setLit(i); }} onPointerLeave={(e) => { if (e.pointerType === "mouse") setLit(null); }}
+              className={cx("relative min-w-0 sm:row-span-7 sm:grid sm:grid-rows-subgrid", i >= 2 && "sm:mt-12 xl:mt-0")}>
               {/* Signal path: square node per stage; from xl the hairlines join the four into one chain. */}
               <div className="flex items-center" aria-hidden>
                 <span className={cx("grid h-[22px] w-[22px] shrink-0 place-items-center border font-mono text-[11px] leading-none transition-colors duration-150",
@@ -330,15 +334,20 @@ export function ProcessFigure({ m, fig }: { m: EvidenceModel; fig?: string }) {
                 <div className="mx-auto max-w-[360px]">{s.art}</div>
               </div>
               <p className="mt-4 text-caption text-muted">{s.caption}</p>
-              <dl className="mt-3 grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3 gap-y-2 border-t border-line pt-3">
-                <dt className="pt-[3px] text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-faint">Value</dt>
-                <dd className="m-0 text-caption text-muted">{s.value}</dd>
-                <dt className="pt-[3px] text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-faint">Chain</dt>
-                <dd className="m-0 font-mono text-[11px] leading-snug text-faint">{s.chain ?? "Chain step not in payload"}</dd>
+              {/* VALUE and CHAIN are two rows of the shared track set, so they line up across all four stages. */}
+              <dl className="mt-3 border-t border-line pt-3 sm:row-span-2 sm:grid sm:grid-rows-subgrid">
+                <div className="grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3">
+                  <dt className="pt-[3px] text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-faint">Value</dt>
+                  <dd className="m-0 text-caption text-muted">{s.value}</dd>
+                </div>
+                <div className="mt-2 grid grid-cols-[3.25rem_minmax(0,1fr)] gap-x-3">
+                  <dt className="pt-[3px] text-[10px] font-semibold uppercase leading-none tracking-[0.12em] text-faint">Chain</dt>
+                  <dd className="m-0 font-mono text-[11px] leading-snug text-faint">{s.chain ?? "Chain step not in payload"}</dd>
+                </div>
               </dl>
               <button type="button" onClick={() => jumpTo(s.evidence)} onFocus={() => setLit(i)} onBlur={() => setLit(null)}
                 aria-label={`Go to the evidence for ${s.title.toLowerCase()}: ${sectionLabel(s.evidence)}`}
-                className="hit -mx-1 mt-2 inline-flex items-center gap-2 whitespace-nowrap rounded-control px-1 py-1 text-caption text-muted hover:text-ink">
+                className="hit -mx-1 mt-2 inline-flex items-center gap-2 justify-self-start self-start whitespace-nowrap rounded-control px-1 py-1 text-caption text-muted hover:text-ink">
                 <span aria-hidden>↓</span>
                 <span className="num text-[11px] text-faint">{sectionNo(s.evidence)}</span>
                 <span className="underline decoration-line-strong underline-offset-[3px]">{sectionLabel(s.evidence)}</span>
