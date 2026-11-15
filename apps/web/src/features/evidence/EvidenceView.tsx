@@ -512,18 +512,20 @@ function Provenance({ ds, loading, error }: { ds?: DatasetsResponse; loading: bo
         </table>
       </div>
       <div className="mt-12 grid gap-12 lg:grid-cols-2">
-        <div>
+        {/* A container query, not the viewport: the list is half width beside the package from lg up. The detail
+            gets its own right-aligned column only when the column is wide enough; otherwise it sits under the name. */}
+        <div className="@container">
           <h3 className="m-0 flex items-baseline justify-between gap-3 border-b border-line pb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-ink">
             Integrity checks <span className="num text-num font-normal normal-case tracking-normal text-muted">{okN}/{ds.integrity_checks.length} pass</span>
           </h3>
           <ul className="mt-1 list-none p-0">
             {ds.integrity_checks.map((c) => (
-              <li key={c.name} className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-baseline gap-3 border-t border-line py-2 text-caption first:border-t-0">
+              <li key={c.name} className="grid grid-cols-[3rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-0.5 border-t border-line py-2 text-caption first:border-t-0 @lg:grid-cols-[3rem_minmax(0,1fr)_auto]">
                 <span className={cx("inline-flex items-center gap-1.5 font-mono text-[10.5px] uppercase", c.ok ? "text-ink" : "text-bad")}>
                   <span aria-hidden className={cx("h-1.5 w-1.5 shrink-0", c.ok ? "bg-ink" : "ring-1 ring-inset ring-bad")} />{c.ok ? "Pass" : "Fail"}
                 </span>
                 <span className={c.ok ? "text-muted" : "text-bad"}>{c.name.replace(/_/g, " ")}</span>
-                <span className="num text-right text-num-sm text-faint">{c.detail}</span>
+                <span className="num col-start-2 min-w-0 break-words text-num-sm text-faint @lg:col-start-auto @lg:text-right">{c.detail}</span>
               </li>
             ))}
           </ul>
