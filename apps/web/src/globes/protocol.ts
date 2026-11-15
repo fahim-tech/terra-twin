@@ -138,6 +138,11 @@ export type ParentToGlobe =
   | { t: "reset"; durationS?: number }
   | { t: "setMarkers"; group: string; markers: GlobeMarker[]; options?: MarkerGroupOptions }
   | { t: "setFootprints"; group: string; footprints: GlobeFootprint[] }
+  /**
+   * Show or hide one drawing group without touching its contents: setMarkers / setFootprints keep updating it
+   * while it is hidden, and it shows as it then is. Every group is shown until hidden here.
+   */
+  | { t: "setGroupShown"; kind: "markers" | "footprints"; group: string; on: boolean }
   | { t: "select"; id: string | null }
   | { t: "setLayer"; layer: string }
   | { t: "setOverlay"; id: string; url: string | null; alpha?: number }

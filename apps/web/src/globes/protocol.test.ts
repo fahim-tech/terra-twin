@@ -38,6 +38,7 @@ describe("globe protocol", () => {
       { t: "setLight", mode: "intro" },
       { t: "setTilt", on: false, turn: false },
       { t: "flyTo", lat: 1, lon: 2, heightKm: 300, tilt: true },
+      { t: "setGroupShown", kind: "footprints", group: "zones", on: false },
     ] satisfies ParentToGlobe[];
     const replies = [
       { t: "snapshot", requestId: "mars-1", dataUrl: "data:image/jpeg;base64,x", width: 800, height: 473, imagery: "complete" },

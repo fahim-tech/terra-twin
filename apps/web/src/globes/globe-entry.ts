@@ -179,6 +179,9 @@ let capturing = false;
 const deferred: (() => void)[] = [];
 /** Everything the app draws is hidden for a clean capture (markers, footprints, overlays, graticule, orbits). */
 let drawingsHidden = false;
+/** Drawing groups the shell has hidden (setGroupShown), by data-source name: `group`, or `fp:group` for footprints. */
+const hiddenGroups = new Set<string>();
+const groupShown = (name: string) => !drawingsHidden && !hiddenGroups.has(name);
 let moving = false;
 let selectedId: string | null = null;
 /** The user's choice for site flights: end in the 3D view (default) or look straight down. */
@@ -274,8 +277,8 @@ function dataSource(group: string, opts: MarkerGroupOptions = {}): CustomDataSou
   let ds = groups.get(group);
   if (!ds) {
     ds = new CustomDataSource(group);
-    ds.show = !drawingsHidden;
-    ds.clustering.show = !drawingsHidden;
+    ds.show = groupShown(group);
+    ds.clustering.show = ds.show;
     groups.set(group, ds);
     void viewer!.dataSources.add(ds);
   }
@@ -440,7 +443,8 @@ function rebuildStems() {
   // Every stem is rebuilt with the same ids on each marker or selection change: flush the old ones first.
   replaceEntities(ds, () => {
     for (const m of markerRecs.values()) {
-      if (!isStemmed(m)) continue;
+      // A marker of a hidden group has no glyph to stand on a stem either.
+      if (!isStemmed(m) || hiddenGroups.has(m.group)) continue;
       const g = glyph(m.kind, m.id === selectedId);
       const near = new CallbackProperty(() => onNearSide(m.ground), false);
       ds.entities.add({
@@ -465,9 +469,24 @@ function rebuildStems() {
 /** The stemmed marker drawn at a tracked anchor's coordinates, if any. */
 function stemAt(lat: number, lon: number): MarkerRec | null {
   for (const m of markerRecs.values()) {
-    if (isStemmed(m) && Math.abs(m.lat - lat) < 1e-6 && Math.abs(m.lon - lon) < 1e-6) return m;
+    if (isStemmed(m) && !hiddenGroups.has(m.group) && Math.abs(m.lat - lat) < 1e-6 && Math.abs(m.lon - lon) < 1e-6) return m;
   }
   return null;
+}
+
+/** Show or hide one drawing group (setGroupShown), leaving its contents as they are. */
+function setGroupShown(kind: "markers" | "footprints", group: string, on: boolean) {
+  const name = kind === "footprints" ? `fp:${group}` : group;
+  if (on) hiddenGroups.delete(name);
+  else hiddenGroups.add(name);
+  const ds = groups.get(name);
+  if (ds) {
+    ds.show = groupShown(name);
+    ds.clustering.show = ds.show;
+  }
+  if (kind === "markers") rebuildStems();
+  lastAnchors = "";
+  requestRender();
 }
 
 // ---------------------------------------------------------------- footprints as scan volumes
@@ -804,9 +823,9 @@ async function initSky() {
  */
 function setDrawingsHidden(on: boolean) {
   drawingsHidden = on;
-  for (const ds of groups.values()) {
-    ds.show = !on;
-    ds.clustering.show = !on;
+  for (const [name, ds] of groups) {
+    ds.show = groupShown(name);
+    ds.clustering.show = ds.show;
   }
   if (stems) stems.show = !on;
   if (graticule) graticule.show = !on;
@@ -1574,6 +1593,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
       }
       case "setMarkers": setMarkers(m.group, m.markers, m.options); break;
       case "setFootprints": setFootprints(m.group, m.footprints); break;
+      case "setGroupShown": setGroupShown(m.kind, m.group, m.on); break;
       case "select": selectedId = m.id; rebuildStems(); break;
       case "setLayer": setLayer(m.layer); break;
       case "setOverlay": void setOverlay(m.id, m.url, m.alpha); break;

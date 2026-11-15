@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useGlobeBus } from "../../app/globeBus";
-import { useSites } from "../../services/api";
 import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
 import { selectedCandidate } from "../analogs/candidates";
@@ -79,43 +78,16 @@ export function CompareGlobeSync() {
   // Only the compared footprints may be drawn: the explorer's AOI and the research-zone outlines (Mars,
   // unlabelled orange lines that cross the half whenever the camera sits high enough to reach a zone
   // edge) and the results' candidate footprint (Earth, a filled cell for tier 1) are hidden while
-  // comparing. Local workaround until the globe protocol can hide a group by stage: clear those groups
-  // here, after the owning syncs have run, and put the Mars AOI and zone outlines back on the way out
-  // (the Earth results sync re-sends its footprint itself when the stage changes).
-  const sites = useSites();
-  const sitesRef = useRef(sites.data);
-  sitesRef.current = sites.data;
-  const selection = useApp((s) => s.selection);
+  // comparing, and shown again — exactly as their own syncs keep them — on the way out.
   useEffect(() => {
     if (!active) return;
-    const t = setTimeout(() => {
-      bus.send("mars", { t: "setFootprints", group: "aoi", footprints: [] });
-      bus.send("mars", { t: "setFootprints", group: "zones", footprints: [] });
-      bus.send("earth", { t: "setFootprints", group: "cand", footprints: [] });
-    }, 0);
-    return () => clearTimeout(t);
-  }, [bus, active, targets, selection, sites.data]);
-  useEffect(() => {
-    if (!active) return;
-    return () => {
-      const all = sitesRef.current;
-      // The zones layer exactly as the explorer draws it (MarsGlobeSync: every zone's bbox, faint).
-      if (all) {
-        bus.send("mars", {
-          t: "setFootprints", group: "zones",
-          footprints: all.map((x) => ({ id: x.id, kind: "research_bbox" as const, lat: x.lat, lon: x.lon, bbox: [x.bbox.lon_min, x.bbox.lat_min, x.bbox.lon_max, x.bbox.lat_max] as [number, number, number, number] })),
-        });
-      }
-      const { selection: sel, footprintKm } = useApp.getState();
-      if (!sel) return;
-      const site = all?.find((x) => x.id === sel.siteId);
-      bus.send("mars", {
-        t: "setFootprints", group: "aoi", footprints: [
-          { id: "aoi", kind: "aoi", lat: sel.lat, lon: sel.lon, km: footprintKm },
-          ...(site ? [{ id: "ez", kind: "research_bbox" as const, lat: site.lat, lon: site.lon, bbox: [site.bbox.lon_min, site.bbox.lat_min, site.bbox.lon_max, site.bbox.lat_max] as [number, number, number, number] }] : []),
-        ],
-      });
+    const show = (on: boolean) => {
+      bus.send("mars", { t: "setGroupShown", kind: "footprints", group: "aoi", on });
+      bus.send("mars", { t: "setGroupShown", kind: "footprints", group: "zones", on });
+      bus.send("earth", { t: "setGroupShown", kind: "footprints", group: "cand", on });
     };
+    show(false);
+    return () => show(true);
   }, [bus, active]);
 
   // The global-screen similarity field is a different basis (tier 1, as measured); EarthGlobeSync keeps
