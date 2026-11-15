@@ -123,6 +123,7 @@ export function EarthLayers() {
   const set = useApp((s) => s.set);
   const reference = useEarthLocal((s) => s.referenceSites);
   const legendOpen = useEarthLocal((s) => s.legendOpen);
+  const liveOpen = useApp((s) => s.liveOpen);
   const phone = useLayout() === "phone";
   const legend = useLegend();
   const pool = useEarthPool();
@@ -184,7 +185,8 @@ export function EarthLayers() {
       {phone && !legendOpen && <LegendStrip planet="earth" />}
       {showLegend && anyLegend && (
         <div className="space-y-3 border-t border-line px-3 pb-3 pt-2.5">
-          {overlays.similarity && hasT1 && lg && <SimilarityLegend lg={lg} km={screenCellKm(search)} />}
+          {overlays.similarity && hasT1 && lg && !liveOpen && <SimilarityLegend lg={lg} km={screenCellKm(search)} />}
+          {overlays.similarity && liveOpen && <p className="text-caption text-faint">Similarity field not shown during live discovery: the globe shows the refined windows.</p>}
           {overlays.similarity && noScreen && (
             <p className="flex items-baseline gap-2 text-caption text-faint"><StatusMark state="struck" className="translate-y-[1px]" />No similarity field: the global screen did not run for this target.</p>
           )}
@@ -199,7 +201,7 @@ export function EarthLayers() {
                   </span>
                 </div>
                 <p className="mt-1 text-caption text-muted">
-                  {nRandom !== undefined && nPool !== undefined && <><span className="num text-num-sm">{nRandom}</span> sampled at random, <span className="num text-num-sm">{nPool - nRandom}</span> named.</>}
+                  {nRandom !== undefined && nPool !== undefined && <><span className="num text-num-sm">{nRandom}</span> stratified random, <span className="num text-num-sm">{nPool - nRandom}</span> named.</>}
                   {t2pool && target && <> Ranked for <span className="whitespace-nowrap">{target.label}:&nbsp;<span className="num text-num-sm text-ink">{t2pool.n_ranked ?? t2pool.n_windows}</span></span>
                     {gate?.mode === "exclude" ? " that pass the land-cover filter" : ""}.</>}
                 </p>

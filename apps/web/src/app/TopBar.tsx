@@ -47,12 +47,12 @@ const DECISION_TINY: Record<string, string> = {
  * 1024 px every step shows its detail. The full detail always stays in the accessible name.
  */
 function Trail({ compact }: { compact: boolean }) {
-  const { stage, selection, search, candidateId, go } = useApp();
+  const { stage, selection, search, candidateId, go, liveRunId } = useApp();
   const t = searchTarget(search);
   const outcome = search ? (search.status === "available" ? search.tier2.decision.type : "unavailable") : null;
   const steps: { id: Stage; planet: string; detail: string | null; tiny: string | null; locked: string | null }[] = [
     { id: "mars", planet: "Mars", detail: selection?.label ?? null, tiny: selection ? (selection.siteId ? selection.label : "point") : null, locked: null },
-    { id: "earth", planet: "Earth", detail: outcome ? DECISION_SHORT[outcome] : null, tiny: outcome ? DECISION_TINY[outcome] : null, locked: search ? null : "Run Find Earth Analogs first" },
+    { id: "earth", planet: "Earth", detail: outcome ? DECISION_SHORT[outcome] : null, tiny: outcome ? DECISION_TINY[outcome] : null, locked: search || liveRunId ? null : "Run Find Earth Analogs first" },
     { id: "compare", planet: "Compare", detail: t && candidateId ? t.label : null, tiny: t && candidateId ? (t.siteId ? t.label : "point") : null, locked: !search ? "Run Find Earth Analogs first" : !candidateId ? "Choose an Earth candidate first" : null },
   ];
   const visible = compact ? steps.filter((s) => s.id === (stage === "evidence" || stage === "report" ? "mars" : stage)) : steps;

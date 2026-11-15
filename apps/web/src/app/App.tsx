@@ -66,6 +66,7 @@ function Workspace() {
   const introOpen = useApp((s) => s.introOpen);
   const selection = useApp((s) => s.selection);
   const search = useApp((s) => s.search);
+  const liveRunId = useApp((s) => s.liveRunId);
   const marsLayer = useApp((s) => s.marsLayer);
   const earthLayer = useApp((s) => s.earthLayer);
   const graticule = useApp((s) => s.graticule);
@@ -159,7 +160,7 @@ function Workspace() {
               {stage === "mars" ? <MarsSearch /> : <EarthLayers />}
             </div>
             <Instruments planet={activePlanet} phone={phone} />
-            <ContextSurface stage={stage} phone={phone} side={landscapePhone} open={stage === "mars" ? !!selection : !!search}>
+            <ContextSurface stage={stage} phone={phone} side={landscapePhone} open={stage === "mars" ? !!selection : !!search || !!liveRunId}>
               {stage === "mars" ? <MarsInspector /> : <AnalogResults />}
             </ContextSurface>
           </motion.div>

@@ -107,7 +107,8 @@ const VIEWS = {
     settle: 6000,
     // The comparison's mode switch offers "3D relief" only when a relief viewer is wired (modes.ts).
     after: async (page) => {
-      const mode = page.locator('[role="tab"], [role="radio"]').filter({ hasText: /^\s*3D relief\s*$/i }).first();
+      const byId = page.locator("#compare-mode-tab-relief");
+      const mode = (await byId.count()) ? byId.first() : page.locator('[role="tab"], [role="radio"]').filter({ hasText: /^\s*3D( relief)?\s*$/i }).first();
       if (!(await mode.count())) {
         console.log('  note: no "3D relief" mode in this build — compare-relief skipped');
         return false;
