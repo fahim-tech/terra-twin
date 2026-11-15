@@ -6,7 +6,7 @@ import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
 import { searchTarget } from "../../store/searchTarget";
 import type { AnalogSearch, Tier1Candidate } from "../../types/contracts";
-import { type CandidateView, candidateList, coord, groupNearTop } from "./candidates";
+import { type CandidateView, candidateList, coord, groupNearTop, unorderedMembers } from "./candidates";
 import { chooseCandidate } from "./tierMemory";
 import { contiguousCount, mergeByRank, tier1InView, type ViewBox, viewBox } from "./viewQuery";
 
@@ -25,9 +25,12 @@ function CellRow({ c, on, approx }: { c: CandidateView; on: boolean; approx: boo
         {on && <span aria-hidden className="absolute inset-y-2 left-0 w-[2px] rounded-full bg-earth" />}
         <span className={cx("w-8 shrink-0", approx ? "text-caption text-muted" : "num text-num-sm text-faint")}>{approx ? "≈" : c.rank}</span>
         <span className={cx("num shrink-0 text-num-sm", on ? "text-earth" : "text-ink")}>{coord(c.lat, c.lon)}</span>
-        <span aria-hidden className="relative h-[3px] min-w-6 flex-1 rounded-full bg-line">
-          {s !== null && <span className={cx("absolute inset-y-0 left-0 rounded-full", on ? "bg-earth" : "bg-muted")} style={{ width: `${Math.max(0, Math.min(1, s)) * 100}%` }} />}
-        </span>
+        {/* Cells near the top are not ranked against each other: no length bar that would read as an order. */}
+        {approx ? <span aria-hidden className="min-w-6 flex-1" /> : (
+          <span aria-hidden className="relative h-[3px] min-w-6 flex-1 rounded-full bg-line">
+            {s !== null && <span className={cx("absolute inset-y-0 left-0 rounded-full", on ? "bg-earth" : "bg-muted")} style={{ width: `${Math.max(0, Math.min(1, s)) * 100}%` }} />}
+          </span>
+        )}
         <span className="num w-[42px] shrink-0 text-right text-num text-ink">{s === null ? "—" : s.toFixed(3)}</span>
         <span aria-hidden className="w-4 shrink-0 text-center text-caption" title={flagText || undefined}>
           {flagged ? <span className="text-warn">⚠</span> : near ? <span className="text-muted">◆</span> : null}
@@ -53,7 +56,11 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
   const rows = (view ? all.filter((c) => view.ids.has(c.id)) : all)
     .filter((c) => knownFilter === "all" || c.t1?.known_analog.status === knownFilter);
   const top = t1.summary.leader_similarity;
-  const { near, rest } = groupNearTop(rows, top, NEAR_TOL);
+  const grouped = groupNearTop(rows, top, NEAR_TOL);
+  // Not ranked against each other → listed west to east, like a tied set; never by S.
+  const near = unorderedMembers(grouped.near);
+  const rest = grouped.rest;
+  const nearMaxRank = near.reduce((m, c) => Math.max(m, c.rank ?? 0), 0);
   const contiguous = contiguousCount(t1.candidates);
   const km = t1.candidate_pool.cell_size_km;
   const frame = typeof window === "undefined" ? null : { w: window.innerWidth - insets.left - insets.right, h: window.innerHeight - 52 - insets.top - insets.bottom };
@@ -134,7 +141,7 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
             {view || knownFilter !== "all"
               ? <><span className="num text-num-sm text-ink">{near.length}</span> {near.length === 1 ? "cell" : "cells"}{knownFilter !== "all" && <> of <span className="num text-num-sm">{t1.summary.n_within_0p05_of_leader}</span></>}</>
               : <><span className="num text-num-sm text-ink">{t1.summary.n_within_0p05_of_leader}</span>{near.length < t1.summary.n_within_0p05_of_leader && <> (<span className="num text-num-sm">{near.length}</span> loaded)</>} cells</>}
-            {" "}within {NEAR_TOL.toFixed(2)} of the top — not ranked against each other
+            {" "}within {NEAR_TOL.toFixed(2)} of the top — not ranked against each other, listed west to east
           </div>
           <ul role="group" aria-label="Cells within 0.05 of the top, not ranked against each other" className="rounded-control bg-white/[0.025]">
             {near.map((c) => <CellRow key={c.id} c={c} on={candidateId === c.id} approx />)}
@@ -144,7 +151,7 @@ export function GlobalStage({ search, candidateId }: { search: AnalogSearch; can
       {rest.length > 0 && (
         <ul aria-label="Further cells by global rank" className="mt-2">
           {rest.map((c, i) => {
-            const prev = i ? rest[i - 1].rank! : near.length ? near[near.length - 1].rank! : 0;
+            const prev = i ? rest[i - 1].rank! : nearMaxRank;
             const gap = !view && knownFilter === "all" && c.rank! - prev > 1;
             return (
               <Fragment key={c.id}>
