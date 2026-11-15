@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
-import { OutcomeMark, PlanetMark, PLANET_NAME, StatusMark as SharedStatusMark, type StatusKind } from "../../components/marks";
+import { PlanetMark, PLANET_NAME, StatusMark as SharedStatusMark, type StatusKind } from "../../components/marks";
 import { cx } from "../../components/ui";
 import type { Planet } from "../../globes/protocol";
-import { VERDICT_MARK, type VerdictKind } from "./model";
 
 /**
  * The comparison's instrument parts. The marks themselves are the app's shared set (components/marks.tsx),
- * re-exported here for the files that already import them from this module.
+ * re-exported here for the files that already import them from this module; the verdict's outcome mark is
+ * model.ts VERDICT_MARK, drawn by Readout.tsx VerdictLine.
  */
 export { PlanetMark, PLANET_NAME };
 
@@ -33,11 +33,6 @@ export function PlanetLabel({ planet, role, className, roleClassName, hidden }: 
       )}
     </span>
   );
-}
-
-/** The research decision for the compared candidate, as the shared outcome mark (model.ts VERDICT_MARK). */
-export function VerdictMark({ kind, size, className }: { kind: VerdictKind; size?: number; className?: string }) {
-  return <OutcomeMark kind={VERDICT_MARK[kind]} size={size} className={className} />;
 }
 
 const EVALUATION_MARK: Record<"evaluated" | "partial" | "not_evaluated", StatusKind> = { evaluated: "on", partial: "partial", not_evaluated: "off" };
