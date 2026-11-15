@@ -7,6 +7,7 @@ import { useApp } from "../store/app";
 import { GlobeBusProvider, useGlobeBus } from "./globeBus";
 import { useGlobes } from "../store/globes";
 import { LiveRegion, useEscapeToClose, useStageFocus } from "./a11y";
+import { useUrlState } from "./useUrlState";
 import { TopBar } from "./TopBar";
 import { Intro } from "./Intro";
 import { MarsControls } from "../features/explorer/MarsControls";
@@ -37,6 +38,7 @@ function Workspace() {
   const bus = useGlobeBus();
   useEscapeToClose();
   useStageFocus();
+  useUrlState();
   const mars = bus.handles.mars;
   const earth = bus.handles.earth;
   const s = useApp();
