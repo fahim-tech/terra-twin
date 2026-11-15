@@ -57,4 +57,7 @@ body {
 @media print {
   body { overflow: visible; background: white; color: #111; }
   .no-print { display: none !important; }
+  main > div:first-child { display: none !important; }
+  main, main > div { position: static !important; overflow: visible !important; }
+  .text-muted, .text-faint, .text-ink, .text-ink\/90 { color: #222 !important; }
 }
