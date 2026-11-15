@@ -191,15 +191,19 @@ let settleUntil = 0;
 let occluder: EllipsoidalOccluder | null = null;
 
 /**
- * Data credits as a quiet strip at the bottom centre of the free area, clear of the shell's scale,
- * altitude and centre readouts (bottom-left) and navigation (bottom-right).
+ * Data credits as a quiet strip at the bottom of the free area, clear of the shell's instruments: centred
+ * between the scale, altitude and centre readouts (bottom-left) and navigation (bottom-right) on wide
+ * frames; in the bottom-right corner on narrow ones, where the scale readout takes the bottom-left and the
+ * navigation sits top-right.
  */
 function placeCredits() {
   const el = viewer?.cesiumWidget.creditContainer as HTMLElement | undefined;
   if (!el) return;
-  const left = `calc(${insets.left}px + (100% - ${insets.left + insets.right}px) / 2)`;
-  el.style.cssText = "position:absolute;z-index:1;transform:translateX(-50%) scale(.8);transform-origin:50% 100%;" +
-    `left:${left};bottom:${insets.bottom + 2}px;white-space:nowrap;` +
+  const narrow = (viewer?.scene.canvas.clientWidth ?? 0) < 640;
+  const across = narrow
+    ? `left:auto;right:${insets.right + 8}px;transform:scale(.8);transform-origin:100% 100%;`
+    : `left:calc(${insets.left}px + (100% - ${insets.left + insets.right}px) / 2);transform:translateX(-50%) scale(.8);transform-origin:50% 100%;`;
+  el.style.cssText = `position:absolute;z-index:1;${across}bottom:${insets.bottom + 2}px;white-space:nowrap;` +
     "font:10px 'Barlow',system-ui;opacity:.5;filter:grayscale(1) invert(1);";
 }
 
@@ -1396,7 +1400,7 @@ window.addEventListener("message", (ev: MessageEvent) => {
       case "resetHeading": resetHeading(); break;
       case "snapshot": void snapshot(m.requestId, m.lat, m.lon, m.heightKm, m.maxWidth); break;
       case "setSpin": spinning = m.on; attract = m.on; break;
-      case "resize": viewer?.resize(); break;
+      case "resize": viewer?.resize(); placeCredits(); break;
       case "setTilt": setTilt(m.on); break;
     }
     requestRender();
