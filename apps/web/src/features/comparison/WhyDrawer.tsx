@@ -61,7 +61,7 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
         <IconButton label="Close" onClick={onClose} className="absolute right-3 top-3"><X className="h-4 w-4" /></IconButton>
       </header>
 
-      <div className="scroll-thin fade-edges min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-6 pt-1 text-body">
+      <div className="scroll-thin min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-8 pt-1 text-body [mask-image:linear-gradient(to_bottom,transparent_0,black_12px,black_calc(100%-36px),transparent_100%)]">
         <section className="rounded-control bg-surface/60 px-4 py-3">
           <div className="flex items-baseline justify-between gap-3">
             <span className="text-label text-ink"><span aria-hidden>{v.glyph} </span>{v.headline}</span>

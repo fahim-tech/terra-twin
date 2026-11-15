@@ -11,7 +11,7 @@ import type { AnalogSearch } from "../../types/contracts";
 import { type CandidateView, selectedCandidate } from "../analogs/candidates";
 import { ComparePlates } from "./ComparePlates";
 import { EvidenceMode } from "./EvidenceMode";
-import { StageProbe } from "./layout";
+import { StageProbe, useCompareStage, whyDrawerWidth } from "./layout";
 import { basisFor, compareTargets, verdictFor, type Verdict } from "./model";
 import { RatioChart } from "./RatioChart";
 import { RelevanceMode } from "./RelevanceMode";
@@ -122,6 +122,11 @@ export function ComparisonPanel() {
 
   if (!search || !c || !targets || !verdict) return <NoCandidate hasSearch={!!search} phone={phone} />;
 
+  // With the Why drawer open, the strip reflows into the width the drawer leaves free (so the G5 scope
+  // line is never hidden under it), as long as that leaves a usable strip; otherwise the modal covers it.
+  const stageW = useCompareStage((s) => s.w);
+  const drawerW = whyDrawerWidth(stageW);
+  const stripRight = whyOpen && !phone && stageW - drawerW - 36 >= 520 ? drawerW + 24 : null;
   return (
     <>
       <StageProbe />
@@ -131,7 +136,7 @@ export function ComparisonPanel() {
       {phone && <div aria-hidden data-occludes="both" className="pointer-events-none absolute inset-x-0 top-0 h-[64px]" />}
       <motion.section ref={stripRef} aria-label="Mars–Earth comparison" data-occludes="both"
         initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: "spring", bounce: 0, duration: 0.35 }}
-        style={expanded ? { height: phone ? "70%" : "56%" } : undefined}
+        style={{ ...(expanded ? { height: phone ? "70%" : "56%" } : null), ...(stripRight !== null ? { right: stripRight } : null) }}
         className={cx("surface no-print absolute z-20 flex flex-col overflow-hidden",
           phone ? "inset-x-0 bottom-0 rounded-t-surface [padding-bottom:env(safe-area-inset-bottom)]" : "inset-x-3 bottom-3 rounded-surface")}>
         <Summary c={c} targets={targets} verdict={verdict} mode={mode} setMode={setMode} onTabKeys={onTabKeys} phone={phone} onWhy={() => set({ whyOpen: true })} />
@@ -208,7 +213,7 @@ function Summary({ c, targets, verdict, mode, setMode, onTabKeys, phone, onWhy }
   if (phone) {
     // Phone: one column, the G5 verdict label and scope one tap away (Term popovers).
     return (
-      <div className="shrink-0 px-4 pt-2">
+      <div className="shrink-0 px-4 pb-3 pt-2">
         <div className="flex items-center justify-between gap-3">{back}{why}</div>
         {heading}
         <div className="mt-1 flex items-baseline justify-between gap-3">
