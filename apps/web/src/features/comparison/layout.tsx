@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { create } from "zustand";
+import type { Planet } from "../../globes/protocol";
 
 /** Why drawer width cap on desktop/tablet, px. */
 export const WHY_DRAWER_MAX_PX = 440;
@@ -50,6 +51,15 @@ export const WHY_DRAWER_WIDTH_CSS = `min(${WHY_DRAWER_MAX_PX}px, calc(100% - ${2
 
 /** Size of the stage (the globes' container) in CSS px, measured by <StageProbe/>. */
 export const useCompareStage = create<{ w: number; h: number }>(() => ({ w: 0, h: 0 }));
+
+/**
+ * Requests to frame a compared window again at the matched altitude (each half's Frame control), counted
+ * per planet. CompareGlobeSync flies that globe whenever its count changes.
+ */
+export const useCompareFraming = create<Record<Planet, number>>(() => ({ mars: 0, earth: 0 }));
+export function requestReframe(planet: Planet) {
+  useCompareFraming.setState((s) => ({ [planet]: s[planet] + 1 }));
+}
 
 /**
  * An invisible box filling the stage; reports its size so the comparison's camera framing does not

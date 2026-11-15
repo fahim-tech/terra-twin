@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { footprintPx, matchedHeightKm } from "./framing";
-import { WHY_DRAWER_MAX_PX, WHY_MIN_SLIVER_PX, WHY_SLIVER_MARGIN_PX, whyLayout } from "./layout";
+import { requestReframe, useCompareFraming, WHY_DRAWER_MAX_PX, WHY_MIN_SLIVER_PX, WHY_SLIVER_MARGIN_PX, whyLayout } from "./layout";
+
+describe("frame requests", () => {
+  it("counts each half's Frame control separately, so only that globe flies back", () => {
+    const before = useCompareFraming.getState();
+    requestReframe("mars");
+    const after = useCompareFraming.getState();
+    expect(after.mars).toBe(before.mars + 1);
+    expect(after.earth).toBe(before.earth);
+  });
+});
 
 describe("Why brief placement", () => {
   it("sits beside the Earth window on wide stages and aims the Earth camera into the room it leaves", () => {

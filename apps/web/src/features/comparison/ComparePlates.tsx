@@ -4,16 +4,17 @@ import { cx } from "../../components/ui";
 import type { Planet } from "../../globes/protocol";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { useGlobes } from "../../store/globes";
+import { CompareNav } from "./CompareNav";
 import { CORNERS, FootprintGauge } from "./FootprintGauge";
 import { PlanetLabel } from "./marks";
 import type { CompareTargets } from "./model";
 
 /**
  * Over each half of the split view: a designation plate (planet, role, toponym, coordinates and what
- * the white square is), the footprint's dimension line, and the half's own instruments (live scale
- * and altitude, which read the same on both halves at the matched comparison altitude). While the Why
- * drawer is open its header names the Earth candidate, so the Earth plate gives the narrowed half back
- * to the footprint.
+ * the white square is), the footprint's dimension line, the half's own instruments (live scale and
+ * altitude, which read the same on both halves at the matched comparison altitude) and its navigation
+ * row. While the Why drawer is open its header names the Earth candidate, so the Earth plate gives the
+ * narrowed half back to the footprint.
  */
 export function ComparePlates({ targets, planets, whyOpen = false, compact = false }: {
   targets: CompareTargets; planets: Planet[]; whyOpen?: boolean;
@@ -30,6 +31,8 @@ export function ComparePlates({ targets, planets, whyOpen = false, compact = fal
             <FootprintGauge planet={p} lat={t.lat} lon={t.lon} km={t.km} label={t.size} />
             {!(whyOpen && p === "earth") && <Plate planet={p} targets={targets} compact={compact} />}
             <HalfInstruments planet={p} />
+            {/* Under the open brief the Earth half's controls would be hidden anyway; leave them out of the page. */}
+            {!(whyOpen && p === "earth") && <CompareNav planet={p} />}
           </div>
         );
       })}

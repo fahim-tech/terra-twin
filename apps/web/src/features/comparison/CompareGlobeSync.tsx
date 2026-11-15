@@ -6,10 +6,28 @@ import { useGlobes } from "../../store/globes";
 import { selectedCandidate } from "../analogs/candidates";
 import { normLon, R_EARTH_MEAN_M } from "../../lib/geodesy";
 import { FOVY, matchedHeightKm } from "./framing";
-import { useCompareStage, WHY_SLIVER_MARGIN_PX, whyLayout } from "./layout";
-import { compareTargets } from "./model";
+import { useCompareFraming, useCompareStage, WHY_SLIVER_MARGIN_PX, whyLayout } from "./layout";
+import { type CompareTargets, compareTargets } from "./model";
+import type { Planet } from "../../globes/protocol";
 
 export { COMPARE_HEIGHT_KM, matchedHeightKm } from "./framing";
+
+/**
+ * Where a globe aims to show its compared window. The Why drawer covers the right of the Earth half on
+ * desktop. The shell's inset model would read a drawer that wide as a top/bottom cover, so the drawer
+ * does not mark itself as an occluder; instead the Earth window is shifted left into the uncovered part
+ * by aiming east of it. When there is too little room for that, the brief takes the whole Earth half
+ * and the window stays centred.
+ */
+function aimAt(planet: Planet, targets: CompareTargets, heightKm: number, whyOpen: boolean): { lat: number; lon: number } {
+  if (planet === "mars") return { lat: targets.mars.lat, lon: targets.mars.lon };
+  const { w: W, h: H } = useCompareStage.getState();
+  const shiftPx = whyOpen && W >= 768 ? whyLayout(W).earthShiftPx : 0;
+  if (!shiftPx || !(H > 0)) return { lat: targets.earth.lat, lon: targets.earth.lon };
+  const mpp = (2 * heightKm * 1000 * Math.tan(FOVY / 2)) / H;
+  const dLon = ((shiftPx * mpp) / (R_EARTH_MEAN_M * Math.max(Math.cos((targets.earth.lat * Math.PI) / 180), 0.05))) * (180 / Math.PI);
+  return { lat: targets.earth.lat, lon: normLon(targets.earth.lon + dLon) };
+}
 
 /**
  * In the comparison stage: draw the compared footprint (the 50 km research window, or the 25 km
@@ -115,22 +133,28 @@ export function CompareGlobeSync() {
   const flown = useRef<string>("");
   useEffect(() => {
     if (!active || !targets || height === null) return;
-    const { w: W, h: H } = useCompareStage.getState();
-    // The Why drawer covers the right of the Earth half on desktop. The shell's inset model would read
-    // a drawer that wide as a top/bottom cover, so the drawer does not mark itself as an occluder;
-    // instead the Earth window is shifted left into the uncovered part by aiming east of it. When there
-    // is too little room for that, the brief takes the whole Earth half and the window stays centred.
+    const { w: W } = useCompareStage.getState();
     const shiftPx = whyOpen && W >= 768 ? whyLayout(W).earthShiftPx : 0;
     const key = `${targets.mars.lat},${targets.mars.lon},${targets.earth.lat},${targets.earth.lon},${shiftPx}`;
     const prev = flown.current.split("|");
     // Re-fly on a new pair or drawer state, or when the needed altitude changes by more than 12 %.
     if (prev[0] === key && Math.abs(Number(prev[1]) - height) / height < 0.12) return;
     flown.current = `${key}|${height}`;
-    const mpp = H > 0 ? (2 * height * 1000 * Math.tan(FOVY / 2)) / H : 0;
-    const dLon = ((shiftPx * mpp) / (R_EARTH_MEAN_M * Math.max(Math.cos((targets.earth.lat * Math.PI) / 180), 0.05))) * (180 / Math.PI);
-    bus.send("mars", { t: "flyTo", lat: targets.mars.lat, lon: targets.mars.lon, heightKm: height });
-    bus.send("earth", { t: "flyTo", lat: targets.earth.lat, lon: normLon(targets.earth.lon + dLon), heightKm: height });
+    for (const p of ["mars", "earth"] as const) bus.send(p, { t: "flyTo", ...aimAt(p, targets, height, whyOpen), heightKm: height });
   }, [bus, active, targets, height, whyOpen]);
+
+  // A half's Frame control: fly that globe back to its window at the matched altitude, even when nothing
+  // else changed (the user zoomed or panned it away), so both ground scales agree again.
+  const framing = useCompareFraming();
+  const lastFraming = useRef(framing);
+  useEffect(() => {
+    const prev = lastFraming.current;
+    lastFraming.current = framing;
+    if (!active || !targets || height === null) return;
+    for (const p of ["mars", "earth"] as const) {
+      if (framing[p] !== prev[p]) bus.send(p, { t: "flyTo", ...aimAt(p, targets, height, whyOpen), heightKm: height });
+    }
+  }, [bus, active, targets, height, whyOpen, framing]);
 
   useEffect(() => { if (stage !== "compare") flown.current = ""; }, [stage]);
   return null;
