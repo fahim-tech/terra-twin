@@ -100,9 +100,12 @@ export function MarsInspector() {
               </div>
             </Block>
             <Block title={<SectionTitle n={3}>Footprint</SectionTitle>}>
-              <Segmented ariaLabel="Requested footprint" accent="mars" value={footprintKm}
-                onChange={(v) => useApp.getState().set({ footprintKm: v })}
-                options={FOOTPRINTS.map((k) => ({ value: k, label: <span className="num">{k} km</span> }))} />
+              {/* The selector spans the panel like the grid above it: equal cells, one per footprint. */}
+              <div className="[&>[role=radiogroup]]:flex [&>[role=radiogroup]]:w-full [&_[role=radio]]:flex-1">
+                <Segmented ariaLabel="Requested footprint" accent="mars" value={footprintKm}
+                  onChange={(v) => useApp.getState().set({ footprintKm: v })}
+                  options={FOOTPRINTS.map((k) => ({ value: k, label: <span className="num">{k} km</span> }))} />
+              </div>
               <p className="mt-2.5 text-caption text-faint"><FootprintNote scales={scales} /></p>
             </Block>
             <Block title={<SectionTitle n={4}>Evidence availability</SectionTitle>}>
