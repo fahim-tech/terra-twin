@@ -74,22 +74,22 @@ export function EarthGlobeSync() {
     bus.send("earth", { t: "setMarkers", group: "t1", markers: t1, options: { cluster: true, labels: "none" } });
   }, [bus, cands, members, tier, phone]);
 
-  // 50 km windows of the tier-2 members, drawn while the research comparison is the active stage.
+  // Research windows of the tier-2 members, drawn while the research comparison is the active stage.
   useEffect(() => {
     const fps: GlobeFootprint[] = tier === 2
       ? cands.filter((c) => c.tier === 2 && members.includes(c.t2!.id) && c.id !== current?.id)
-        .map((c) => ({ id: `m:${c.id}`, kind: "window", lat: c.lat, lon: c.lon, km: c.t2!.window_km || 50 }))
+        .map((c) => ({ id: `m:${c.id}`, kind: "window", lat: c.lat, lon: c.lon, km: c.t2!.window_km }))
       : [];
     bus.send("earth", { t: "setFootprints", group: "members", footprints: fps });
   }, [bus, cands, members, tier, current?.id]);
 
-  // Selected candidate: highlight + its true footprint (25 km cell box or 50 km window).
+  // Selected candidate: highlight + its true footprint (screening-cell box or research window).
   useEffect(() => {
     bus.send("earth", { t: "select", id: current?.id ?? null });
     bus.send("earth", {
       t: "setFootprints", group: "cand", footprints: !current ? [] : [current.tier === 1 && current.bbox
         ? { id: current.id, kind: "cell", lat: current.lat, lon: current.lon, bbox: current.bbox }
-        : { id: current.id, kind: "window", lat: current.lat, lon: current.lon, km: current.t2?.window_km || 50 }],
+        : { id: current.id, kind: "window", lat: current.lat, lon: current.lon, km: current.t2!.window_km }],
     });
   }, [bus, current]);
 

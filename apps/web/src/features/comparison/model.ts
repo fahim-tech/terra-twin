@@ -116,21 +116,25 @@ export function compareTargets(search: AnalogSearch, c: CandidateView): CompareT
   const e = earthName(c);
   if (c.tier === 2) {
     const tg = search.tier2.target;
-    const km = c.t2?.window_km ?? tg.window_km ?? 50;
+    // Sizes come from the record only (window_km is required by the contract), never a default.
+    const km = c.t2?.window_km ?? tg.window_km;
+    const marsKm = tg.window_km;
+    const win = (k: number) => `${k} km research window`;
     return {
-      mars: { name, lat: tg.lat, lon: tg.lon, km: tg.window_km ?? km, footprint: `${tg.window_km ?? km} km research window` },
-      earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km, footprint: `${km} km research window` },
-      footprintLabel: `${km} km research window`,
+      mars: { name, lat: tg.lat, lon: tg.lon, km: marsKm, footprint: win(marsKm) },
+      earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km, footprint: win(km) },
+      footprintLabel: win(km),
     };
   }
-  const km = c.t1?.footprint.cell_km_ns ?? 25;
+  const km = c.t1?.footprint.cell_km_ns ?? screenCellKm(search);
+  if (km === null) return null; // no cell size in the record: nothing honest to draw or label
   const cell = `${Math.round(km)} km screening cell`;
   return {
-    // For a research zone the Mars global-screen descriptors are the median of the zone's 25 km
+    // For a research zone the Mars global-screen descriptors are the median of the zone's screening
     // cells, so the square only marks the target point; it is not the area that was measured.
     mars: { name, lat: t.lat, lon: t.lon, km, footprint: t.siteId ? `Target point, ${Math.round(km)} km square for scale · descriptors: zone median` : cell },
     earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km, footprint: cell },
-    footprintLabel: `${Math.round(km)} km screening cell`,
+    footprintLabel: cell,
   };
 }
 

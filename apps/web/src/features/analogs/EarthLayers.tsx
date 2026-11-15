@@ -43,6 +43,7 @@ export function EarthLayers() {
   const lg = legend.data?.tier1_similarity;
   const cov = legend.data?.tier1_coverage;
   const nPool = pool.data?.length;
+  const poolKm = search?.tier2.candidate_pool?.window_km ?? null;
   const nRandom = pool.data?.filter((w) => w.kind === "random").length;
   const t2pool = search?.tier2.candidate_pool as ({ n_windows: number; n_ranked?: number } | null | undefined);
   const gate = search?.tier2.landcover_gate;
@@ -91,7 +92,7 @@ export function EarthLayers() {
           {overlays.pool && (
             <div className="flex items-start gap-2 text-caption text-muted"><span aria-hidden className="mt-[6px] h-1.5 w-1.5 shrink-0 rounded-full bg-muted" />
               <p>
-                <span className="num text-num-sm text-ink">{nPool ?? "—"}</span> research-pool windows, 50 km each
+                <span className="num text-num-sm text-ink">{nPool ?? "—"}</span> research-pool windows{poolKm ? `, ${poolKm} km each` : ""}
                 {nRandom !== undefined && nPool !== undefined && <> (<span className="num text-num-sm">{nRandom}</span> sampled at random, <span className="num text-num-sm">{nPool - nRandom}</span> named)</>}.
                 {t2pool && target && <> Ranked for {target.label}: <span className="num text-num-sm text-ink">{t2pool.n_ranked ?? t2pool.n_windows}</span>
                   {gate?.mode === "exclude" ? " that pass the land-cover filter" : ""}.</>}

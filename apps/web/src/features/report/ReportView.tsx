@@ -475,7 +475,7 @@ function Provenance({ search }: { search: AnalogSearch }) {
         {op.status === "ok" ? <>Version <span className="num">{op.version ?? "—"}</span> · {op.interpolator ?? "—"} · ½-pixel blend{op.registration ? <span className="block text-faint">Registration {op.registration}</span> : null}</> : <>Unavailable at this coordinate. No comparison is made.</>}
       </Prov>
       <Prov k="Earth screen">{search.tier1 ? <>{search.tier1.candidate_pool.source}; <span className="num">{search.tier1.candidate_pool.n_cells_searched.toLocaleString("en-US")}</span> cells; method <span className="num">{search.tier1.method_version}</span>; weights {String((search.tier1 as { weights_status?: string }).weights_status ?? "—")}.</> : "Not run for this target."}</Prov>
-      <Prov k="Earth research pool">Copernicus DEM GLO-90, <span className="num">{t2.candidate_pool?.n_windows ?? "—"}</span> windows of <span className="num">{t2.candidate_pool?.window_km ?? "—"}</span> km on a 463 m local grid.</Prov>
+      <Prov k="Earth research pool">Copernicus DEM GLO-90, <span className="num">{t2.candidate_pool?.n_windows ?? "—"}</span> windows{t2.candidate_pool?.window_km ? <> of <span className="num">{t2.candidate_pool.window_km}</span> km</> : null} on a 463 m local grid.</Prov>
       <Prov k="Land cover">ESA WorldCover 2021 v200{gate ? <> · {gate.mode === "exclude" ? "applied before ranking" : "reported only, never excludes"} · bare-like ≥ <span className="num">{gate.bare_min.toFixed(2)}</span>, vegetated ≤ <span className="num">{gate.veg_max.toFixed(2)}</span> (working hypotheses)</> : null}.</Prov>
       <Prov k="Live refinement">
         {t2.live_refinement.status === "unavailable" ? "Not available" : t2.live_refinement.status}
