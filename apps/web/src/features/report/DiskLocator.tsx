@@ -67,7 +67,7 @@ export function DiskLocator({ planet, body, lat, lon, heightKm, snapshot, plateK
           </>
         )}
       </div>
-      <figcaption aria-hidden className="mt-1 text-center text-[9.5px] font-semibold uppercase leading-none tracking-[0.14em] text-faint">Whole disk</figcaption>
+      <figcaption aria-hidden className="mt-1 text-center text-[10px] font-semibold uppercase leading-none tracking-[0.14em] text-faint">Whole disk</figcaption>
     </figure>
   );
 }

@@ -15,7 +15,7 @@ import {
 } from "./model";
 import { DecisionMark, DISPLAY, Numerals, type ReadoutItem, ReadoutGrid, StatusMark, statusWord } from "./parts";
 import { RatioChart } from "./RatioChart";
-import { indexLabel } from "./typeset";
+import { indexLabel, splitDesignation } from "./typeset";
 
 const N = ({ children }: { children: ReactNode }) => <span className="num">{children}</span>;
 
@@ -69,26 +69,36 @@ export function ResearchSummary({ search, c }: { search: AnalogSearch; c: Report
       )}
       {members.length > 0 && d.type === "tied_set" && (
         <div>
-          <div className="kicker">Equivalent windows · unordered, listed west to east</div>
+          <div className="kicker flex flex-wrap gap-x-2"><span>Equivalent windows ·</span><span>unordered, listed west to east</span></div>
           <table className="mt-2 w-full border-collapse text-left">
             <caption className="sr-only">Equivalent windows of the tie, unordered, listed west to east</caption>
             <thead>
               <tr className="border-b border-line-strong">
                 <th scope="col" className="kicker py-2 pr-4">Window</th>
                 <th scope="col" className="kicker py-2 pr-4 text-right">Latitude</th>
-                <th scope="col" className="kicker py-2 pr-4 text-right">Longitude</th>
-                <th scope="col" className="py-2"><span className="sr-only">In this dossier</span></th>
+                <th scope="col" className="kicker py-2 pr-4 text-right max-sm:pr-0">Longitude</th>
+                <th scope="col" className="py-2 max-sm:hidden"><span className="sr-only">In this dossier</span></th>
               </tr>
             </thead>
             <tbody>
-              {members.map((m) => (
-                <tr key={m.id} className="border-b border-line">
-                  <th scope="row" className={cx("py-2.5 pr-4 text-label font-medium", m.id === current ? "text-earth" : "text-ink")}><Numerals text={m.label} /></th>
-                  <td className="num whitespace-nowrap py-2.5 pr-4 text-right text-num text-muted">{m.lat === null ? "—" : fmtLat(m.lat, 2)}</td>
-                  <td className="num whitespace-nowrap py-2.5 pr-4 text-right text-num text-muted">{m.lon === null ? "—" : fmtLon(m.lon, 2)}</td>
-                  <td className="whitespace-nowrap py-2.5 text-right">{m.id === current ? <span className="kicker !text-earth">This dossier</span> : null}</td>
-                </tr>
-              ))}
+              {members.map((m) => {
+                // "Window 217 · roughness decile 8": the window on one line, its stratum quieter beneath.
+                const name = splitDesignation(m.label);
+                const mine = m.id === current;
+                return (
+                  <tr key={m.id} className="border-b border-line">
+                    <th scope="row" className={cx("py-2.5 pr-4 text-label font-medium", mine ? "text-earth" : "text-ink")}>
+                      <Numerals text={name.name} />
+                      {name.detail && <span className={cx("block text-caption font-normal", mine ? "text-earth/80" : "text-muted")}><span className="sr-only"> · </span><Numerals text={name.detail} /></span>}
+                      {/* Phones drop the marker column: the choice is marked under the name instead. */}
+                      {mine && <span className="kicker mt-1 block !text-earth sm:hidden">This dossier</span>}
+                    </th>
+                    <td className="num whitespace-nowrap py-2.5 pr-4 text-right align-top text-num text-muted">{m.lat === null ? "—" : fmtLat(m.lat, 2)}</td>
+                    <td className="num whitespace-nowrap py-2.5 pr-4 text-right align-top text-num text-muted max-sm:pr-0">{m.lon === null ? "—" : fmtLon(m.lon, 2)}</td>
+                    <td className="whitespace-nowrap py-2.5 text-right align-top max-sm:hidden">{mine ? <span className="kicker !text-earth">This dossier</span> : null}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

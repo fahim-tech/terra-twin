@@ -204,9 +204,10 @@ export function LocationPlate({ planet, plate, lat, lon, frame, kicker, name, im
 
       <figcaption className="mt-1 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className={cx(DISPLAY, "text-[20px] leading-tight tracking-[0.04em] text-ink")}>
-            {title.name}
-            {title.detail && <span className="ml-2 text-[14px] font-medium tracking-[0.08em] text-muted"><span className="sr-only">, </span>{title.detail}</span>}
+          {/* The qualifier wraps as a whole ("roughness decile 8"), flush left, never leaving its number alone. */}
+          <div className={cx(DISPLAY, "flex flex-wrap items-baseline gap-x-2 text-[20px] leading-tight tracking-[0.04em] text-ink")}>
+            <span>{title.name}</span>
+            {title.detail && <span className="whitespace-nowrap text-[14px] font-medium tracking-[0.08em] text-muted"><span className="sr-only">, </span>{title.detail}</span>}
           </div>
           <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <span className="num text-num text-muted">{coord}</span>
@@ -326,12 +327,12 @@ function Neatline({ ticks, probe }: { ticks: PlateTicks; probe: Probe | null }) 
       {ticks.right.map((k) => <span key={`r${k.value}`} className="absolute left-full h-px bg-ink/60" style={{ top: `${k.at * 100}%`, width: len(k) }} />)}
       {ticks.top.map((k) => {
         const t = label(k, "lon");
-        return t && <span key={`tl${k.value}`} className="num absolute bottom-full mb-[8px] -translate-x-1/2 whitespace-nowrap text-[9.5px] leading-none text-muted" style={{ left: `${k.at * 100}%` }}>{t}</span>;
+        return t && <span key={`tl${k.value}`} className="num absolute bottom-full mb-[8px] -translate-x-1/2 whitespace-nowrap text-[10px] leading-none text-muted" style={{ left: `${k.at * 100}%` }}>{t}</span>;
       })}
       {ticks.left.map((k) => {
         const t = label(k, "lat");
         return t && (
-          <span key={`ll${k.value}`} className="num absolute right-full mr-[8px] whitespace-nowrap text-[9.5px] leading-none text-muted"
+          <span key={`ll${k.value}`} className="num absolute right-full mr-[8px] whitespace-nowrap text-[10px] leading-none text-muted"
             style={{ top: `${k.at * 100}%`, writingMode: "vertical-rl", transform: "translateY(-50%) rotate(180deg)" }}>{t}</span>
         );
       })}
