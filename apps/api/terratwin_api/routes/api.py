@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from ..config import API_VERSION, CONTRACT_VERSION, OOM_METHOD_VERSION, RESEARCH_ENGINE_VERSION, TIER1_METHOD_VERSION
 from ..schemas.common import EARTH_CONVENTION, MARS_CONVENTION
 from ..schemas.requests import AnalogSearchRequest, CompareRequest, MarsAnalysisRequest, assert_score_contract
-from ..services import analysis_store, evidence, mars, relief, research_store as RS, tier1, tier2, visualization as VIS
+from ..services import analysis_store, evidence, gis, mars, relief, research_store as RS, tier1, tier2, visualization as VIS
 from ..services.catalog import MISSION_BY_ID, MISSIONS, datasets_now
 
 router = APIRouter()
@@ -45,6 +45,7 @@ def datasets():
         imported = None
     return {"datasets": datasets_now(), "research_import": imported,
             "integrity_checks": [c.__dict__ for c in checks], "live_refinement": tier2.live_status(),
+            "gis": gis.status(),
             "conventions": {"mars": MARS_CONVENTION.model_dump(), "earth": EARTH_CONVENTION.model_dump()}}
 
 

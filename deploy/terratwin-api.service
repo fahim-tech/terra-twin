@@ -1,6 +1,6 @@
 # TerraTwin API (FastAPI) on the us-east-1 host, serving the Vercel frontend through nginx
 # (deploy/nginx/terratwin-api.conf). It reads the GIS workstream's data in /srv/terratwin read-only
-# and listens on localhost only.
+# (writing only its job queue and cache) and listens on localhost only.
 # Install: sudo install -m 0644 deploy/terratwin-api.service /etc/systemd/system/ && sudo systemctl daemon-reload
 #          sudo systemctl enable --now terratwin-api
 # Code lives in /srv/terratwin-app/api (rsync of apps/api), the venv in /srv/terratwin-app/venv (built on the
@@ -49,7 +49,8 @@ OOMScoreAdjust=900
 # --- hardening ---
 NoNewPrivileges=yes
 ProtectSystem=strict
-ReadWritePaths=/srv/terratwin/data/cache
+# Writes: discovery jobs into the GIS worker's queue, map tiles into the GIS cache.
+ReadWritePaths=/srv/terratwin/data/cache /srv/terratwin/data/jobs
 ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=yes
