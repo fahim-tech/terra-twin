@@ -24,7 +24,11 @@ function download(name: string, text: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-const GATE_EFFECT = { exclude: "Vegetated ground is removed before ranking", report: "Land cover is reported, never used to rank" } as const;
+/** The land-cover gate only acts on the research-pool ranking (tier 2); the global screen is never land-cover filtered. */
+const GATE_EFFECT = {
+  exclude: "Research comparison: vegetated windows excluded before ranking",
+  report: "Research comparison: land cover reported, never used to rank",
+} as const;
 
 export default function ReportView() {
   const search = useApp((s) => s.search);
@@ -42,7 +46,7 @@ function NoReport() {
   return (
     <article className="mx-auto max-w-[1040px] px-4 pb-24 pt-14 md:px-10">
       <Kicker>TerraTwin dossier</Kicker>
-      <h1 data-stage-heading="report" tabIndex={-1} className="toponym mt-3 text-toponym text-ink outline-none md:text-display">No report yet</h1>
+      <h1 data-stage-heading="report" tabIndex={-1} className="toponym mt-3 text-toponym text-ink outline-none! md:text-display">No report yet</h1>
       <p className="mt-4 max-w-[52ch] text-lead text-muted">A dossier is built from an Earth analog search. Choose a research zone on Mars and run Find Earth Analogs; the report then describes that search.</p>
       <Button variant="primary-mars" className="mt-6" onClick={() => go("mars")}>Go to the Mars explorer</Button>
     </article>
@@ -56,6 +60,12 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
   const t2 = search.tier2;
   const role = c ? candidateRole(search, c) : null;
   const gateMode = t2.landcover_gate?.mode ?? mission?.gate_mode ?? null;
+  const researchRan = t2.operator.status === "ok";
+  // The research window has its own centre; draw its frame there, not at the requested point.
+  const marsAtWindow = c?.tier !== 1 && researchRan;
+  const marsLat = marsAtWindow ? t2.target.lat : target.lat;
+  const marsLon = marsAtWindow ? t2.target.lon : target.lon;
+  const windowOffset = marsAtWindow && (Math.abs(t2.target.lat - target.lat) > 1e-3 || Math.abs(t2.target.lon - target.lon) > 1e-3);
 
   const kicker = !c ? "Search summary · no candidate selected"
     : c.tier === 1 ? "Global screening cell (screen rank, not a decision)"
@@ -63,9 +73,9 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
 
   // Plates: the Mars window at the search target; the Earth unit at the candidate. Identical frame styling.
   const marsFrame: PlateFrame = c?.tier === 1
-    ? { nsKm: 25, ewKm: 25, label: "25 km cell scale · zone median" }
-    : t2.operator.status === "ok"
-      ? { nsKm: t2.target.window_km, ewKm: t2.target.window_km, label: `${t2.target.window_km} km research window` }
+    ? { nsKm: 25, ewKm: 25, label: "25 km scale reference (descriptors are the zone median)" }
+    : researchRan
+      ? { nsKm: t2.target.window_km, ewKm: t2.target.window_km, label: `${t2.target.window_km} km research window${windowOffset ? " · centred on the research window, not the requested point" : ""}` }
       : { nsKm: target.footprintKm, ewKm: target.footprintKm, label: `${target.footprintKm} km requested footprint` };
   const earthFrame: PlateFrame | null = !c ? null : c.tier === 1
     ? { nsKm: c.t1!.footprint.cell_km_ns, ewKm: c.t1!.footprint.cell_km_ew, label: "25 km screening cell" }
@@ -81,7 +91,7 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
           <Kicker className="pt-2.5 lg:order-none">TerraTwin dossier · {kicker}</Kicker>
           <div className="hidden lg:block"><Exports search={search} c={c} mission={mission} generatedAt={generatedAt} /></div>
         </div>
-        <h1 data-stage-heading="report" tabIndex={-1} className="toponym mt-5 text-balance text-[40px] leading-[1.04] tracking-[-0.02em] text-ink outline-none md:text-display">
+        <h1 data-stage-heading="report" tabIndex={-1} className="toponym mt-5 text-balance text-[40px] leading-[1.04] tracking-[-0.02em] text-ink outline-none! md:text-display">
           <Place name={target.label} coord={target.siteId ? null : { lat: target.lat, lon: target.lon }} />
           <span className="mx-[0.28em] text-faint" aria-hidden>↔</span><span className="sr-only"> compared with </span>
           {c ? <Place name={c.label} coord={c.tier === 1 && !c.t1?.known_analog.name ? { lat: c.lat, lon: c.lon, prefix: "Screening cell" } : null} /> : <span className="text-muted">No candidate selected</span>}
@@ -91,9 +101,18 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
           <span>Candidate identification — not validation of a new analog</span>
         </p>
         <dl className="mt-5 grid gap-x-8 gap-y-3 text-caption sm:grid-cols-2 lg:grid-cols-4">
-          <Meta k="Mission">{mission?.label ?? target.mission.replace(/_/g, " ")}{gateMode ? <span className="block text-faint">{GATE_EFFECT[gateMode]}</span> : null}</Meta>
+          <Meta k="Mission">
+            {mission?.label ?? target.mission.replace(/_/g, " ")}
+            {gateMode ? <span className="block text-faint">{GATE_EFFECT[gateMode]}</span> : null}
+            {gateMode && search.tier1 ? <span className="block text-faint">Global screen: no land-cover filter</span> : null}
+          </Meta>
           <Meta k="Mars target"><span className="num text-num">{fmtCoord(target.lat, target.lon, 3)}</span><span className="block text-faint">{target.siteId ? "Research zone" : "Outside research zones"} · planetocentric, east-positive</span></Meta>
-          <Meta k="Analysis units"><span className="text-ink">50 km research windows · 25 km screening cells</span><span className="block text-faint">Requested footprint <span className="num">{target.footprintKm}</span> km</span></Meta>
+          <Meta k="Analysis units">
+            <span className="text-ink">
+              {researchRan ? <><span className="num">{t2.target.window_km}</span> km research windows</> : "Research comparison not run"}
+              {" · "}
+              {search.tier1 ? <><span className="num">{search.tier1.candidate_pool.cell_size_km}</span> km screening cells</> : "global screen not run"}
+            </span><span className="block text-faint">Requested footprint <span className="num">{target.footprintKm}</span> km</span></Meta>
           <Meta k="Generated"><span className="num text-num">{generatedAt.slice(0, 16).replace("T", " ")} UTC</span><span className="block truncate text-faint">Analysis <span className="num">{search.id}</span></span></Meta>
         </dl>
         {/* Below the desktop width the exports follow the title block, so the title leads. */}
@@ -108,11 +127,11 @@ function Dossier({ search, target, c, stale, liveLabel }: { search: AnalogSearch
       {/* Location plates */}
       <section aria-label="Location plates" className="mt-10 break-inside-avoid">
         <div className="grid gap-6 md:grid-cols-2 md:gap-8 print:grid-cols-2 print:gap-6">
-          <LocationPlate planet="mars" lat={target.lat} lon={target.lon} frame={marsFrame} kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"} name={target.siteId ? target.label : "Search target"} imagery="NASA Mars Trek imagery" />
+          <LocationPlate planet="mars" lat={marsLat} lon={marsLon} frame={marsFrame} kicker={target.siteId ? "Mars · Research zone" : "Mars · Search target"} name={target.siteId ? target.label : "Search target"} imagery="NASA Mars Trek imagery" />
           {c && earthFrame ? (
             <LocationPlate planet="earth" lat={c.lat} lon={c.lon} frame={earthFrame} kicker={c.tier === 1 ? "Earth · Screening cell" : role === "tie_member" ? "Earth · Tie member" : "Earth · Research window"} name={c.tier === 1 && !c.t1?.known_analog.name ? "Screening cell" : c.label} imagery="NASA GIBS imagery" />
           ) : (
-            <NoCandidatePlate />
+            <NoCandidatePlate hasCandidates={search.tier2.candidates.some((x) => x.lat !== null && x.lon !== null) || (search.tier1?.candidates.length ?? 0) > 0} screenRan={!!search.tier1} decision={t2.decision.type} />
           )}
         </div>
         <p className="mt-4 text-caption text-faint">
@@ -242,20 +261,28 @@ function Section({ title, aside, children }: { title: string; aside?: string; ch
   );
 }
 
-function NoCandidatePlate() {
+function NoCandidatePlate({ hasCandidates, screenRan, decision }: { hasCandidates: boolean; screenRan: boolean; decision: AnalogSearch["tier2"]["decision"]["type"] }) {
   const go = useApp((s) => s.go);
+  // With nothing to choose, the next step is a supported research location, not the empty candidate list.
+  const why = hasCandidates
+    ? "No Earth candidate is selected, so no Earth location is shown."
+    : decision === "insufficient_evidence"
+      ? `There is not enough evidence for a research comparison here${screenRan ? "" : ", and no global screen ran"}, so there is no Earth location to show.`
+      : "This search returned no Earth candidates, so there is no Earth location to show.";
   return (
     <figure className="m-0 min-w-0">
       <div className="grid aspect-[4/3] w-full place-items-center rounded-surface bg-elevated/60 p-6 text-center ring-1 ring-inset ring-line">
         <div>
           <div className="kicker !text-earth">Earth · No candidate</div>
-          <p className="mx-auto mt-3 max-w-[30ch] text-body text-muted">No Earth candidate is selected, so no Earth location is shown.</p>
-          <Button variant="outline" className="no-print mt-4" onClick={() => go("earth")}>Choose a candidate</Button>
+          <p className="mx-auto mt-3 max-w-[34ch] text-body text-muted">{why}</p>
+          {hasCandidates
+            ? <Button variant="outline" className="no-print mt-4" onClick={() => go("earth")}>Choose a candidate</Button>
+            : <Button variant="outline" className="no-print mt-4" onClick={() => go("mars")}>Choose a research zone</Button>}
         </div>
       </div>
       <figcaption className="mt-3">
-        <div className="toponym text-toponym-sm text-muted">No candidate selected</div>
-        <div className="mt-1 text-caption text-faint">The dossier reports the search only.</div>
+        <div className="toponym text-toponym-sm text-muted">{hasCandidates ? "No candidate selected" : "No Earth candidates"}</div>
+        <div className="mt-1 text-caption text-faint">{hasCandidates ? "The dossier reports the search only." : "Research comparisons run inside the supported Mars research zones."}</div>
       </figcaption>
     </figure>
   );
@@ -332,7 +359,7 @@ function ResearchSummary({ search, c }: { search: AnalogSearch; c: ReportCandida
         {/* The key figures already carry the decision for a research window or no candidate; a screening cell needs it here. */}
         {c?.tier === 1 && (
           <>
-            <div className="text-title text-ink"><span aria-hidden className="mr-1.5 font-normal">{DECISION[d.type].glyph}</span>{decisionHeadline(search)}{c?.tier === 1 && <span className="font-normal text-muted"> — research decision for this zone</span>}</div>
+            <div className="text-title text-ink"><span aria-hidden className="mr-1.5 font-normal">{DECISION[d.type].glyph}</span>{decisionHeadline(search)}<span className="font-normal text-muted"> — research decision for this zone</span></div>
             {decisionLabel(search) && <p className="mt-1 max-w-[68ch] text-body text-muted">{decisionLabel(search)}</p>}
           </>
         )}
@@ -472,7 +499,7 @@ function Exports({ search, c, mission, generatedAt }: { search: AnalogSearch; c:
   const json = () => JSON.stringify(buildReportJson(search, c, mission, generatedAt), null, 2);
   const base = exportBaseName(search);
   return (
-    <div role="toolbar" aria-label="Export report" className="no-print -my-1 flex flex-wrap items-center gap-1">
+    <div role="group" aria-label="Export report" className="no-print -my-1 flex flex-wrap items-center gap-1">
       <Button variant="ghost" onClick={async () => {
         try {
           await navigator.clipboard.writeText(json());
@@ -495,14 +522,15 @@ function Exports({ search, c, mission, generatedAt }: { search: AnalogSearch; c:
   );
 }
 
-/** Feature-local print rules (index.css already swaps the colour tokens to the light print palette). */
+/**
+ * Feature-local print rules. index.css swaps the colour tokens to the light print palette, which already
+ * turns the shell's full-page host (bg-space) white, so nothing here reaches into the shell's DOM.
+ */
 function ReportPrintStyles() {
   return (
     <style>{`
-      [data-stage-heading="report"]:focus, [data-stage-heading="report"]:focus-visible { outline: none; }
       @media print {
         @page { margin: 14mm 14mm 16mm; }
-        main > div.absolute.inset-0.z-20 { background: #fff !important; }
         [data-stage-heading="report"] { font-size: 40px !important; }
         img { break-inside: avoid; }
       }
