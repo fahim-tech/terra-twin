@@ -126,6 +126,15 @@ export function fmtNum(v: number, digits = 0): string {
   return s.replace("-", "−");
 }
 
+/**
+ * View heading for the HUD and announcements: the direction looked toward (camera azimuth + 180°),
+ * whole degrees clockwise from north, three digits, 000–359.
+ */
+export function fmtHeading(azRad: number): string {
+  const d = ((Math.round((azRad * 180) / Math.PI + 180) % 360) + 360) % 360;
+  return `${String(d).padStart(3, "0")}°`;
+}
+
 /** View pitch for the HUD: the camera's elevation as a downward (negative) angle, whole degrees, one true minus sign. */
 export function fmtPitch(elRad: number): string {
   const d = Math.round((-elRad * 180) / Math.PI) + 0; // + 0 folds −0 into 0

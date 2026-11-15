@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   anchorShown, ariaSummary, axisPlacement, baseElevation, boxEdges, buildModel, camera, contourInterval, contourSegments, gradients, gridStats,
-  fitDistance, fmtPitch, hillshade, homePose, labelAnchors, labelBox, layoutLabels, niceStep, niceTicks, pickCell, project, representationNote, sunVector, TINT,
+  fitDistance, fmtHeading, fmtPitch, hillshade, homePose, labelAnchors, labelBox, layoutLabels, niceStep, niceTicks, pickCell, project, representationNote, sunVector, TINT,
   toGrid, worldY, type Grid,
 } from "./reliefMath";
 
@@ -52,6 +52,12 @@ describe("scales", () => {
     expect(baseElevation(759.3, 100)).toBe(600);
     expect(baseElevation(-5.3, 10)).toBe(-20);
     expect(baseElevation(24.3, 5)).toBe(15);
+  });
+  it("writes the view heading as three digits from 000 to 359", () => {
+    expect(fmtHeading((205 * Math.PI) / 180)).toBe("025°"); // camera south-south-west, looking north-north-east
+    expect(fmtHeading(Math.PI)).toBe("000°");
+    expect(fmtHeading((179.6 * Math.PI) / 180)).toBe("000°"); // rounds to 360, written as 000
+    expect(fmtHeading((-150 * Math.PI) / 180 + 4 * Math.PI)).toBe("030°"); // whole turns fall away
   });
   it("writes the HUD pitch with a single true minus sign", () => {
     expect(fmtPitch((30 * Math.PI) / 180)).toBe("−30°");

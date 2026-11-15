@@ -20,7 +20,7 @@ import { drawFlat } from "./flat";
 import { Orbit } from "./orbit";
 import { ReliefRenderer, reliefContext } from "./reliefGl";
 import {
-  ariaSummary, axisPlacement, buildModel, camera, fmtNum, fmtPitch, homePose, labelAnchors, layoutLabels, pickCell, project, rampColor,
+  ariaSummary, axisPlacement, buildModel, camera, fmtHeading, fmtNum, fmtPitch, homePose, labelAnchors, layoutLabels, pickCell, project, rampColor,
   representationNote, SUN, TINT, toGrid,
   type Grid, type Model,
 } from "./reliefMath";
@@ -176,8 +176,16 @@ function ReliefScene({ relief, planet, defaultExaggeration, renderer, name }: {
   useEffect(() => { orbit.reduced = reduced; }, [orbit, reduced]);
   useEffect(() => { orbit.setVE(ve); refs.kick.current(); }, [orbit, ve]); // refs are stable
 
-  const choose = (v: Exaggeration) => { setVe(v); setStatus(`Vertical exaggeration ×${v}`); };
-  const act: Act = (f, say) => { f(orbit); refs.kick.current(); if (say) setStatus(say); };
+  // A repeated message (R pressed twice) differs by a trailing no-break space, so it is announced again.
+  const flip = useRef(false);
+  const announce = (text: string) => { flip.current = !flip.current; setStatus(flip.current ? text : `${text} `); };
+  const choose = (v: Exaggeration) => { setVe(v); announce(`Vertical exaggeration ×${v}`); };
+  const act: Act = (f, say) => {
+    f(orbit);
+    refs.kick.current();
+    const text = typeof say === "function" ? say(orbit) : say;
+    if (text) announce(text);
+  };
   const label = ariaSummary(relief, ve, planet, mode);
   const float = mode === "3d"; // 3D: controls float in the scene's lower corners from sm up; 2D: always a deck below the map
 
@@ -229,8 +237,15 @@ function ReliefScene({ relief, planet, defaultExaggeration, renderer, name }: {
   );
 }
 
-/** Apply a camera step, redraw, and announce it. */
-type Act = (f: (o: Orbit) => void, say?: string) => void;
+/** Apply a camera step, redraw, and announce it (a message, or one composed from the new targets). */
+type Act = (f: (o: Orbit) => void, say?: string | ((o: Orbit) => string)) => void;
+
+/** Spoken view state after a keyboard or button step, from where the step is heading (not mid-animation). */
+const said = {
+  heading: (o: Orbit) => `Heading ${fmtHeading(o.az.target ?? o.az.x)}`,
+  pitch: (o: Orbit) => `Pitch ${fmtPitch(o.el.target ?? o.el.x)}`,
+  zoom: (o: Orbit) => `Zoom ×${(1 / Math.exp(o.zoom.target ?? o.zoom.x)).toFixed(2)}`,
+};
 
 const navBtn = "hit grid h-9 w-9 place-items-center bg-[#05070a] text-muted transition-colors duration-150 hover:bg-[#101317] hover:text-ink active:bg-[#1a1e23] active:duration-0";
 
@@ -238,8 +253,8 @@ const navBtn = "hit grid h-9 w-9 place-items-center bg-[#05070a] text-muted tran
 function NavStack({ act, needle }: { act: Act; needle: MutableRefObject<SVGSVGElement | null> }) {
   return (
     <div role="group" aria-label="Relief view" className="grid grid-cols-2 gap-px border border-line-strong bg-line sm:pointer-events-auto sm:flex sm:flex-col">
-      <button type="button" className={navBtn} aria-label="Zoom in" title="Zoom in (+)" onClick={() => act((o) => o.nudge("zoom", -ZOOM_STEP))}><Plus className="h-4 w-4" strokeWidth={1.6} /></button>
-      <button type="button" className={navBtn} aria-label="Zoom out" title="Zoom out (−)" onClick={() => act((o) => o.nudge("zoom", ZOOM_STEP))}><Minus className="h-4 w-4" strokeWidth={1.6} /></button>
+      <button type="button" className={navBtn} aria-label="Zoom in" title="Zoom in (+)" onClick={() => act((o) => o.nudge("zoom", -ZOOM_STEP), said.zoom)}><Plus className="h-4 w-4" strokeWidth={1.6} /></button>
+      <button type="button" className={navBtn} aria-label="Zoom out" title="Zoom out (−)" onClick={() => act((o) => o.nudge("zoom", ZOOM_STEP), said.zoom)}><Minus className="h-4 w-4" strokeWidth={1.6} /></button>
       <button type="button" className={navBtn} aria-label="Face north" title="Face north (N)" onClick={() => act((o) => o.faceNorth(), "Facing north")}>
         <Compass ref={needle} className="h-4 w-4 will-change-transform" strokeWidth={1.6} aria-hidden />
       </button>
@@ -295,7 +310,7 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
         el.style.transform = `translate3d(${l.x.toFixed(1)}px, ${l.y.toFixed(1)}px, 0) translate(${l.align === "right" ? "-100%" : l.align === "left" ? "0" : "-50%"}, -50%)`;
       }
       for (const [key, el] of labelEls.current) if (!shown.has(key)) el.style.visibility = "hidden";
-      if (heading.current) heading.current.textContent = `${String(Math.round(cam.headingDeg) % 360).padStart(3, "0")}°`;
+      if (heading.current) heading.current.textContent = fmtHeading(pose.az);
       if (pitch.current) pitch.current.textContent = fmtPitch(pose.el);
       // Same convention as the globe's compass (NavControls): the needle points to north on screen.
       if (refs.needle.current) refs.needle.current.style.transform = `rotate(${-cam.headingDeg - 45}deg)`;
@@ -412,12 +427,12 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
         onPointerCancel={release}
         onKeyDown={(e) => {
           switch (e.key) {
-            case "ArrowLeft": act((o) => o.nudge("az", -AZ_STEP)); break;
-            case "ArrowRight": act((o) => o.nudge("az", AZ_STEP)); break;
-            case "ArrowUp": act((o) => o.nudge("el", EL_STEP)); break;
-            case "ArrowDown": act((o) => o.nudge("el", -EL_STEP)); break;
-            case "+": case "=": act((o) => o.nudge("zoom", -ZOOM_STEP)); break;
-            case "-": case "_": act((o) => o.nudge("zoom", ZOOM_STEP)); break;
+            case "ArrowLeft": act((o) => o.nudge("az", -AZ_STEP), said.heading); break;
+            case "ArrowRight": act((o) => o.nudge("az", AZ_STEP), said.heading); break;
+            case "ArrowUp": act((o) => o.nudge("el", EL_STEP), said.pitch); break;
+            case "ArrowDown": act((o) => o.nudge("el", -EL_STEP), said.pitch); break;
+            case "+": case "=": act((o) => o.nudge("zoom", -ZOOM_STEP), said.zoom); break;
+            case "-": case "_": act((o) => o.nudge("zoom", ZOOM_STEP), said.zoom); break;
             case "r": case "R": act((o) => o.reset(), "View reset"); break;
             case "n": case "N": act((o) => o.faceNorth(), "Facing north"); break;
             default: return;
@@ -425,7 +440,8 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
           e.preventDefault();
         }}
       />
-      <span id={hint} className="sr-only">
+      {/* Description only (read through aria-describedby), so it is not read a second time as page text. */}
+      <span id={hint} hidden>
         {`${name}. Drag to orbit, two fingers to zoom and turn. Arrow keys rotate and tilt, plus and minus zoom, N faces north, R resets the view.`}
       </span>
 
@@ -503,7 +519,8 @@ function ViewportFlat({ model, grid, planet, ve, label }: { model: Model; grid: 
   }, [model, grid, planet, ve]);
   return (
     <div ref={host} className="absolute inset-0">
-      <canvas ref={cv} tabIndex={0} role="img" aria-label={label} className="h-full w-full focus-visible:outline-offset-[-3px]!" />
+      {/* A still image with nothing to operate, so it is not a tab stop. */}
+      <canvas ref={cv} role="img" aria-label={label} className="h-full w-full" />
     </div>
   );
 }
