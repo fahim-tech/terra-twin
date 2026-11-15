@@ -8,13 +8,22 @@ import { useApp } from "../../store/app";
 import { useGlobes } from "../../store/globes";
 import { cx } from "../ui";
 
-/** Scale bar from live camera telemetry (ground distance at the frame centre, along the screen horizontal). */
+/**
+ * Scale bar from live camera telemetry (ground distance at the centre of the view, along the screen
+ * horizontal). In the 3D view the ground scale changes down the screen — nearer ground below, farther
+ * above — so the bar says it holds at the centre.
+ */
 export function ScaleBar({ planet, maxPx = 120, className }: { planet: Planet; maxPx?: number; className?: string }) {
   const mpp = useGlobes((s) => s.camera[planet]?.metersPerPixel ?? null);
+  const tilted = useGlobes((s) => isTilted(s.camera[planet]?.pitchDeg));
   const s = niceScale(mpp, maxPx);
   return (
-    <div className={cx("flex flex-col gap-1", className)} aria-label={s ? `Scale bar ${s.label}` : "Scale unavailable"}>
-      <span className="num text-num-sm text-ink">{s ? s.label : "—"}</span>
+    <div role="img" className={cx("flex flex-col gap-1", className)}
+      aria-label={s ? `Scale bar ${s.label}${tilted ? ", true at the centre of the 3D view" : ""}` : "Scale unavailable"}>
+      <span className="flex items-baseline gap-2 whitespace-nowrap">
+        <span className="num text-num-sm text-ink">{s ? s.label : "—"}</span>
+        {s && tilted && <span className="kicker !text-ink/65">At centre</span>}
+      </span>
       {/* End ticks plus a half-way tick, like a survey scale. */}
       <span className="relative block h-[6px] border-x border-b border-ink transition-[width] duration-200" style={{ width: s ? `${s.px}px` : 40 }} aria-hidden>
         <span className="absolute bottom-0 left-1/2 h-[3px] w-px bg-ink/70" />
