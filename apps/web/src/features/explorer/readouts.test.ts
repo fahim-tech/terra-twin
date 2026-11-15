@@ -165,7 +165,8 @@ describe("placeCallout", () => {
   it("keeps the preferred side when the label has room there", () => {
     const p = placeCallout({ x: 524, y: 474 }, "ne", desktop, dy);
     expect(p.side).toBe("ne");
-    expect(p.maxW).toBe(1036 - 8 - (524 + LEADER_DX + 2));
+    // The room to the bound's edge clearance, plus half that clearance before a name wraps.
+    expect(p.maxW).toBe(1036 - 8 - (524 + LEADER_DX + 2) + 4);
   });
   it("moves a label away from the inspector instead of sliding under it", () => {
     expect(placeCallout({ x: 1000, y: 474 }, "ne", desktop, dy).side).toBe("nw");
@@ -175,7 +176,7 @@ describe("placeCallout", () => {
     const phone = { left: 0, top: 56, right: 330, bottom: 380 }; // 390 frame less the nav column and sheet
     const p = placeCallout({ x: 195, y: 272 }, "ne", phone, { n: 60, s: 60 });
     expect(p.side).toBe("nw");
-    expect(p.maxW).toBe(195 - LEADER_DX - 2 - 8);
+    expect(p.maxW).toBe(195 - LEADER_DX - 2 - 8 + 4);
   });
   it("never makes a label narrower than its coordinate line", () => {
     expect(placeCallout({ x: 60, y: 474 }, "nw", { ...desktop, right: 140 }, dy).maxW).toBe(CALLOUT_MIN_W);

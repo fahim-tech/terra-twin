@@ -175,7 +175,10 @@ export function placeCallout(a: Pt, preferred: CalloutSide, bounds: Bounds, dy: 
   const flipNS = wantNS === "n" ? "s" : "n";
   const ns = over[wantNS] > 0 && over[flipNS] < over[wantNS] ? flipNS : wantNS;
   const reach = over[ns] > 0 ? Math.max(minDy, dy[ns] - over[ns]) : dy[ns];
-  return { side: `${ns}${ew}` as CalloutSide, maxW: Math.max(CALLOUT_MIN_W, Math.floor(room[ew])), dy: reach };
+  // Before wrapping, a label may use half the edge clearance: a name that only just fits is not broken
+  // over a sub-pixel of measured text width.
+  const maxW = Math.max(CALLOUT_MIN_W, Math.floor(room[ew] + CALLOUT_EDGE / 2));
+  return { side: `${ns}${ew}` as CalloutSide, maxW, dy: reach };
 }
 
 const D2R = Math.PI / 180;
