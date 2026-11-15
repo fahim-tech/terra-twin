@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   availabilityItems, baselineFromExplanation, CALLOUT_MIN_W, calloutGeometry, graticulePaths, gridMetres, LEADER_DX, nextActive, orthographic,
-  placeCallout, revealDelta, scalesFromEvidence,
+  placeCallout, revealDelta, scalesFromEvidence, underCover,
 } from "./readouts";
 
 describe("orthographic", () => {
@@ -144,6 +144,18 @@ describe("calloutGeometry", () => {
     const g = calloutGeometry({ x: 0, y: 0 }, "ne", 38, { square: 80 });
     expect(Math.abs(g.start.y)).toBeLessThan(Math.abs(g.elbow.y));
     expect(Math.abs(g.start.x)).toBeLessThan(Math.abs(g.elbow.x));
+  });
+});
+
+describe("underCover", () => {
+  const frame = { w: 1440, h: 848 };
+  it("is true only for points under the measured insets", () => {
+    const ins = { left: 0, top: 0, right: 404, bottom: 0 };
+    expect(underCover({ x: 524, y: 400 }, frame, ins)).toBe(false);
+    expect(underCover({ x: 1100, y: 400 }, frame, ins)).toBe(true);
+    // Phone sheet at full: everything below its top edge is covered.
+    expect(underCover({ x: 195, y: 82 }, { w: 390, h: 792 }, { left: 0, top: 56, right: 0, bottom: 728 })).toBe(true);
+    expect(underCover({ x: 195, y: 60 }, { w: 390, h: 792 }, { left: 0, top: 56, right: 0, bottom: 728 })).toBe(false);
   });
 });
 

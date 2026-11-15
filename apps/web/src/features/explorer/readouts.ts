@@ -130,6 +130,14 @@ export function calloutGeometry(a: Pt, side: CalloutSide, dy: number, from: Call
 /** The part of the globe frame a callout label may use (the frame less the UI covering it), px. */
 export interface Bounds { left: number; top: number; right: number; bottom: number }
 
+/**
+ * True when a point lies under the UI covering the frame (inspector, phone sheet: the measured insets).
+ * Its callout is then not drawn: a label for a point nobody can see would only peek out around the panel.
+ */
+export function underCover(p: Pt, frame: { w: number; h: number }, ins: Bounds): boolean {
+  return p.x < ins.left || p.x > frame.w - ins.right || p.y < ins.top || p.y > frame.h - ins.bottom;
+}
+
 /** Clearance between a callout label and the edge of its bounds, px. */
 export const CALLOUT_EDGE = 8;
 /** The narrowest a label is ever made: its mono coordinate line needs about this much, px. */

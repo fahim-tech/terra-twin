@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { useGlobeBus } from "../../app/globeBus";
 import { leaderDy } from "../../components/map/Annotations";
 import { useGlobes } from "../../store/globes";
-import { calloutGeometry, placeCallout, type CalloutSide, type CalloutStart } from "./readouts";
+import { calloutGeometry, placeCallout, underCover, type CalloutSide, type CalloutStart } from "./readouts";
 
 export interface Callout {
   id: string;
@@ -80,7 +80,7 @@ export function Callouts({ items }: { items: Callout[] }) {
     <div ref={root} className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden={items.length === 0}>
       {size.w > 0 && items.map((it) => {
         const a = anchors[it.id];
-        if (!a || !a.visible) return null;
+        if (!a || !a.visible || underCover(a, size, ins)) return null;
         // Reach that clears what surrounds the point per side; never shorter than clearing the footprint square.
         const dy = { n: leaderDy(it.clear?.n), s: leaderDy(it.clear?.s) };
         const { side, maxW, dy: reach } = placeCallout(a, it.side, bounds, dy, { minDy: leaderDy(it.boxPx) });
