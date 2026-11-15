@@ -196,7 +196,7 @@ export function DataLayersControl({ planet, header, className }: { planet: Plane
  * The chosen layer's legend in one line, shown while the control is folded, so a drawn layer is never without
  * its scale: the ramp between its stretch ends with the unit, or the class swatches.
  */
-export function LegendStrip({ planet }: { planet: Planet }) {
+export function LegendStrip({ planet, bare = false }: { planet: Planet; bare?: boolean }) {
   const chosen = useDataLayers((s) => s.layer[planet]);
   const info = useGridInfo(planet);
   const layer = chosen ? info.data?.layers.find((l) => l.name === chosen) : undefined;
@@ -204,7 +204,7 @@ export function LegendStrip({ planet }: { planet: Planet }) {
   const lg = legendFor(layer);
   if (lg.kind === "none") return null;
   return (
-    <div className="border-t border-line px-3 py-2">
+    <div className={bare ? undefined : "border-t border-line px-3 py-2"}>
       {lg.kind === "ramp" ? (
         <div className="flex items-center gap-2.5">
           <span className="num shrink-0 text-num-sm leading-none text-ink/85">{lg.min}</span>
@@ -223,6 +223,29 @@ export function LegendStrip({ planet }: { planet: Planet }) {
       )}
       {layer.group === "support" && <p className="mt-1.5 text-caption text-faint">Metadata: never a weight or a confidence.</p>}
     </div>
+  );
+}
+
+/**
+ * The chosen data layer's compact legend over a comparison half (the DATA LAYERS control itself lives on the planet's
+ * own stage): planet, layer name and its scale, so a layer kept on in Compare is never drawn without its legend.
+ * Nothing while no layer is chosen or the grid's info has not loaded (the layer is not drawn then either).
+ */
+export function DataLayerLegend({ planet, className }: { planet: Planet; className?: string }) {
+  const chosen = useDataLayers((s) => s.layer[planet]);
+  const info = useGridInfo(planet);
+  const layer = chosen ? info.data?.layers.find((l) => l.name === chosen) : undefined;
+  if (!layer) return null;
+  return (
+    <section aria-label={`${planet === "mars" ? "Mars" : "Earth"} data layer: ${layer.label}`}
+      className={cx("surface frame pointer-events-auto w-[min(240px,calc(100%-24px))] rounded-surface px-3 py-2 [--frame-l:6px]", className)}>
+      <p className="mb-1.5 flex min-w-0 items-center gap-2">
+        <span aria-hidden className={cx("h-1.5 w-1.5 shrink-0", planet === "mars" ? "bg-mars" : "bg-earth")} />
+        <span className="kicker shrink-0">Data layer</span>
+        <span className="min-w-0 truncate text-caption text-ink">{layer.label}</span>
+      </p>
+      <LegendStrip planet={planet} bare />
+    </section>
   );
 }
 

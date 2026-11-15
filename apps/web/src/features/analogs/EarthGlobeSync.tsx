@@ -13,6 +13,7 @@ import { useDiscoveryRun, useGisStatus, useGisTier1 } from "../../services/gis";
 import { searchTarget } from "../../store/searchTarget";
 import { cellLabel, liveId } from "./discoveryModel";
 import { useDiscoverySync } from "./useDiscovery";
+import { DataLayerSync } from "../../components/datalayers/DataLayerSync";
 
 /** Drawing groups of the research stages, hidden while the Live discovery stage is shown (and back after). */
 const RESEARCH_MARKERS = ["t1", "t2", "candidates"] as const;
@@ -291,5 +292,6 @@ export function EarthGlobeSync() {
     useEarthLocal.setState({ intent: "select" });
     chooseCandidate(m.id);
   });
-  return null;
+  // The 1 km data layer stays on from the Earth stage into Compare, where App.tsx shows its legend on the Earth half.
+  return <DataLayerSync planet="earth" active={stage === "earth" || stage === "compare"} />;
 }

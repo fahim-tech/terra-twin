@@ -27,6 +27,7 @@ import { AnalogResults } from "../features/analogs/AnalogResults";
 import { EarthGlobeSync } from "../features/analogs/EarthGlobeSync";
 import { ComparisonPanel } from "../features/comparison/ComparisonPanel";
 import { CompareGlobeSync } from "../features/comparison/CompareGlobeSync";
+import { DataLayerLegend } from "../components/datalayers/DataLayersControl";
 
 const EvidenceView = lazy(() => import("../features/evidence/EvidenceView"));
 const ReportView = lazy(() => import("../features/report/ReportView"));
@@ -189,6 +190,7 @@ function Workspace() {
                 </div>
               </div>
             )}
+            <CompareLegends phone={phone} phonePlanet={phonePlanet} />
             <ComparisonPanel />
           </>
         )}
@@ -253,6 +255,23 @@ function ContextSurface({ stage, phone, side, open, children }: { stage: "mars" 
         </motion.aside>
       )}
     </AnimatePresence>
+  );
+}
+
+/**
+ * Compact legends of the data layers kept on in Compare, top-right of each globe half (phones: the planet shown, under
+ * the Globe switch). A layer the reader chose on the Mars or Earth stage stays drawn here, never without its scale.
+ */
+function CompareLegends({ phone, phonePlanet }: { phone: boolean; phonePlanet: Planet }) {
+  const planets: Planet[] = phone ? [phonePlanet] : ["mars", "earth"];
+  return (
+    <div className="no-print pointer-events-none absolute inset-0 z-10">
+      {planets.map((p) => (
+        <div key={p} className={cx("absolute flex justify-end", phone ? "inset-x-3 top-[60px]" : cx("top-3 w-1/2 px-3", p === "mars" ? "left-0" : "right-0"))}>
+          <DataLayerLegend planet={p} />
+        </div>
+      ))}
+    </div>
   );
 }
 

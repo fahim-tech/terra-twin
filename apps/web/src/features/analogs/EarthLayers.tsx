@@ -1,7 +1,6 @@
 import { ChevronDown } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { DataLayersControl, LegendStrip } from "../../components/datalayers/DataLayersControl";
-import { DataLayerSync } from "../../components/datalayers/DataLayerSync";
 import { useDataLayers } from "../../store/dataLayers";
 import { useGridInfo } from "../../services/gis";
 import { PlanetMark } from "../../components/marks";
@@ -154,7 +153,6 @@ export function EarthLayers() {
 
   return (
     <div className="surface frame rounded-surface" data-occludes="earth" role="group" aria-label="Earth layers">
-      <DataLayerSync planet="earth" active />
       {!phone && (
         <button type="button" aria-expanded={!folded} aria-controls={bodyId} onClick={() => setFolded((f) => !f)}
           className="hit flex w-full items-center justify-between gap-3 px-3 pb-2 pt-2.5 text-left transition-colors hover:bg-white/[0.03]">

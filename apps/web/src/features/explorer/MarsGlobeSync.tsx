@@ -90,6 +90,7 @@ export function MarsGlobeSync() {
       if (site) { useExplorer.getState().set({ origin: null }); select(zoneSelection(site)); }
     }
   });
-  // The 1 km data layer is drawn only while the explorer (and the layer's legend) is on screen.
-  return <DataLayerSync planet="mars" active={stage === "mars" && !introOpen} />;
+  // The 1 km data layer is drawn only while its legend is on screen: the explorer's control, or the compact legend
+  // App.tsx shows on the Mars half in Compare.
+  return <DataLayerSync planet="mars" active={(stage === "mars" && !introOpen) || stage === "compare"} />;
 }
