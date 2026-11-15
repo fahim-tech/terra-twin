@@ -126,6 +126,8 @@ export function Callouts({ items }: { items: Callout[] }) {
   const bus = useGlobeBus();
   const anchors = useGlobes((s) => s.anchors.mars);
   const ins = useGlobes((s) => s.insets.mars);
+  // While the camera moves, a label keeps its place; it is placed afresh once the view settles.
+  const moving = useGlobes((s) => s.camera.mars?.moving ?? false);
   const root = useRef<HTMLDivElement>(null);
   const size = useSize(root);
   const plates = usePlateSizes();
@@ -184,7 +186,7 @@ export function Callouts({ items }: { items: Callout[] }) {
           rings: (it.outlines ?? []).map((r, k) => ({ own: r.own, pts: r.pts.map((_, i) => at(ringId(it.id, k, i))) })),
           marks: (it.marks ?? []).map((_, k) => at(markId(it.id, k))).filter((q): q is { x: number; y: number } => !!q),
         };
-        const choice = clearCallout(p, placed, bounds, reaches, plates.sizes[it.id] ?? PLATE_GUESS, obstacles, { minDy, prev: last.current.get(it.id) });
+        const choice = clearCallout(p, placed, bounds, reaches, plates.sizes[it.id] ?? PLATE_GUESS, obstacles, { minDy, prev: last.current.get(it.id), hold: moving });
         last.current.set(it.id, { side: choice.side, extra: choice.extra, extraX: choice.extraX });
         const { side, maxW, dy: reach, dx: across } = choice;
         const from: CalloutStart = stemmed ? { square: GLYPH_HALF + 2 }

@@ -311,6 +311,17 @@ describe("callout plates keep clear of zone outlines and other glyphs", () => {
     expect(back).toMatchObject({ side: first.side, extra: first.extra, hits: 0 });
   });
 
+  it("keeps its place while the camera moves, whatever sweeps across it, and moves once the view settles", () => {
+    const own = ring(400, 390, 650, 578);
+    const neighbour = ring(560, 258, 795, 410);
+    const ob = { rings: [{ pts: own, own: true }, { pts: neighbour, own: false }], marks: [] };
+    const prev = { side: start.side, extra: 0, extraX: 0 };
+    // The start place now sits on the neighbour's corner: held during the flight…
+    expect(clearCallout(glyph, start, desktop, reaches, plate, ob, { minDy: 38, prev, hold: true })).toMatchObject({ side: start.side, extra: 0, extraX: 0 });
+    // …and left for a clear place as soon as the camera stops.
+    expect(clearCallout(glyph, start, desktop, reaches, plate, ob, { minDy: 38, prev, hold: false }).hits).toBe(0);
+  });
+
   it("takes the place with the fewest crossings when none is clear, and breaks rings where points are off screen", () => {
     // A grid of level lines every 20 px across the whole frame: every place crosses some.
     const lines = Array.from({ length: 40 }, (_, i) => ({ pts: [{ x: 0, y: 60 + i * 20 }, { x: 1036, y: 60 + i * 20 }], own: false }));

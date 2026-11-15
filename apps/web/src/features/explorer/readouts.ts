@@ -253,12 +253,14 @@ export interface CalloutChoice { side: CalloutSide; dy: number; dx: number; maxW
  * allow (`start`, from placeCallout), this tries each side at the reach it needs and a few steps further out
  * and further aside, and keeps the one that crosses no line, sits inside no other zone and covers no other
  * glyph, preferring the start side, then the same north/south side, then the shortest leader. `prev` (the last
- * choice) is kept against a clean place one step nearer, so a label does not flicker while the camera moves.
+ * choice) is kept against a clean place one step nearer, so a label does not flicker. With `hold` (the camera is
+ * moving) the last place is kept whatever it now crosses, as long as it still fits: outlines sweep past during a
+ * flight or a drag, and a label hopping after each would read as jitter; it moves once the view settles.
  * Nothing to avoid: `start` as is.
  */
 export function clearCallout(a: Pt, start: { side: CalloutSide; dy: number; maxW: number }, bounds: Bounds, dy: { n: number; s: number },
   plate: { w: number; h: number }, ob: CalloutObstacles,
-  opts: { minDy: number; prev?: { side: CalloutSide; extra: number; extraX?: number } | null }): CalloutChoice {
+  opts: { minDy: number; prev?: { side: CalloutSide; extra: number; extraX?: number } | null; hold?: boolean }): CalloutChoice {
   const segs: [Pt, Pt][] = [];
   const foreign: Pt[][] = [];
   for (const ring of ob.rings) {
@@ -314,9 +316,9 @@ export function clearCallout(a: Pt, start: { side: CalloutSide; dy: number; maxW
         // flatter it is, so a label stepping far aside also rises.
         const slant = (Math.atan2(r, Math.max(1, dx - SHELF)) * 180) / Math.PI;
         // Each 44 px aside costs as much as 22 px further out; the last place is kept against a clean place up to
-        // one step nearer, never against a better side.
+        // one step nearer, never against a better side — or against anything while the camera moves.
         const score = hits * 10 + (side[1] !== start.side[1] ? 1.5 : 0) + (side[0] !== start.side[0] ? 2 : 0) + extra / 48 + extraX / 88
-          + Math.max(0, 25 - slant) / 10 - (held ? 0.3 : 0);
+          + Math.max(0, 25 - slant) / 10 - (held ? (opts.hold ? 1000 : 0.3) : 0);
         if (!best || score < best.score) best = { side, dy: r, dx, maxW, extra, extraX, hits, score };
         // Further out at this offset only costs more once the run is steep enough (unless the last place is
         // further out still).
