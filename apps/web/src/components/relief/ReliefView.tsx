@@ -7,6 +7,9 @@
  * metres, the km scale is cols × cell_m, the probe reads a cell's own value, and the vertical
  * exaggeration is always written out. Interaction follows Apple's fluid-interface rules (./orbit.ts);
  * without WebGL2 the view falls back to a 2D hillshade with the same labels.
+ *
+ * The scene carries only the terrain, its scales and the probe mark. Readouts (heading, pitch, probe),
+ * gesture hints and the keyboard map sit in a status bar under it, so no chrome ever covers a scale label.
  */
 import { useReducedMotion } from "motion/react";
 import { Compass, Minus, Plus, RotateCcw } from "lucide-react";
@@ -29,6 +32,7 @@ export const EXAGGERATIONS = [1, 2, 4, 8] as const;
 export type Exaggeration = (typeof EXAGGERATIONS)[number];
 
 const DEG = Math.PI / 180;
+const SCENE_BG = "bg-[#030405]";
 
 export interface ReliefViewProps {
   planet: "earth" | "mars";
@@ -37,7 +41,29 @@ export interface ReliefViewProps {
   /** Display name; defaults to the Exploration Zone name (Mars) or the window id. */
   title?: string;
   defaultExaggeration?: Exaggeration;
-  /** Title and readout strip. Turn off when the host already names the window. */
+  /** Controlled exaggeration: the host owns the value (one value for a Mars | Earth pair, say). */
+  exaggeration?: Exaggeration;
+  onExaggerationChange?: (v: Exaggeration) => void;
+  /** The view's own exaggeration control; off when the host shows one shared control. */
+  exaggerationControl?: boolean;
+  /**
+   * "full": a stand-alone viewer — title and readout header, controls over the scene, a legend with the source.
+   * "compact": an instrument inside a panel — the scene at `sceneHeight`, a status bar and one control row
+   * under it, a one-line legend; the host names the window and captions the source (`caption`).
+   */
+  density?: "full" | "compact";
+  /** Scene height in CSS px ("compact"; "full" fills its container). */
+  sceneHeight?: number;
+  /**
+   * Plain wheel or trackpad scrolling over the scene. "zoom" zooms the view. "modifier", for a view inside a
+   * scrolling panel, leaves plain scrolling to the panel and zooms only with Ctrl or ⌘ held (a trackpad pinch
+   * included); on touch, one finger moving up or down then scrolls the panel, a sideways swipe turns the block,
+   * and two fingers zoom, turn and tilt.
+   */
+  wheel?: "zoom" | "modifier";
+  /** Lines under the legend, from the loaded grid and the current exaggeration (source, basis). */
+  caption?: (relief: Relief, ve: Exaggeration) => ReactNode;
+  /** Title and readout strip ("full" only). Turn off when the host already names the window. */
   header?: boolean;
   /** "2d" forces the hillshade (print, tests). */
   renderer?: "auto" | "2d";
@@ -46,11 +72,15 @@ export interface ReliefViewProps {
 }
 
 /** Fetches the grid for a window (Earth) or Exploration Zone (Mars) and shows it, or says why it cannot. */
-export function ReliefView({ planet, id, title, defaultExaggeration = 4, header = true, renderer = "auto", occludes, className }: ReliefViewProps) {
+export function ReliefView({
+  planet, id, title, defaultExaggeration = 4, exaggeration, onExaggerationChange, exaggerationControl = true, density = "full", sceneHeight = 260,
+  wheel = "zoom", caption, header = true, renderer = "auto", occludes, className,
+}: ReliefViewProps) {
   const earth = useRelief(planet === "earth" ? id : null);
   const mars = useMarsRelief(planet === "mars" ? id : null);
   const q = planet === "earth" ? earth : mars;
   const relief = q.data ?? null;
+  const compact = density === "compact";
   // Mars: the Exploration Zone's own name and centre from the site list, even while no grid is connected.
   const sites = useSites();
   const site = planet === "mars" ? sites.data?.find((s) => s.id === id) ?? null : null;
@@ -63,13 +93,22 @@ export function ReliefView({ planet, id, title, defaultExaggeration = 4, header 
   else if (q.isError) body = <Unavailable planet={planet} error={q.error} />;
   return (
     <section aria-label={`Terrain relief${name ? `, ${name}` : ""}`} data-occludes={occludes}
-      className={cx("surface relative flex min-h-0 flex-col overflow-hidden rounded-surface", className)}>
-      {header && <Header planet={planet} name={name} relief={relief} where={where} />}
-      {relief
-        ? <ReliefScene key={relief.id} relief={relief} planet={planet} defaultExaggeration={defaultExaggeration} renderer={renderer} name={name ?? relief.id} />
-        : <div className="relative min-h-[240px] flex-1 border-t border-line bg-[#030405]">{body}</div>}
+      className={cx("relative flex min-h-0 flex-col", !compact && "surface overflow-hidden rounded-surface", className)}>
+      {header && !compact && <Header planet={planet} name={name} relief={relief} where={where} />}
+      {relief ? (
+        <ReliefScene key={relief.id} relief={relief} planet={planet} name={name ?? relief.id} compact={compact} sceneHeight={sceneHeight}
+          defaultExaggeration={defaultExaggeration} exaggeration={exaggeration} onExaggerationChange={onExaggerationChange}
+          exaggerationControl={exaggerationControl} wheel={wheel} caption={caption} renderer={renderer} />
+      ) : compact ? (
+        <div className={cx("relative border border-line-strong", SCENE_BG)} style={{ height: sceneHeight }}>
+          {body}
+          <span aria-hidden className="frame pointer-events-none absolute inset-0" />
+        </div>
+      ) : (
+        <div className={cx("relative min-h-[240px] flex-1 border-t border-line", SCENE_BG)}>{body}</div>
+      )}
       {/* Corner registration brackets above the content, so the scene's own background never covers them. */}
-      <span aria-hidden className="frame pointer-events-none absolute inset-0 z-20" />
+      {!compact && <span aria-hidden className="frame pointer-events-none absolute inset-0 z-20" />}
     </section>
   );
 }
@@ -121,8 +160,8 @@ function Readout({ label, children, className }: { label: string; children: Reac
 
 function Message({ title, planet, children }: { title: string; planet: "earth" | "mars"; children: ReactNode }) {
   return (
-    <div className="grid h-full place-items-center p-6">
-      <div className="frame max-w-[420px] border border-line px-5 py-4 [--frame-l:8px]">
+    <div className="grid h-full place-items-center p-4 sm:p-6">
+      <div className="frame max-w-[440px] border border-line px-4 py-3.5 [--frame-l:8px] sm:px-5 sm:py-4">
         <div className="flex items-center gap-2">
           <span aria-hidden className={cx("h-1.5 w-1.5 ring-1 ring-inset", planet === "mars" ? "ring-mars" : "ring-earth")} />
           <span className="label-caps text-ink">{title}</span>
@@ -133,16 +172,31 @@ function Message({ title, planet, children }: { title: string; planet: "earth" |
   );
 }
 
+/**
+ * Why there is no grid, in plain words first; the server's own reason and what it needs (dataset, setting,
+ * owner) follow as one technical line. Mars relief needs the MOLA mosaic, which this API does not read yet.
+ */
 function Unavailable({ planet, error }: { planet: "earth" | "mars"; error: Error }) {
-  const detail = error instanceof ApiError ? (error.detail as { missing_inputs?: string[]; owner?: string } | undefined) : undefined;
+  const api = error instanceof ApiError ? error : null;
+  const detail = api?.detail && typeof api.detail === "object" ? (api.detail as { reason?: string; missing_inputs?: string[]; owner?: string }) : undefined;
+  const reason = detail?.reason ?? (typeof api?.detail === "string" ? api.detail : null);
+  const technical = [
+    api?.status ? String(api.status) : null,
+    reason,
+    detail?.missing_inputs?.length ? `needs ${detail.missing_inputs.join(", ")}` : null,
+    detail?.owner ?? null,
+  ].filter(Boolean).join(" · ");
+  const marsNotConnected = planet === "mars" && api?.status === 503 && (!reason || /not connected/i.test(reason));
+  const plain = planet === "mars"
+    ? marsNotConnected ? "No Mars elevation grid is connected to this server (MOLA mosaic)."
+      : api?.status === 503 ? "This server cannot serve a Mars elevation grid yet." : "The Mars elevation grid could not be loaded."
+    : "The elevation grid of this window could not be loaded.";
   return (
     <div role="status" className="h-full">
       <Message planet={planet} title={planet === "mars" ? "No Mars elevation grid" : "Relief unavailable"}>
-        <p className="text-body text-ink">{error.message}</p>
-        {detail?.missing_inputs?.length ? (
-          <p className="mt-2">Needs {detail.missing_inputs.join(", ")}{detail.owner ? ` · ${detail.owner}` : ""}.</p>
-        ) : null}
-        {planet === "mars" && <p className="mt-2">No other surface is shown in its place.</p>}
+        <p className="text-body text-ink">{plain}</p>
+        {planet === "mars" && <p className="mt-1.5">No other surface is shown in its place.</p>}
+        {technical && <p className="num mt-2.5 text-[10.5px] leading-snug text-faint">{technical}</p>}
       </Message>
     </div>
   );
@@ -157,29 +211,66 @@ interface ViewRefs {
   /** Request a frame (no-op until the renderer is up). */
   kick: MutableRefObject<() => void>;
   needle: MutableRefObject<SVGSVGElement | null>;
+  /** Status bar cells, written every frame without a React render. */
+  heading: MutableRefObject<HTMLSpanElement | null>;
+  pitch: MutableRefObject<HTMLSpanElement | null>;
+  probe: MutableRefObject<HTMLSpanElement | null>;
+  /** The status bar itself (marked `data-probe` while a reading shows). */
+  bar: MutableRefObject<HTMLDivElement | null>;
 }
 
-function ReliefScene({ relief, planet, defaultExaggeration, renderer, name }: {
-  relief: Relief; planet: "earth" | "mars"; defaultExaggeration: Exaggeration; renderer: "auto" | "2d"; name: string;
+/**
+ * Home view. A compact instrument (a squarer frame) looks a little steeper, so the block fills the frame's height
+ * as well as its width; the distance still frames the whole block from every side.
+ */
+const homeFor = (ve: number, compact: boolean) => (compact ? { ...homePose(ve), el: 38 * DEG } : homePose(ve));
+
+/** Transient status-bar message (e.g. how to zoom inside a scrolling panel). */
+type Nudge = () => void;
+
+function ReliefScene({ relief, planet, name, compact, sceneHeight, defaultExaggeration, exaggeration, onExaggerationChange, exaggerationControl, wheel, caption, renderer }: {
+  relief: Relief; planet: "earth" | "mars"; name: string; compact: boolean; sceneHeight: number;
+  defaultExaggeration: Exaggeration; exaggeration: Exaggeration | undefined; onExaggerationChange: ((v: Exaggeration) => void) | undefined;
+  exaggerationControl: boolean; wheel: "zoom" | "modifier"; caption: ReliefViewProps["caption"]; renderer: "auto" | "2d";
 }) {
   const grid = useMemo(() => toGrid(relief), [relief]);
   const model = useMemo(() => buildModel(grid), [grid]);
-  const [ve, setVe] = useState<Exaggeration>(defaultExaggeration);
+  const [veOwn, setVeOwn] = useState<Exaggeration>(exaggeration ?? defaultExaggeration);
+  const ve = exaggeration ?? veOwn;
   const [failed, setFailed] = useState<string | null>(null);
   const [status, setStatus] = useState("");
+  const [keys, setKeys] = useState(false);
+  const [nudged, setNudged] = useState(false);
   const veLabel = useId();
   const reduced = !!useReducedMotion();
-  const [orbit] = useState(() => new Orbit(homePose(defaultExaggeration), reduced));
-  const refs: ViewRefs = { orbit, kick: useRef(() => {}), needle: useRef<SVGSVGElement | null>(null) };
+  const [orbit] = useState(() => new Orbit(homeFor(ve, compact), reduced));
+  const refs: ViewRefs = {
+    orbit, kick: useRef(() => {}), needle: useRef<SVGSVGElement | null>(null),
+    heading: useRef<HTMLSpanElement | null>(null), pitch: useRef<HTMLSpanElement | null>(null), probe: useRef<HTMLSpanElement | null>(null),
+    bar: useRef<HTMLDivElement | null>(null),
+  };
   const mode: "3d" | "2d" = renderer === "2d" || failed ? "2d" : "3d";
 
   useEffect(() => { orbit.reduced = reduced; }, [orbit, reduced]);
   useEffect(() => { orbit.setVE(ve); refs.kick.current(); }, [orbit, ve]); // refs are stable
 
+  // The zoom hint stays up while scrolling continues over the scene, and goes 1.6 s after the last tick.
+  const nudgeTimer = useRef(0);
+  useEffect(() => () => window.clearTimeout(nudgeTimer.current), []);
+  const nudge: Nudge = () => {
+    setNudged(true);
+    window.clearTimeout(nudgeTimer.current);
+    nudgeTimer.current = window.setTimeout(() => setNudged(false), 1600);
+  };
+
   // A repeated message (R pressed twice) differs by a trailing no-break space, so it is announced again.
   const flip = useRef(false);
-  const announce = (text: string) => { flip.current = !flip.current; setStatus(flip.current ? text : `${text} `); };
-  const choose = (v: Exaggeration) => { setVe(v); announce(`Vertical exaggeration ×${v}`); };
+  const announce = (text: string) => { flip.current = !flip.current; setStatus(flip.current ? text : `${text} `); };
+  const choose = (v: Exaggeration) => {
+    if (exaggeration === undefined) setVeOwn(v);
+    onExaggerationChange?.(v);
+    announce(`Vertical exaggeration ×${v}`);
+  };
   const act: Act = (f, say) => {
     f(orbit);
     refs.kick.current();
@@ -187,52 +278,51 @@ function ReliefScene({ relief, planet, defaultExaggeration, renderer, name }: {
     if (text) announce(text);
   };
   const label = ariaSummary(relief, ve, planet, mode);
-  const float = mode === "3d"; // 3D: controls float in the scene's lower corners from sm up; 2D: always a deck below the map
+  // Full, 3D: the controls float in the scene's lower corners from sm up. Compact (and the 2D map): a deck row under the scene.
+  const float = !compact && mode === "3d";
+  const veControl = exaggerationControl && model && (
+    <ExaggerationControl ve={ve} choose={choose} planet={planet} labelId={veLabel} compact={compact || !float} mode={mode} />
+  );
 
   return (
     <>
-      <div className="relative flex min-h-[320px] flex-1 flex-col border-t border-line bg-[#030405]">
-        <div className="relative min-h-[260px] flex-1 overflow-hidden">
+      <div className={cx("relative flex flex-col", compact ? "border border-line-strong" : "min-h-[320px] flex-1 border-t border-line", SCENE_BG)}
+        style={compact ? { height: sceneHeight } : undefined}>
+        <div className={cx("relative flex-1 overflow-hidden", !compact && "min-h-[260px]")}>
           {!model ? (
             <Message planet={planet} title="No elevation in this window">Every cell of this grid is empty; there is no surface to draw.</Message>
           ) : mode === "3d" ? (
-            <Viewport3D model={model} grid={grid} planet={planet} label={label} name={name} refs={refs} act={act} onFail={setFailed} />
+            <Viewport3D model={model} grid={grid} planet={planet} label={label} name={name} refs={refs} act={act} onFail={setFailed}
+              wheel={wheel} onNudge={nudge} onKeys={setKeys} />
           ) : (
             <ViewportFlat model={model} grid={grid} planet={planet} ve={ve} label={label} />
           )}
         </div>
-        {model && (
-          // Phones (and the 2D map at every size): a deck under the scene, so nothing covers the map.
-          <div className={cx("relative z-10 flex flex-wrap items-end justify-between gap-x-6 gap-y-2.5 border-t border-line px-3 py-2.5",
-            float ? "sm:pointer-events-none sm:absolute sm:inset-x-4 sm:bottom-4 sm:flex-nowrap sm:border-0 sm:p-0" : "sm:px-5")}>
-            <div className={cx("flex flex-col gap-1.5", float && "sm:pointer-events-auto")}>
-              <span id={veLabel} className="label-caps on-imagery text-ink">
-                Vertical exaggeration <span className="num tracking-normal">×{ve}</span>
-                {mode === "2d" && <span className="ml-1.5 text-faint">(shading)</span>}
-              </span>
-              <div role="radiogroup" aria-labelledby={veLabel} onKeyDown={radioGroupKeys(EXAGGERATIONS, ve, choose)}
-                className="inline-flex w-max divide-x divide-line-strong border border-line-strong bg-[rgb(3_4_5/0.86)]">
-                {EXAGGERATIONS.map((v) => (
-                  <button key={v} type="button" role="radio" aria-checked={v === ve} tabIndex={v === ve ? 0 : -1} onClick={() => choose(v)}
-                    className={cx("hit num h-8 w-11 text-[12px] transition-colors duration-150 active:duration-0",
-                      v === ve ? cx("bg-ink text-space", planet === "mars" ? "shadow-[inset_0_-2px_0_var(--color-mars)]" : "shadow-[inset_0_-2px_0_var(--color-earth)]")
-                        : "text-muted hover:bg-white/[0.06] hover:text-ink active:bg-white/[0.12]")}>
-                    ×{v}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {mode === "3d" ? <NavStack act={act} needle={refs.needle} /> : (
-              <p className="max-w-[300px] text-caption text-muted sm:text-right">
-                <span className="label-caps block text-ink">2D hillshade</span>
-                North up, lit from the north-west.{failed ? ` ${failed}` : ""}
-              </p>
-            )}
+        {float && (
+          <div className="pointer-events-none absolute inset-x-4 bottom-4 z-10 hidden items-end justify-between gap-6 sm:flex">
+            <div className="pointer-events-auto">{veControl}</div>
+            <div className="pointer-events-auto"><NavStack act={act} needle={refs.needle} vertical /></div>
           </div>
         )}
-        <p aria-live="polite" className="sr-only">{status}</p>
+        {compact && <span aria-hidden className="frame pointer-events-none absolute inset-0 z-10" />}
       </div>
-      {model && <Legend model={model} relief={relief} planet={planet} />}
+      {model && (
+        <StatusBar refs={refs} mode={mode} compact={compact} wheel={wheel} keys={keys} nudged={nudged} />
+      )}
+      {model && (
+        // The deck: always in compact, and on phones (or for the 2D map) in full, so nothing covers the map. With
+        // touch-sized targets it becomes two full-width rows: exaggeration, then the view buttons.
+        <div className={cx("relative flex items-center justify-between gap-3 pointer-coarse:flex-wrap pointer-coarse:gap-2",
+          compact ? "border-x border-b border-line-strong px-1.5 py-1.5" : "border-t border-line px-3 py-2.5 sm:px-5", float && "sm:hidden")}>
+          {veControl || <span />}
+          {mode === "3d" ? <NavStack act={act} needle={refs.needle} /> : failed && (
+            <p className="max-w-[300px] text-caption text-muted sm:text-right">{failed}</p>
+          )}
+        </div>
+      )}
+      <p aria-live="polite" className="sr-only">{status}</p>
+      {model && <Legend model={model} relief={relief} planet={planet} compact={compact} />}
+      {caption && <div className={cx(compact ? "mt-2.5" : "border-t border-line px-4 py-3 sm:px-5")}>{caption(relief, ve)}</div>}
     </>
   );
 }
@@ -247,33 +337,117 @@ const said = {
   zoom: (o: Orbit) => `Zoom ×${(1 / Math.exp(o.zoom.target ?? o.zoom.x)).toFixed(2)}`,
 };
 
-const navBtn = "hit grid h-9 w-9 place-items-center bg-[#05070a] text-muted transition-colors duration-150 hover:bg-[#101317] hover:text-ink active:bg-[#1a1e23] active:duration-0";
-
-/** Zoom, face north and reset: 2 × 2 in the phone deck, a vertical stack in the scene's corner elsewhere. */
-function NavStack({ act, needle }: { act: Act; needle: MutableRefObject<SVGSVGElement | null> }) {
+/**
+ * Vertical exaggeration: joined square cells, the selected one inverted with a planet-colour rule. A radio
+ * group (one Tab stop; arrows, Home and End). Compact rows abbreviate the label to the geologists' "V.E.".
+ */
+function ExaggerationControl({ ve, choose, planet, labelId, compact, mode }: {
+  ve: Exaggeration; choose: (v: Exaggeration) => void; planet: "earth" | "mars"; labelId: string; compact: boolean; mode: "3d" | "2d";
+}) {
   return (
-    <div role="group" aria-label="Relief view" className="grid grid-cols-2 gap-px border border-line-strong bg-line sm:pointer-events-auto sm:flex sm:flex-col">
-      <button type="button" className={navBtn} aria-label="Zoom in" title="Zoom in (+)" onClick={() => act((o) => o.nudge("zoom", -ZOOM_STEP), said.zoom)}><Plus className="h-4 w-4" strokeWidth={1.6} /></button>
-      <button type="button" className={navBtn} aria-label="Zoom out" title="Zoom out (−)" onClick={() => act((o) => o.nudge("zoom", ZOOM_STEP), said.zoom)}><Minus className="h-4 w-4" strokeWidth={1.6} /></button>
-      <button type="button" className={navBtn} aria-label="Face north" title="Face north (N)" onClick={() => act((o) => o.faceNorth(), "Facing north")}>
-        <Compass ref={needle} className="h-4 w-4 will-change-transform" strokeWidth={1.6} aria-hidden />
-      </button>
-      <button type="button" className={navBtn} aria-label="Reset view" title="Reset view (R)" onClick={() => act((o) => o.reset(), "View reset")}><RotateCcw className="h-4 w-4" strokeWidth={1.6} /></button>
+    <div className={cx("flex", compact ? "items-center gap-2 pointer-coarse:w-full" : "flex-col gap-1.5")}>
+      <span id={labelId} className={cx(compact ? "kicker !text-[10px] !text-muted" : "label-caps on-imagery text-ink")} title="Vertical exaggeration">
+        {compact ? <><span aria-hidden>V.E.</span><span className="sr-only">Vertical exaggeration</span></> : <>Vertical exaggeration <span className="num tracking-normal">×{ve}</span></>}
+        {mode === "2d" && <span className="ml-1.5 text-faint">(shading)</span>}
+      </span>
+      <div role="radiogroup" aria-labelledby={labelId} onKeyDown={radioGroupKeys(EXAGGERATIONS, ve, choose)}
+        className={cx("inline-flex w-max divide-x divide-line-strong border border-line-strong bg-[rgb(3_4_5/0.86)]", compact && "pointer-coarse:w-auto pointer-coarse:flex-1")}>
+        {EXAGGERATIONS.map((v) => (
+          <button key={v} type="button" role="radio" aria-checked={v === ve} tabIndex={v === ve ? 0 : -1} onClick={() => choose(v)}
+            className={cx("hit num text-[12px] transition-colors duration-150 active:duration-0", compact ? "h-7 w-9 pointer-coarse:w-auto pointer-coarse:flex-1" : "h-8 w-11",
+              v === ve ? cx("bg-ink text-space", planet === "mars" ? "shadow-[inset_0_-2px_0_var(--color-mars)]" : "shadow-[inset_0_-2px_0_var(--color-earth)]")
+                : "text-muted hover:bg-white/[0.06] hover:text-ink active:bg-white/[0.12]")}>
+            ×{v}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
 
+/** Zoom, face north and reset: a joined row under the scene, or a vertical stack in the full view's corner. */
+function NavStack({ act, needle, vertical = false }: { act: Act; needle: MutableRefObject<SVGSVGElement | null>; vertical?: boolean }) {
+  const btn = cx("hit grid place-items-center bg-[#05070a] text-muted transition-colors duration-150 hover:bg-[#101317] hover:text-ink active:bg-[#1a1e23] active:duration-0",
+    vertical ? "h-9 w-9" : "h-7 w-8 pointer-coarse:w-auto pointer-coarse:flex-1");
+  const icon = vertical ? "h-4 w-4" : "h-3.5 w-3.5";
+  return (
+    <div role="group" aria-label="Relief view" className={cx("flex gap-px border border-line-strong bg-line-strong", vertical ? "flex-col" : "pointer-coarse:w-full")}>
+      <button type="button" className={btn} aria-label="Zoom in" title="Zoom in (+)" onClick={() => act((o) => o.nudge("zoom", -ZOOM_STEP), said.zoom)}><Plus className={icon} strokeWidth={1.6} /></button>
+      <button type="button" className={btn} aria-label="Zoom out" title="Zoom out (−)" onClick={() => act((o) => o.nudge("zoom", ZOOM_STEP), said.zoom)}><Minus className={icon} strokeWidth={1.6} /></button>
+      <button type="button" className={btn} aria-label="Face north" title="Face north (N)" onClick={() => act((o) => o.faceNorth(), "Facing north")}>
+        <Compass ref={needle} className={cx(icon, "will-change-transform")} strokeWidth={1.6} aria-hidden />
+      </button>
+      <button type="button" className={btn} aria-label="Reset view" title="Reset view (R)" onClick={() => act((o) => o.reset(), "View reset")}><RotateCcw className={icon} strokeWidth={1.6} /></button>
+    </div>
+  );
+}
+
+const IS_MAC = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
+
+/**
+ * Instrument status bar under the scene (visual only; the canvas describes itself to assistive technology).
+ * Left: heading and pitch. Right, by priority: the zoom hint after plain scrolling in a panel, the probe under a
+ * resting mouse pointer, the keyboard map while the scene has keyboard focus, else how to move the view.
+ */
+function StatusBar({ refs, mode, compact, wheel, keys, nudged }: {
+  refs: ViewRefs; mode: "3d" | "2d"; compact: boolean; wheel: "zoom" | "modifier"; keys: boolean; nudged: boolean;
+}) {
+  const mod = IS_MAC ? "⌘" : "Ctrl";
+  // The frame loop marks the bar `data-probe` while a probe reading shows; a compact bar then (and for a hint or the
+  // keyboard map, `data-busy`) gives the whole width to the message, so nothing is cut.
+  return (
+    <div ref={refs.bar} aria-hidden data-busy={compact && (keys || nudged) ? "" : undefined}
+      className={cx("group flex h-7 shrink-0 items-center gap-3 overflow-hidden whitespace-nowrap text-[10.5px] leading-none",
+        compact ? "border-x border-b border-line-strong bg-[#05070a] px-2.5" : "border-t border-line px-4 sm:px-5")}>
+      {mode === "3d" ? (
+        <span className={cx("flex shrink-0 items-baseline gap-3", compact && "group-data-[busy]:hidden group-data-[probe]:hidden")}>
+          <Cell label="Hdg"><span ref={refs.heading}>—</span></Cell>
+          <Cell label="Pitch"><span ref={refs.pitch}>—</span></Cell>
+          {!compact && <Cell label="Light" className="max-sm:hidden">{SUN.azDeg}° / {SUN.altDeg}°</Cell>}
+        </span>
+      ) : (
+        <span className="label-caps !text-[10px] text-muted">2D hillshade · north up</span>
+      )}
+      <span className="ml-auto min-w-0 truncate text-right">
+        <span ref={refs.probe} className="num hidden text-ink group-data-[probe]:inline" />
+        <span className={cx("group-data-[probe]:hidden", nudged ? "text-ink" : "text-faint")}>
+          {mode === "2d" ? "Lit from the north-west"
+            : nudged ? <><Key>{mod}</Key> + scroll to zoom the view</>
+              : keys ? <><Key>←</Key><Key>→</Key> turn <Key>↑</Key><Key>↓</Key> tilt <Key>+</Key><Key>−</Key> zoom <Key>N</Key> north <Key>R</Key> reset</>
+                : (
+                  <>
+                    <span className="pointer-coarse:hidden">{wheel === "modifier" ? <>Drag to orbit · <Key>{mod}</Key> + scroll to zoom</> : "Drag to orbit · scroll to zoom"}</span>
+                    <span className="hidden pointer-coarse:inline">{wheel === "modifier" ? "Swipe to turn · pinch to zoom" : "Drag to orbit · pinch to zoom"}</span>
+                  </>
+                )}
+        </span>
+      </span>
+    </div>
+  );
+}
+
+function Cell({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
+  return (
+    <span className={cx("flex items-baseline gap-1.5", className)}>
+      <span className="font-sans text-[9.5px] font-semibold uppercase tracking-[0.14em] text-faint">{label}</span>
+      <span className="num text-ink">{children}</span>
+    </span>
+  );
+}
+
+function Key({ children }: { children: ReactNode }) {
+  return <span className="num mx-px inline-grid h-[15px] min-w-[15px] place-items-center border border-line-strong px-0.5 text-[9.5px] text-ink">{children}</span>;
+}
+
 // ---------------------------------------------------------------- 3D viewport
 
-function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
+function Viewport3D({ model, grid, planet, label, name, refs, act, onFail, wheel, onNudge, onKeys }: {
   model: Model; grid: Grid; planet: "earth" | "mars"; label: string; name: string; refs: ViewRefs; act: Act; onFail: (why: string) => void;
+  wheel: "zoom" | "modifier"; onNudge: Nudge; onKeys: (on: boolean) => void;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const labelEls = useRef(new Map<string, HTMLSpanElement>());
-  const heading = useRef<HTMLSpanElement>(null);
-  const pitch = useRef<HTMLSpanElement>(null);
-  const probeEl = useRef<HTMLSpanElement>(null);
   const probeMark = useRef<HTMLSpanElement>(null);
   const hover = useRef<{ x: number; y: number } | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -281,6 +455,10 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
   const hint = useId();
   const failRef = useRef(onFail);
   failRef.current = onFail;
+  const wheelRef = useRef(wheel);
+  wheelRef.current = wheel;
+  const nudgeRef = useRef(onNudge);
+  nudgeRef.current = onNudge;
 
   useEffect(() => {
     const cv = canvas.current!, box = host.current!, o = refs.orbit;
@@ -310,18 +488,20 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
         el.style.transform = `translate3d(${l.x.toFixed(1)}px, ${l.y.toFixed(1)}px, 0) translate(${l.align === "right" ? "-100%" : l.align === "left" ? "0" : "-50%"}, -50%)`;
       }
       for (const [key, el] of labelEls.current) if (!shown.has(key)) el.style.visibility = "hidden";
-      if (heading.current) heading.current.textContent = fmtHeading(pose.az);
-      if (pitch.current) pitch.current.textContent = fmtPitch(pose.el);
+      if (refs.heading.current) refs.heading.current.textContent = fmtHeading(pose.az);
+      if (refs.pitch.current) refs.pitch.current.textContent = fmtPitch(pose.el);
       // Same convention as the globe's compass (NavControls): the needle points to north on screen.
       if (refs.needle.current) refs.needle.current.style.transform = `rotate(${-cam.headingDeg - 45}deg)`;
       // Probe: the cell under a resting mouse pointer, read from the grid itself.
       const h = o.held ? null : hover.current;
       const hit = h ? pickCell(model, grid, cam, h.x, h.y, size.w, size.h) : null;
-      if (probeEl.current) {
-        probeEl.current.textContent = hit
+      if (refs.probe.current) {
+        refs.probe.current.textContent = hit
           ? `${hit.elevation === null ? "no elevation" : `${fmtNum(hit.elevation, 1)} m`}  ·  ${hit.eastKm.toFixed(1)} km E  ${hit.northKm.toFixed(1)} km N`
-          : "—";
+          : "";
       }
+      if (hit) refs.bar.current?.setAttribute("data-probe", "");
+      else refs.bar.current?.removeAttribute("data-probe");
       if (probeMark.current) {
         const s = hit ? project(cam.viewProj, hit.p, size.w, size.h) : null;
         probeMark.current.style.visibility = s?.visible ? "visible" : "hidden";
@@ -353,19 +533,26 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
     });
     ro.observe(box);
     const lost = (e: Event) => { e.preventDefault(); failRef.current("The 3D view lost its graphics context."); };
-    const wheel = (e: WheelEvent) => {
+    const onWheel = (e: WheelEvent) => {
+      // Inside a scrolling panel plain scrolling belongs to the panel; Ctrl or ⌘ (and a trackpad pinch, which
+      // browsers send as a Ctrl wheel) zooms the view.
+      if (wheelRef.current === "modifier" && !e.ctrlKey && !e.metaKey) { nudgeRef.current(); return; }
       e.preventDefault();
-      o.wheel(e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY, performance.now());
+      const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+      // A trackpad pinch arrives as small Ctrl-wheel steps on the browser's pinch scale (zoom = e^(−Δ/100)):
+      // follow the fingers 1:1 rather than at the mouse-wheel rate.
+      const pinch = e.ctrlKey && e.deltaMode === 0 && Math.abs(e.deltaY) < 40;
+      o.wheel(pinch ? dy * 6.25 : dy, performance.now());
       k();
     };
     cv.addEventListener("webglcontextlost", lost);
-    cv.addEventListener("wheel", wheel, { passive: false });
+    cv.addEventListener("wheel", onWheel, { passive: false });
     k();
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
       cv.removeEventListener("webglcontextlost", lost);
-      cv.removeEventListener("wheel", wheel);
+      cv.removeEventListener("wheel", onWheel);
       refs.kick.current = () => {};
       r.dispose();
       // Browsers cap live WebGL contexts: give this one back once the canvas has really left the page
@@ -380,9 +567,10 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
   };
   const twoFingers = () => {
     const [a, b] = [...pointers.current.values()];
-    return { span: Math.hypot(b.x - a.x, b.y - a.y), angle: Math.atan2(b.y - a.y, b.x - a.x) };
+    return { span: Math.hypot(b.x - a.x, b.y - a.y), angle: Math.atan2(b.y - a.y, b.x - a.x), cy: (a.y + b.y) / 2 };
   };
-  const release = (e: React.PointerEvent<HTMLCanvasElement>) => {
+  // A cancelled pointer (the browser took the gesture over, e.g. to scroll the panel) stops without a glide.
+  const release = (e: React.PointerEvent<HTMLCanvasElement>, momentum: boolean) => {
     if (!pointers.current.delete(e.pointerId)) return;
     const o = refs.orbit, now = performance.now();
     o.endPinch();
@@ -390,7 +578,7 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
       const [p] = [...pointers.current.values()];
       o.beginDrag(p.x, p.y, now); // the remaining finger keeps tracking from where it is
     } else if (pointers.current.size === 0) {
-      o.endDrag(now);
+      o.endDrag(now, momentum);
       e.currentTarget.style.cursor = "";
     }
     refs.kick.current();
@@ -400,7 +588,11 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
     <div ref={host} className="absolute inset-0">
       {/* "application": a screen reader passes the arrow keys through to the view instead of reading on. */}
       <canvas ref={canvas} tabIndex={0} role="application" aria-roledescription="3D relief" aria-label={label} aria-describedby={hint}
-        className="peer absolute inset-0 h-full w-full cursor-grab touch-none select-none focus-visible:outline-offset-[-3px]!"
+        className={cx("absolute inset-0 h-full w-full cursor-grab select-none focus-visible:outline-offset-[-3px]!",
+          // In a scrolling panel one finger moving up or down scrolls the panel; the view takes sideways swipes and two fingers.
+          wheel === "modifier" ? "touch-pan-y" : "touch-none")}
+        onFocus={(e) => onKeys(e.currentTarget.matches(":focus-visible"))}
+        onBlur={() => onKeys(false)}
         onPointerDown={(e) => {
           if (e.pointerType === "mouse" && e.button !== 0) return;
           e.currentTarget.setPointerCapture(e.pointerId);
@@ -408,7 +600,7 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
           pointers.current.set(e.pointerId, p);
           const o = refs.orbit;
           if (pointers.current.size === 1) o.beginDrag(p.x, p.y, performance.now());
-          else if (pointers.current.size === 2) { const t = twoFingers(); o.beginPinch(t.span, t.angle); }
+          else if (pointers.current.size === 2) { const t = twoFingers(); o.beginPinch(t.span, t.angle, t.cy); }
           e.currentTarget.style.cursor = "grabbing";
           refs.kick.current();
         }}
@@ -419,13 +611,13 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
             pointers.current.set(e.pointerId, p);
             const o = refs.orbit;
             if (pointers.current.size === 1) o.moveDrag(p.x, p.y, performance.now(), e.currentTarget.clientWidth);
-            else if (pointers.current.size === 2) { const t = twoFingers(); o.movePinch(t.span, t.angle); }
+            else if (pointers.current.size === 2) { const t = twoFingers(); o.movePinch(t.span, t.angle, t.cy, e.currentTarget.clientWidth); }
           }
           refs.kick.current();
         }}
         onPointerLeave={() => { hover.current = null; refs.kick.current(); }}
-        onPointerUp={release}
-        onPointerCancel={release}
+        onPointerUp={(e) => release(e, true)}
+        onPointerCancel={(e) => release(e, false)}
         onKeyDown={(e) => {
           switch (e.key) {
             case "ArrowLeft": act((o) => o.nudge("az", -AZ_STEP), said.heading); break;
@@ -443,7 +635,7 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
       />
       {/* Description only (read through aria-describedby), so it is not read a second time as page text. */}
       <span id={hint} hidden>
-        {`${name}. Drag to orbit, two fingers to zoom and turn. Arrow keys rotate and tilt, plus and minus zoom, N faces north, R resets the view.`}
+        {`${name}. Drag to orbit, two fingers to zoom, turn and tilt. ${wheel === "modifier" ? `Hold ${IS_MAC ? "Command" : "Control"} and scroll to zoom. ` : ""}Arrow keys rotate and tilt, plus and minus zoom, N faces north, R resets the view.`}
       </span>
 
       {/* Scale labels, positioned every frame from the 3D anchors. */}
@@ -465,37 +657,8 @@ function Viewport3D({ model, grid, planet, label, name, refs, act, onFail }: {
           <span className="absolute left-0 top-[3px] h-[4px] w-px bg-ink" />
         </span>
       </div>
-
-      {/* View readout (top-left) and keyboard map on focus (top-centre). */}
-      <div aria-hidden className="on-imagery pointer-events-none absolute left-3 top-3 flex gap-4 sm:left-4">
-        <Readline label="Hdg"><span ref={heading}>—</span></Readline>
-        <Readline label="Pitch"><span ref={pitch}>—</span></Readline>
-        <Readline label="Light" className="hidden sm:flex">{SUN.azDeg}° / {SUN.altDeg}°</Readline>
-        <Readline label="Probe" className="hidden min-w-[220px] sm:pointer-fine:flex"><span ref={probeEl}>—</span></Readline>
-      </div>
-      <div aria-hidden className="pointer-events-none absolute right-4 top-3 hidden opacity-0 transition-opacity duration-150 peer-focus-visible:opacity-100 lg:flex">
-        <span className="label-caps border border-line-strong bg-[rgb(3_4_5/0.9)] px-2.5 py-1.5 !text-[10.5px] text-muted">
-          <Key>←</Key><Key>→</Key> Rotate <Sep /> <Key>↑</Key><Key>↓</Key> Tilt <Sep /> <Key>+</Key><Key>−</Key> Zoom <Sep /> <Key>N</Key> North <Sep /> <Key>R</Key> Reset
-        </span>
-      </div>
     </div>
   );
-}
-
-function Readline({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
-  return (
-    <span className={cx("flex flex-col", className)}>
-      <span className="kicker !text-[10px] !text-ink/60">{label}</span>
-      <span className="num whitespace-nowrap text-num-sm text-ink">{children}</span>
-    </span>
-  );
-}
-
-function Key({ children }: { children: ReactNode }) {
-  return <span className="num mr-0.5 inline-grid h-4 min-w-4 place-items-center border border-line-strong px-0.5 text-[10px] text-ink">{children}</span>;
-}
-function Sep() {
-  return <span className="mx-1.5 text-faint">·</span>;
 }
 
 // ---------------------------------------------------------------- 2D fallback
@@ -528,39 +691,45 @@ function ViewportFlat({ model, grid, planet, ve, label }: { model: Model; grid: 
 
 // ---------------------------------------------------------------- legend
 
-function Legend({ model, relief, planet }: { model: Model; relief: Relief; planet: "earth" | "mars" }) {
+function Legend({ model, relief, planet, compact }: { model: Model; relief: Relief; planet: "earth" | "mars"; compact: boolean }) {
   const stops = [0, 0.25, 0.5, 0.75, 1].map((t) => {
     const c = rampColor(t, TINT[planet]).map((v) => Math.round(Math.min(1, v * 0.89) * 255));
     return `rgb(${c.join(" ")}) ${t * 100}%`;
   }).join(", ");
   const noData = 1 - relief.valid_fraction;
   const as = representationNote(planet, relief.source.representation);
+  const unit = <span className="ml-[0.18em] font-sans text-[11px]">m</span>;
   return (
-    <footer className="border-t border-line px-4 py-3 sm:px-5">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2.5">
+    <footer className={cx(compact ? "mt-2.5" : "border-t border-line px-4 py-3 sm:px-5")}>
+      <div className={cx("flex flex-wrap items-center", compact ? "gap-x-4 gap-y-1.5" : "gap-x-6 gap-y-2.5")}>
         <div className="flex items-center gap-2">
           <span className="kicker !text-[10px]">Elevation</span>
           <span className="num text-num-sm text-muted">{fmtNum(model.zMin)}</span>
-          <span aria-hidden className="h-2 w-24 border border-line-strong" style={{ backgroundImage: `linear-gradient(to right, ${stops})` }} />
-          <span className="num text-num-sm text-muted">{fmtNum(model.zMax)}<span className="ml-[0.18em] font-sans text-[11px]">m</span></span>
+          <span aria-hidden className={cx("h-2 border border-line-strong", compact ? "w-16" : "w-24")} style={{ backgroundImage: `linear-gradient(to right, ${stops})` }} />
+          <span className="num text-num-sm text-muted">{fmtNum(model.zMax)}{unit}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="kicker !text-[10px]">Contours</span>
           {model.contour ? (
-            <span className="num text-num-sm text-muted">{fmtNum(model.contour.interval)}<span className="ml-[0.18em] font-sans text-[11px]">m</span>
-              <span className="mx-1.5 text-faint">·</span>index {fmtNum(model.contour.index)}<span className="ml-[0.18em] font-sans text-[11px]">m</span></span>
+            <span className="num text-num-sm text-muted">{fmtNum(model.contour.interval)}{unit}
+              <span className="mx-1.5 text-faint">·</span>index {fmtNum(model.contour.index)}{unit}</span>
           ) : <span className="text-caption text-faint">none (flat)</span>}
         </div>
-        <div className="flex items-center gap-2">
-          <span aria-hidden className="h-2.5 w-2.5 border border-line-strong bg-[repeating-linear-gradient(45deg,rgb(242_244_245/0.35)_0_1px,transparent_1px_3.5px)]" />
-          <span className="kicker !text-[10px]">No elevation</span>
-          <span className="num text-num-sm text-muted">{(100 * noData).toFixed(1)}<span className="ml-[0.1em]">%</span></span>
-        </div>
+        {/* Compact: the hatch key only where the floor can show (a full view always states the share). */}
+        {(!compact || noData > 0) && (
+          <div className="flex items-center gap-2">
+            <span aria-hidden className="h-2.5 w-2.5 border border-line-strong bg-[repeating-linear-gradient(45deg,rgb(242_244_245/0.35)_0_1px,transparent_1px_3.5px)]" />
+            <span className="kicker !text-[10px]">No elevation</span>
+            <span className="num text-num-sm text-muted">{(100 * noData).toFixed(1)}<span className="ml-[0.1em]">%</span></span>
+          </div>
+        )}
       </div>
-      <p className="mt-2 text-caption text-faint">
-        {relief.source.title} · {relief.rows} × {relief.cols} cells @ {relief.cell_m.toFixed(2)} m, north up
-        {relief.source.vertical_reference ? <> · heights: {relief.source.vertical_reference}</> : null} · {as}.
-      </p>
+      {!compact && (
+        <p className="mt-2 text-caption text-faint">
+          {relief.source.title} · {relief.rows} × {relief.cols} cells @ {relief.cell_m.toFixed(2)} m, north up
+          {relief.source.vertical_reference ? <> · heights: {relief.source.vertical_reference}</> : null} · {as}.
+        </p>
+      )}
     </footer>
   );
 }
