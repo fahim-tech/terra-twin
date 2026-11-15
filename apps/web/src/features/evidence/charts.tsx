@@ -57,7 +57,7 @@ export function FalsificationChart({ m }: { m: EvidenceModel }) {
       </>}
       footer={<FullMatrix m={m} />}
     >
-      <div aria-hidden className={cx(ROW_GRID, "pb-1 text-caption text-faint")}><span>True chain · direct → deployed</span><span /></div>
+      <div aria-hidden className={cx(ROW_GRID, "pb-1 text-caption text-faint")}><span>True chain <span className="hidden sm:inline">· direct → deployed</span></span><span /></div>
       <ol className="list-none p-0">
         {m.chains.map((c) => {
           const ok = c.direct !== null && c.deployed !== null;
@@ -101,9 +101,12 @@ function FullMatrix({ m }: { m: EvidenceModel }) {
                 {m.chainColumns.map((c) => {
                   const v = r.cells[c];
                   const diag = c === r.chain;
+                  const worse = c === "primary" && r.adverse;
                   return (
-                    <td key={c} className={cx("num px-2 py-1.5 text-right text-num", diag ? "text-ink" : "text-muted")}>
-                      {fmtNum(v)}{diag && <span className="sr-only"> (operator matches the true chain)</span>}
+                    <td key={c} className={cx("num px-2 py-1.5 text-right text-num", diag ? "bg-ink/[0.07] text-ink" : worse ? "text-warn" : "text-muted")}>
+                      {worse && <span aria-hidden className="mr-1">⚠</span>}{fmtNum(v)}
+                      {diag && <span className="sr-only"> (operator matches the true chain)</span>}
+                      {worse && <span className="sr-only"> (deployed operator worse than no correction)</span>}
                     </td>
                   );
                 })}
@@ -112,7 +115,7 @@ function FullMatrix({ m }: { m: EvidenceModel }) {
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-caption text-faint">Bright values: the assumed operator equals the true chain.</p>
+      <p className="mt-2 text-caption text-faint">Shaded: the assumed operator equals the true chain. <span className="text-warn">⚠</span> the deployed operator does worse than no correction.</p>
     </Disclosure>
   );
 }
@@ -270,7 +273,7 @@ export function AbstentionSplit({ m }: { m: EvidenceModel }) {
         )}
         <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4">
           <Stat label="Correct when a leader is named" value={fmtPct(a.accNamed, 1)} />
-          <Stat label="Ties that contain the twin" value={`${fmtInt(a.twinInTie)} / ${fmtInt(a.abstained)}`} />
+          <Stat label="Ties that contain the twin" value={`${fmtInt(a.twinInTie)}/${fmtInt(a.abstained)}`} />
           <Stat label="Median tie size" value={fmtInt(a.tieMedian)} sub={a.tieMax !== null ? `largest ${a.tieMax}` : undefined} />
           <Stat label="Twins" value={fmtInt(a.total)} />
         </dl>

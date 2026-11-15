@@ -30,6 +30,17 @@ export default function EvidenceView() {
   const announce = useApp((s) => s.announce);
   const model = useMemo(() => (ev.data ? buildModel(ev.data) : null), [ev.data]);
 
+  // The shell focuses the stage heading shortly after navigation; if this lazily loaded page was not
+  // mounted yet, take focus here so keyboard and screen-reader users still land on the heading.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      const h = document.querySelector<HTMLElement>('[data-stage-heading="evidence"]');
+      const active = document.activeElement;
+      if (h && (!active || active === document.body)) h.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   const said = useRef<string | null>(null);
   useEffect(() => {
     const state = ev.isError ? "error" : model ? "ready" : null;
@@ -182,7 +193,7 @@ function KeyFigures({ m }: { m: EvidenceModel }) {
       <dl className="mt-6 grid gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-4">
         <KeyFig label="Twin ranked first" value={<>{fmtPct(k.directTop1)}<Arrow />{fmtPct(k.oomTop1)}</>} basis="Direct comparison → observation-operator matching" />
         <KeyFig label="Mean reciprocal rank" value={<>{fmtNum(k.directMrr, 2)}<Arrow />{fmtNum(k.oomMrr, 2)}</>} basis="1 = always ranked first" />
-        <KeyFig label="Strongest alternative" value={<>{fmtPct(k.alt?.top1 ?? null)}</>} basis={k.alt ? <>{k.alt.name} · MRR <span className="num">{fmtNum(k.alt.mrr)}</span> · top-1</> : "Not in payload"} />
+        <KeyFig label="Strongest alternative · ranked first" value={<>{fmtPct(k.alt?.top1 ?? null)}</>} basis={k.alt ? <>{k.alt.name} · MRR <span className="num">{fmtNum(k.alt.mrr)}</span></> : "Not in payload"} />
         <KeyFig label="Adverse result" warn
           value={k.adverse ? <>{fmtNum(k.adverse.oom, 2)}<span className="mx-1.5 text-muted">&lt;</span>{fmtNum(k.adverse.direct, 2)}</> : "—"}
           basis={k.adverse ? <>If the true chain were {k.adverse.chain.toLowerCase()}: deployed operator MRR below direct comparison</> : "No adverse row in payload"} />

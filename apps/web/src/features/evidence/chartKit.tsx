@@ -15,7 +15,7 @@ export function scale(lo: number, hi: number, ticks?: number[]): Scale {
 }
 
 /** The shared row grid: label column (wraps), plot track. */
-export const ROW_GRID = "grid grid-cols-[minmax(0,42%)_minmax(0,1fr)] gap-x-3 sm:grid-cols-[13.5rem_minmax(0,1fr)] sm:gap-x-5";
+export const ROW_GRID = "grid grid-cols-[minmax(0,42%)_minmax(0,1fr)] gap-x-3 sm:grid-cols-[13.5rem_minmax(0,1fr)] sm:gap-x-5 lg:grid-cols-[18rem_minmax(0,1fr)] lg:gap-x-8";
 
 export function Chart({ id, title, basis, legend, children, footer, className }: {
   id?: string; title: ReactNode; basis?: ReactNode; legend?: ReactNode; children: ReactNode; footer?: ReactNode; className?: string;

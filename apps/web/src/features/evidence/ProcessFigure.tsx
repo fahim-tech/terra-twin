@@ -167,7 +167,7 @@ export function ProcessFigure({ m }: { m: EvidenceModel }) {
     },
     {
       n: "3", title: st[2]?.title ?? "Half-pixel blend", documented: doc(2, "half-pixel column blend (measured)"), art: <Blend />,
-      caption: "Each column is averaged with its neighbour offset by half a pixel, as measured in the Mars grid.",
+      caption: "Adjacent columns are blended, moving the grid half a pixel — a registration offset measured in the Mars data.",
       constant: linShift && linNo ? <>With ½ px <span className="num text-ink">{fmtNum(linShift.error)}</span> vs without <span className="num text-ink">{fmtNum(linNo.error)}</span> <span className="text-faint">paired error</span></> : <span className="text-faint">Measurement not in payload</span>,
     },
     {
@@ -194,7 +194,7 @@ export function ProcessFigure({ m }: { m: EvidenceModel }) {
               <span className="text-label text-ink">{s.title}</span>
               {i < stages.length - 1 && <span aria-hidden className="ml-auto hidden text-faint lg:inline">→</span>}
             </div>
-            <div className="mt-3 rounded-control bg-ink/[0.025] px-1 py-2"><div className="mx-auto max-w-[300px]">{s.art}</div></div>
+            <div className="mt-3 rounded-control bg-ink/[0.025] px-1 py-2"><div className="mx-auto max-w-[260px]">{s.art}</div></div>
             <p className="mt-3 text-caption text-muted">{s.caption}</p>
             <p className="mt-2 text-caption text-muted">{s.constant}</p>
             <p className="mt-1 font-mono text-[11px] leading-snug text-faint">{st[i]?.raw ?? s.documented}</p>
