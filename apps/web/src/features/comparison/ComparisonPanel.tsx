@@ -64,7 +64,7 @@ export function ComparisonPanel() {
   return (
     <>
       <motion.section initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        aria-label="Mars–Earth comparison"
+        aria-label="Mars–Earth comparison" data-occludes="both"
         className="panel no-print absolute inset-x-0 bottom-0 z-10 flex max-h-[62%] flex-col rounded-t-2xl shadow-2xl shadow-black/50 md:inset-x-3 md:bottom-3 md:max-h-[54%] md:rounded-2xl">
         <header className="flex flex-wrap items-center gap-x-5 gap-y-3 border-b border-line/60 px-5 py-3.5">
           <button onClick={() => go("earth")} className="inline-flex items-center gap-1 text-[12px] text-muted hover:text-ink"><ArrowLeft className="h-3.5 w-3.5" /> Results</button>

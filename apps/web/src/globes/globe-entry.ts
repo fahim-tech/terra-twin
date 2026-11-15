@@ -142,6 +142,8 @@ let lastTelemetry = "";
 let lastTelemetryAt = 0;
 const meanR = planet === "mars" ? R_MARS_M : R_EARTH_MEAN_M;
 let insets = { top: 0, right: 0, bottom: 0, left: 0 };
+/** Last programmatic framing target; re-aimed when insets change, forgotten once the user moves the camera. */
+let lastTarget: { lat: number; lon: number; heightKm: number } | null = null;
 let occluder: EllipsoidalOccluder | null = null;
 
 // Latitude conversion between the API convention (planetocentric) and the rendering ellipsoid.
@@ -401,6 +403,7 @@ function autoDuration(lat: number, lon: number, heightKm: number) {
 function flyTo(lat: number, lon: number, heightKm = planet === "mars" ? 1_400 : 2_200, durationS?: number) {
   if (!viewer) return;
   spinning = false;
+  lastTarget = { lat, lon, heightKm };
   const aim = aimFor(lat, lon, heightKm * 1000);
   viewer.camera.flyTo({
     destination: pos(aim.lat, aim.lon, heightKm * 1000),
@@ -716,8 +719,8 @@ async function init(ionToken: string | null) {
     const c = pickCarto(ev.endPosition);
     post({ t: "hover", lat: c?.lat ?? null, lon: c?.lon ?? null });
   }, ScreenSpaceEventType.MOUSE_MOVE);
-  for (const t of [ScreenSpaceEventType.LEFT_DOWN, ScreenSpaceEventType.WHEEL, ScreenSpaceEventType.PINCH_START]) {
-    handler.setInputAction(() => { if (spinning) { spinning = false; post({ t: "interaction" }); } }, t);
+  for (const t of [ScreenSpaceEventType.LEFT_DOWN, ScreenSpaceEventType.RIGHT_DOWN, ScreenSpaceEventType.MIDDLE_DOWN, ScreenSpaceEventType.WHEEL, ScreenSpaceEventType.PINCH_START]) {
+    handler.setInputAction(() => { lastTarget = null; if (spinning) { spinning = false; post({ t: "interaction" }); } }, t);
   }
   scene.canvas.addEventListener("pointerleave", () => post({ t: "hover", lat: null, lon: null }));
 
@@ -765,7 +768,11 @@ window.addEventListener("message", (ev: MessageEvent) => {
       case "init": void init(m.ionToken); break;
       case "flyTo": flyTo(m.lat, m.lon, m.heightKm, m.durationS); break;
       case "fitBounds": fitBounds(m.west, m.south, m.east, m.north, m.padding, m.minHeightKm, m.maxHeightKm, m.durationS); break;
-      case "setInsets": insets = { top: m.top, right: m.right, bottom: m.bottom, left: m.left }; lastTelemetry = ""; break;
+      case "setInsets":
+        insets = { top: m.top, right: m.right, bottom: m.bottom, left: m.left };
+        lastTelemetry = "";
+        if (lastTarget) flyTo(lastTarget.lat, lastTarget.lon, lastTarget.heightKm, reducedMotion ? 0 : 0.6);
+        break;
       case "setView":
         viewer?.camera.setView({ destination: pos(m.lat, m.lon, m.heightKm * 1000), orientation: { heading: 0, pitch: -CMath.PI_OVER_TWO, roll: 0 } });
         break;
@@ -816,6 +823,7 @@ window.addEventListener("keydown", (e: KeyboardEvent) => {
   }
   if (handled) {
     e.preventDefault();
+    if (e.key !== "Enter" && e.key !== " " && e.key !== "Escape") lastTarget = null;
     spinning = false;
     post({ t: "interaction" });
   }

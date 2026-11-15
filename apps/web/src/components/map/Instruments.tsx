@@ -41,8 +41,12 @@ export function CenterReadout({ planet, className }: { planet: Planet; className
 /** Thin crosshair at the frame centre; Enter on the focused globe selects the point beneath it. */
 export function Reticle({ planet, className }: { planet: Planet; className?: string }) {
   const moving = useGlobes((s) => s.camera[planet]?.moving ?? false);
+  const ins = useGlobes((s) => s.insets[planet]);
+  // Sits at the centre of the unobstructed area — the same point the globe frames and picks with Enter.
+  const left = `calc(${ins.left}px + (100% - ${ins.left + ins.right}px) / 2)`;
+  const top = `calc(${ins.top}px + (100% - ${ins.top + ins.bottom}px) / 2)`;
   return (
-    <div aria-hidden className={cx("pointer-events-none absolute left-1/2 top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 transition-opacity duration-300", moving ? "opacity-80" : "opacity-35", className)}>
+    <div aria-hidden style={{ left, top }} className={cx("pointer-events-none absolute h-7 w-7 -translate-x-1/2 -translate-y-1/2 transition-[opacity,left,top] duration-300", moving ? "opacity-80" : "opacity-35", className)}>
       <span className="absolute left-1/2 top-0 h-2 w-px -translate-x-1/2 bg-ink" />
       <span className="absolute bottom-0 left-1/2 h-2 w-px -translate-x-1/2 bg-ink" />
       <span className="absolute left-0 top-1/2 h-px w-2 -translate-y-1/2 bg-ink" />

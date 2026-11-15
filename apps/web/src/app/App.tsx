@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from "react";
 import { PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { GlobeFrame } from "../globes/GlobeFrame";
 import type { GlobeToParent } from "../globes/protocol";
@@ -8,6 +8,7 @@ import { GlobeBusProvider, useGlobeBus } from "./globeBus";
 import { useGlobes } from "../store/globes";
 import { LiveRegion, useEscapeToClose, useStageFocus } from "./a11y";
 import { useUrlState } from "./useUrlState";
+import { useGlobeInsets } from "./useGlobeInsets";
 import { TopBar } from "./TopBar";
 import { Intro } from "./Intro";
 import { MarsControls } from "../features/explorer/MarsControls";
@@ -39,6 +40,11 @@ function Workspace() {
   useEscapeToClose();
   useStageFocus();
   useUrlState();
+  const stageRef = useRef<HTMLElement>(null);
+  const marsFrame = useRef<HTMLDivElement>(null);
+  const earthFrame = useRef<HTMLDivElement>(null);
+  const frames = useMemo(() => ({ mars: marsFrame, earth: earthFrame }), []);
+  useGlobeInsets(stageRef, frames);
   const mars = bus.handles.mars;
   const earth = bus.handles.earth;
   const s = useApp();
@@ -71,10 +77,10 @@ function Workspace() {
       <EarthGlobeSync />
       <CompareGlobeSync />
       <TopBar />
-      <main className="relative min-h-0 flex-1 overflow-hidden">
+      <main ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden">
         {/* Globe stage: both viewers stay mounted; layout and opacity change per workflow stage. */}
         <div className={cx("absolute inset-0 transition-[filter,opacity] duration-700", fullPage && "opacity-25 blur-sm")}>
-          <div className={cx("absolute inset-y-0 left-0 transition-all duration-[900ms] ease-[var(--ease-out-soft)]",
+          <div ref={marsFrame} className={cx("absolute inset-y-0 left-0 transition-all duration-[900ms] ease-[var(--ease-out-soft)]",
             split ? "w-full md:w-1/2" : "w-full",
             stage === "mars" || split || (fullPage && s.previousStage === "mars") ? "opacity-100 scale-100" : "pointer-events-none scale-[0.86] opacity-0",
             split && "hidden md:block")}>
@@ -87,7 +93,7 @@ function Workspace() {
             )}
             {split && <GlobeLabel planet="mars" text={selection?.label ?? "Mars target"} />}
           </div>
-          <div className={cx("absolute inset-y-0 right-0 transition-all duration-[900ms] ease-[var(--ease-out-soft)]",
+          <div ref={earthFrame} className={cx("absolute inset-y-0 right-0 transition-all duration-[900ms] ease-[var(--ease-out-soft)]",
             split ? "w-full md:w-1/2 md:border-l md:border-line/60" : "w-full",
             stage === "earth" || split || (fullPage && s.previousStage !== "mars") ? "opacity-100 scale-100" : "pointer-events-none scale-[1.08] opacity-0")}>
             <GlobeFrame ref={earth} planet="earth" onMessage={onEarth} />
@@ -99,10 +105,10 @@ function Workspace() {
 
         {!introOpen && (stage === "mars" || stage === "earth") && (
           <>
-            <SidePanel side="left" open={leftOpen} onToggle={() => set({ leftOpen: !leftOpen })}>
+            <SidePanel side="left" occludes={stage === "mars" ? "mars" : "earth"} open={leftOpen} onToggle={() => set({ leftOpen: !leftOpen })}>
               {stage === "mars" ? <MarsControls /> : <SearchContext />}
             </SidePanel>
-            <SidePanel side="right" open={rightOpen} onToggle={() => set({ rightOpen: !rightOpen })}>
+            <SidePanel side="right" occludes={stage === "mars" ? "mars" : "earth"} open={rightOpen} onToggle={() => set({ rightOpen: !rightOpen })}>
               {stage === "mars" ? <MarsInspector /> : <AnalogResults />}
             </SidePanel>
             <div className="no-print absolute bottom-4 z-10 hidden items-end gap-6 md:flex" style={{ left: leftOpen ? 332 : 60 }}>
@@ -138,12 +144,12 @@ function GlobeLabel({ planet, text }: { planet: "mars" | "earth"; text: string }
   );
 }
 
-function SidePanel({ side, open, onToggle, children }: { side: "left" | "right"; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+function SidePanel({ side, open, onToggle, children, occludes }: { side: "left" | "right"; open: boolean; onToggle: () => void; children: React.ReactNode; occludes: "mars" | "earth" }) {
   const left = side === "left";
   const Icon = left ? (open ? PanelLeftClose : PanelLeftOpen) : open ? PanelRightClose : PanelRightOpen;
   return (
     <>
-      <aside aria-label={left ? "Controls" : "Details"}
+      <aside aria-label={left ? "Controls" : "Details"} data-occludes={open ? occludes : undefined}
         className={cx(
           "panel no-print absolute z-10 flex flex-col overflow-hidden shadow-2xl shadow-black/40 transition-all duration-500 ease-[var(--ease-out-soft)]",
           // mobile: right panel becomes a bottom sheet; left panel is hidden behind its toggle
