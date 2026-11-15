@@ -4,51 +4,35 @@ Contract: **`mars-factors-1.0`** (additive; no existing route changes). Owner of
 (`fahim-tech/terra-twin`). The GIS session (`fahim-tech/terratwin-dataset`, `/srv/terratwin`) reads it; do not edit
 the same files on both machines without reconciling branches.
 
-## How a factor reaches the app
+## How factors reach the app
 
-The API (on the same host as the GIS data) calls, in order, and the first provider that answers a factor wins:
+The GIS session owns the factor library: `terratwin_gis.factors.get_mars_context(lat, lon, season_ls, local_time)`
+(`/srv/terratwin/src/terratwin_gis/factors/`, one module per factor, schema in `factors/schema.py`, docs in the GIS
+repo's `docs/mars_factors.md`). The API calls it in-process on the host and **passes each record through
+unchanged**, enforcing at the boundary only: no value unless `status == "available"`, unknown status → `error`,
+non-finite → null. Where the library is absent every factor reads `not_integrated`.
 
-1. **`terratwin_gis.factors.point(lat, lon) -> dict[factor_id, record]`** — add this module to the GIS library
-   (`src/terratwin_gis/factors.py`). It is optional: the API picks it up on its next restart; nothing else changes.
-   Return only the factors you have tested; omit the rest.
-2. The context layers already delivered (`terratwin_gis.context_layers.point`), mapped to `thermal_inertia`
-   (TES night, day value in a caveat) and `geologic_unit` (SIM 3292).
-3. Otherwise the factor reads `not_integrated`.
+Route: `GET /api/gis/mars/factors?lat=&lon=[&season_ls=0..360][&local_time=0..24]` (planetocentric latitude,
+east-positive longitude). Response: `{record_type, contract_version, planet, coordinate, request, factors[], summary,
+rules, provider}`; each factor record follows `factors/schema.py` (`factor_id, label, status, value, unit, state,
+measurement_kind, source_id, source_url, product_version, citation, native_resolution(_m), pixel_center, coverage,
+temporal_context, method, reason, explanation, quality_flags, limitations, components`). A new or changed factor
+needs no API change; the API service picks it up on restart (`sudo systemctl restart terratwin-api`).
 
-Route: `GET /api/gis/mars/factors?lat=&lon=` (planetocentric latitude, east-positive longitude). Always `200`.
+Factors are **Mars characterization**: never OOM similarity, rankings or a mission-suitability score.
 
-## Record schema (per factor)
+## Factor ids and status verified on the host
 
-```json
-{
-  "status": "available | not_integrated | outside_coverage | unavailable | unsupported_resolution | error",
-  "value": 0.12,                       // number or string; null unless status == "available"
-  "units": "fraction",
-  "source": {"id": "tes_rock_abundance_nowicki2007", "product": "…", "citation": "…"},
-  "spatial_resolution": "8 pixels/degree (~7.4 km)",
-  "temporal_context": "MY24–26 TES mapping phase",   // season/epoch/model period, or null
-  "state": "measurement-derived | modelled | interpreted",
-  "caveats": ["…"],                    // scientific caveats shown beside the value
-  "reason": null                       // why it is not available (required when status != "available")
-}
-```
+| factor_id | label | verified at Jezero (18.4446, 77.4509) |
+|---|---|---|
+| `thermal_inertia` | Thermal inertia (TES, Putzig & Mellon 2007) | available: 311 J m-2 K-1 s-1/2 |
+| `geologic_unit` | Geologic unit (SIM 3292) | available: HNt |
+| `rock_abundance` | Rock abundance (TES) | available: 19 %; outside_coverage poleward of 60° |
+| `surface_temperature` | Surface temperature | available: 216.47 K at Ls 90°, 14 h LTST |
+| `water_ice` | Water-ice potential (SWIM consistency) | available: −0.2773; outside_coverage poleward of 60° |
+| `solar_energy` | Solar-energy potential | available: 170.413 W m-2 at Ls 90°, 14 h LTST |
 
-The API enforces: an unknown status becomes `error`; any non-`available` factor shows no value; non-finite
-numbers become null. Factors are **Mars characterization**: they never change OOM similarity, rankings or a
-mission-suitability score (no reviewed specification exists for that).
-
-## Known factor ids
-
-| id | label | status in this build | provider |
-|---|---|---|---|
-| `rock_abundance` | Rock abundance | not_integrated | — |
-| `thermal_inertia` | Thermal inertia | **available** (TES night/day, Putzig & Mellon 2007, 20 ppd) | gis.context_layers |
-| `geologic_unit` | Geologic unit | **available** (SIM 3292, Tanaka et al. 2014, 1:20M; label only) | gis.context_layers |
-| `surface_temperature` | Surface temperature | not_integrated | — |
-| `swim_ice_potential` | Subsurface water-ice potential (SWIM) | not_integrated (SWIM host was down per GIS catalog) | — |
-| `insolation` | Solar energy / insolation | not_integrated | — |
-
-TES albedo, TES dust cover index and GRS H₂O are also delivered and shown under the point's context readout.
+Verified 2026-11-15 on the host through `/api/gis/mars/factors` at Jezero, 75° N 0° E and Gusev (−14.64, 175.48).
 
 ## Conventions
 
