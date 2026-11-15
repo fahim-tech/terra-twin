@@ -63,6 +63,13 @@ describe("evidence model", () => {
     expect(empty.methods).toEqual([]);
     expect(empty.abstention.real.report.named).toBeNull();
   });
+
+  it("reads the positive-control target from the control rows", () => {
+    expect(m.controls.positive.length).toBeGreaterThan(0);
+    expect(m.controls.positive[0].target).toBe("Cerberus");
+    const noRows = buildModel({ controls: { summary: { cerberus: { "Askja|OOM": [65, 72] } } } });
+    expect(noRows.controls.positive[0].target).toBeNull();
+  });
 });
 
 describe("helpers", () => {

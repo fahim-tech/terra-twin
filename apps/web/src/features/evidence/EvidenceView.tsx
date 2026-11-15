@@ -7,6 +7,7 @@ import { useApp } from "../../store/app";
 import { searchTarget } from "../../store/searchTarget";
 import { AbstentionSplit, FalsificationChart, InterpolatorChart, MethodChart, Stat, SupportStrip } from "./charts";
 import { buildModel, fmtInt, fmtNum, fmtPct, type EvidenceModel } from "./model";
+import { jumpTo } from "./jump";
 import { ProcessFigure } from "./ProcessFigure";
 
 const SECTIONS = [
@@ -144,8 +145,8 @@ function Body({ m, ds, dsLoading, dsError, targetSite }: { m: EvidenceModel; ds?
 
       <Section id="ev-coverage" kicker="Coverage" title="What was actually searched">
         <dl className="grid gap-x-10 gap-y-8 sm:grid-cols-3">
-          <Stat label="Global screen · land cells" value={fmtInt(m.coverage.tier1Cells)} sub={`${m.coverage.tier1Km ?? "—"} km cells · ${m.coverage.tier1Source ?? "source not given"} · as measured`} />
-          <Stat label="Research comparison · Earth windows" value={fmtInt(m.coverage.tier2Windows)} sub={`${m.coverage.tier2Km ?? "—"} km windows · ${m.coverage.tier2Source ?? ""} · ${m.coverage.tier2Scope ?? ""}`} />
+          <Stat label="Global screen · land cells" value={fmtInt(m.coverage.tier1Cells)} sub={joinParts(`${m.coverage.tier1Km ?? "—"} km cells`, m.coverage.tier1Source ?? "source not given", "as measured")} />
+          <Stat label="Research comparison · Earth windows" value={fmtInt(m.coverage.tier2Windows)} sub={joinParts(`${m.coverage.tier2Km ?? "—"} km windows`, m.coverage.tier2Source, m.coverage.tier2Scope)} />
           <Stat label="Mars targets with full evidence" value={fmtInt(m.coverage.marsTargets)} sub={m.coverage.marsScope ?? undefined} />
         </dl>
         <p className="mt-8 max-w-[70ch] text-body text-muted">{G5.scale}.</p>
@@ -176,6 +177,8 @@ function Body({ m, ds, dsLoading, dsError, targetSite }: { m: EvidenceModel; ds?
     </>
   );
 }
+
+const joinParts = (...parts: (string | null | undefined)[]) => parts.filter((p): p is string => !!p && !!p.trim()).join(" · ");
 
 function SyntheticTag() {
   return <Tag tone="warn" className="kicker !text-warn !tracking-[0.08em]" title={G5.validation}>⚠ Synthetic</Tag>;
@@ -216,20 +219,12 @@ function KeyFig({ label, value, basis, warn }: { label: string; value: ReactNode
 }
 
 function Contents() {
-  const jump = (id: string) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
-    const h = el.querySelector<HTMLElement>("h2");
-    if (h) { h.setAttribute("tabindex", "-1"); h.focus({ preventScroll: true }); }
-  };
   return (
     <nav aria-label="On this page" className="mt-8">
       <ul className="flex list-none flex-wrap gap-x-1 gap-y-1 p-0">
         {SECTIONS.map(([id, label]) => (
           <li key={id}>
-            <button type="button" onClick={() => jump(id)} className="hit rounded-control px-2 py-1.5 text-label text-muted hover:bg-elevated hover:text-ink">{label}</button>
+            <button type="button" onClick={() => jumpTo(id)} className="hit rounded-control px-2 py-1.5 text-label text-muted hover:bg-elevated hover:text-ink">{label}</button>
           </li>
         ))}
       </ul>
@@ -243,7 +238,7 @@ function Section({ id, kicker, title, tag, children }: { id: string; kicker: str
       <div className="mb-8 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div>
           <Kicker>{kicker}</Kicker>
-          <h2 id={`${id}-h`} className="toponym m-0 mt-2 text-toponym text-ink outline-none">{title}</h2>
+          <h2 id={`${id}-h`} className="toponym m-0 mt-2 rounded-[4px] text-toponym text-ink focus:outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-earth/70">{title}</h2>
         </div>
         {tag}
       </div>
@@ -254,16 +249,22 @@ function Section({ id, kicker, title, tag, children }: { id: string; kicker: str
 
 function Callout({ tone, children }: { tone: "warn"; children: ReactNode }) {
   return (
-    <p className={cx("mt-8 flex max-w-[72ch] gap-2.5 text-body text-muted", tone === "warn" && "")}>
-      <span aria-hidden className="text-warn">⚠</span>
+    <p className="mt-8 flex max-w-[72ch] gap-2.5 text-body text-muted">
+      <span aria-hidden className={tone === "warn" ? "text-warn" : "text-muted"}>⚠</span>
       <span>{children}</span>
     </p>
   );
 }
 
+/** Named controls outside ESA WorldCover coverage: the filter cannot clear them (research record, G5). */
+const NO_LANDCOVER = new Set(["McMurdo Dry Valleys"]);
+
 function Controls({ m }: { m: EvidenceModel }) {
   const c = m.controls;
-  const methodName: Record<string, string> = { M0: "Direct", M3: "Per-site bias", OOM: "OOM" };
+  // The payload keys the middle column only as "M3"; it does not say which bias-correction variant
+  // (constant or per-site) produced these ranks, so the label stays generic.
+  const methodName: Record<string, ReactNode> = { M0: "Direct", M3: <><span className="sm:hidden">Bias corr. (M3)</span><span className="hidden sm:inline">Bias correction (M3)</span></>, OOM: "OOM" };
+  const target = c.positive[0]?.target ?? null;
   const negSet = new Set(c.negNames);
   const negGate = c.gatePass.filter((g) => negSet.has(g.name));
   const oomRanks = c.positive.map((p) => p.ranks.find((r) => r.method === "OOM")?.rank).filter((r): r is number => typeof r === "number");
@@ -271,7 +272,7 @@ function Controls({ m }: { m: EvidenceModel }) {
   return (
     <div className="grid gap-x-12 gap-y-12 md:grid-cols-2">
       <div>
-        <h3 className="m-0 text-title text-ink">Positive controls · Elysium Planitia (Cerberus)</h3>
+        <h3 className="m-0 text-title text-ink">Positive controls{target && <> · {target === "Cerberus" ? "Elysium Planitia (Cerberus)" : zoneName(target)}</>}</h3>
         <p className="mt-1 text-caption text-muted">Documented volcanic analogs, ranked among {c.poolSize ?? "the"} pool windows (1 = most similar).</p>
         <table className="mt-4 w-full border-collapse text-left">
           <thead>
@@ -314,14 +315,20 @@ function Controls({ m }: { m: EvidenceModel }) {
         )}
         <Disclosure summary="All named controls and the filter" className="mt-4">
           <ul className="list-none p-0">
-            {c.gatePass.map((g) => (
-              <li key={g.name} className="flex justify-between gap-3 border-b border-line py-1.5 text-caption">
-                <span className="text-muted">{g.name}</span>
-                <span className={g.pass ? "text-ink" : "text-faint"}>{g.pass ? "✓ eligible" : "⊘ excluded"}</span>
-              </li>
-            ))}
+            {c.gatePass.map((g) => {
+              const noData = NO_LANDCOVER.has(g.name);
+              return (
+                <li key={g.name} className="flex justify-between gap-3 border-b border-line py-1.5 text-caption">
+                  <span className="text-muted">{g.name}</span>
+                  <span className={g.pass ? "text-ink" : "text-faint"}>{g.pass ? "✓ eligible" : noData ? "◌ not cleared · no WorldCover data" : "⊘ excluded"}</span>
+                </li>
+              );
+            })}
           </ul>
           <p className="mt-2 text-caption text-faint">{G5.gate}.</p>
+          {c.gatePass.some((g) => NO_LANDCOVER.has(g.name) && !g.pass) && (
+            <p className="mt-1 text-caption text-faint">McMurdo Dry Valleys has no WorldCover data and is therefore not cleared by the filter — not removed as vegetated.</p>
+          )}
         </Disclosure>
       </div>
     </div>

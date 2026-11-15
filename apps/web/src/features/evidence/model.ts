@@ -63,7 +63,7 @@ export interface EvidenceModel {
     };
   };
   controls: {
-    positive: { control: string; target: string; ranks: { method: string; rank: number | null }[] }[];
+    positive: { control: string; target: string | null; ranks: { method: string; rank: number | null }[] }[];
     poolSize: number | null;
     negTop10Oom: number | null; negPairs: number | null; negNames: string[];
     gatePass: { name: string; pass: boolean }[];
@@ -199,7 +199,8 @@ export function buildModel(e: unknown, opts: { poolSize?: number | null } = {}):
     },
     controls: {
       positive: posNames.map((control) => ({
-        control, target: "Cerberus",
+        control,
+        target: str(at(rows.find((r) => String(at(r, "role")).startsWith("positive") && at(r, "control") === control), "target")),
         ranks: ["M0", "M3", "OOM"].map((m) => ({ method: m, rank: num(arr(cerb[`${control}|${m}`])[0]) })),
       })),
       poolSize: num(at(e, "real_mars", "gated", "n_pool")) ?? opts.poolSize ?? null,
