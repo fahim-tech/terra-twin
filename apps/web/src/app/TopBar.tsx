@@ -98,7 +98,9 @@ export function TopBar({ compact }: { compact: boolean }) {
   const { stage, go, back, search } = useApp();
   const fullPage = stage === "evidence" || stage === "report";
   return (
-    <header className="no-print relative z-30 flex h-[52px] shrink-0 items-center gap-3 bg-gradient-to-b from-space via-space/90 to-space/70 px-3 sm:gap-5 sm:px-5">
+    <header className={cx("no-print relative z-30 flex h-[52px] shrink-0 items-center gap-3 px-3 sm:gap-5 sm:px-5",
+      // Full pages scroll text right under the rail: give it a solid backing there (the globe stages keep the scrim).
+      fullPage ? "bg-space" : "bg-gradient-to-b from-space via-space/90 to-space/70")}>
       <Wordmark compact={compact} />
       {fullPage ? (
         <BackButton compact={compact} onClick={back} />

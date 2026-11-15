@@ -159,7 +159,9 @@ function Workspace() {
         )}
 
         {fullPage && (
-          <div className="absolute inset-0 z-20 overflow-y-auto scroll-thin bg-space/95">
+          <div className="absolute inset-0 z-20 overflow-y-auto scroll-thin bg-space">
+            {/* Scroll-edge fade: text leaving the top dissolves into the rail instead of showing cut glyph fragments. */}
+            <div aria-hidden className="no-print pointer-events-none sticky top-0 z-10 -mb-8 h-8 bg-gradient-to-b from-space to-transparent" />
             <Suspense fallback={<div className="p-10"><Spinner label="Loading" /></div>}>
               {stage === "evidence" ? <EvidenceView /> : <ReportView />}
             </Suspense>
