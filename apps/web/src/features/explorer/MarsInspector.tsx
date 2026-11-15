@@ -177,7 +177,10 @@ function ZoneActions({ a, pending, error, onRun, compact }: { a: boolean; pendin
   );
 }
 
-/** One sentence on what the chosen mission changes. Built from the API's own mission profile. */
+/**
+ * One sentence on what the chosen mission changes, built from the API's own mission profile: its weighting
+ * (the part after "Purpose:", or the whole description when it has no purpose prefix) and the land-cover rule.
+ */
 function missionEffect(m: MissionProfile | undefined): ReactNode {
   if (!m) return null;
   if (!m.available) return m.reason_unavailable ?? "Not available yet.";
@@ -186,7 +189,7 @@ function missionEffect(m: MissionProfile | undefined): ReactNode {
     const rest = desc.split(/(?<=\.)\s+/).slice(1).join(" ");
     return rest || "Land cover is reported, never used to exclude.";
   }
-  const weights = desc.includes(":") ? desc.slice(desc.indexOf(":") + 1).trim().replace(/\.$/, "") : null;
+  const weights = (desc.includes(":") ? desc.slice(desc.indexOf(":") + 1) : desc).trim().replace(/\.$/, "") || null;
   return (
     <>
       {weights ? `${weights[0].toUpperCase()}${weights.slice(1)}; ` : ""}
