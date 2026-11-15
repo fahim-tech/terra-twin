@@ -313,6 +313,23 @@ function ZoneSquares({ named, ties, label }: { named: number | null; ties: { siz
   );
 }
 
+/** Legend for the zone squares, built from the tie sizes in the payload (an inner square marks a tie of three or more). */
+function TieKey({ ties }: { ties: { size: number; count: number }[] }) {
+  const sizes = ties.map((t) => t.size);
+  const max = sizes.length ? Math.max(...sizes) : 0;
+  return (
+    <>
+      <Key swatch={<span aria-hidden className="inline-block h-2.5 w-2.5 bg-ink" />}>Stable leader</Key>
+      {sizes.includes(2) && <Key swatch={<span aria-hidden className="inline-block h-2.5 w-2.5 border border-muted" />}>Tie of 2</Key>}
+      {max >= 3 && (
+        <Key swatch={<span aria-hidden className="relative inline-block h-2.5 w-2.5 border border-muted"><span className="absolute inset-[30%] bg-muted" /></span>}>
+          {max === 3 ? "Tie of 3" : `Tie of 3 to ${max}`}
+        </Key>
+      )}
+    </>
+  );
+}
+
 function PanelHead({ fig, title, aside }: { fig?: string; title: ReactNode; aside?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1.5 border-b border-line pb-3">
@@ -359,9 +376,7 @@ export function AbstentionSplit({ m, fig }: { m: EvidenceModel; fig?: string }) 
           <ZoneSquares named={r.gated.named} ties={r.gated.ties} label="Land-cover filter, then rank" />
         </div>
         <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-caption text-muted">
-          <Key swatch={<span aria-hidden className="inline-block h-2.5 w-2.5 bg-ink" />}>Stable leader</Key>
-          <Key swatch={<span aria-hidden className="inline-block h-2.5 w-2.5 border border-muted" />}>Tie of 2</Key>
-          <Key swatch={<span aria-hidden className="relative inline-block h-2.5 w-2.5 border border-muted"><span className="absolute inset-[30%] bg-muted" /></span>}>Tie of 3</Key>
+          <TieKey ties={[...r.report.ties, ...r.gated.ties]} />
         </div>
         {r.gated.pass !== null && r.gated.pool !== null && (
           <p className="mt-4 text-caption text-faint">With the filter, <span className="num">{r.gated.pass}</span> of <span className="num">{r.gated.pool}</span> pool windows remain eligible. Tie members are equivalent at this resolution — none is a winner.</p>
