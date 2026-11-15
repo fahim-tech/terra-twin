@@ -61,7 +61,9 @@ stem's foot.
 ## Occlusion and framing
 Mark any floating UI that covers a globe with `data-occludes="mars" | "earth" | "both"`. The shell measures
 these (`useGlobeInsets`) and tells the globes; camera framing, the centre reticle and keyboard Enter-picks
-then use the free area. Mirror: `useGlobes((s) => s.insets[planet])`.
+then use the free area. Mirror: `useGlobes((s) => s.insets[planet])`. Insets are measured against each
+frame's resting box (without its own CSS translate), so the Mars frame's 600 ms glide back from the intro pose
+never sends a half-way free area to a flight that starts with it.
 
 ## Live globe state (high frequency; separate store)
 `useGlobes((s) => s.camera[planet])` → `{ heightKm, center, metersPerPixel, headingDeg, pitchDeg, moving }`;
@@ -124,8 +126,19 @@ Per-site research outcome for the active mission: `useSiteOutcomes()` in `featur
 
 ## Mobile
 `src/components/Sheet.tsx` — gesture bottom sheet (`snap`: peek | half | full) with momentum projection,
-rubber-banding and keyboard resizing. The phone top rail shows the current step only, its detail set on a
-second line under the step name (full detail in the accessible name).
+rubber-banding and keyboard resizing.
+
+## Top rail (`src/app/TopBar.tsx`)
+The investigation trail never squeezes a step's number or name: they sit in `auto` grid columns and the
+detail in a `minmax(0, max-content)` column, so a crowded rail shortens details (ellipsis) and nothing
+overlaps. By width:
+- **Phones (< 768 px):** the current step only, its detail on a second line under the step name; below
+  380 px (`max-xs`) the Evidence and Report cells tighten so "03 COMPARE" keeps its room.
+- **Tablets (768–1023 px):** every step, but only the current step's detail is shown (the others keep
+  theirs as screen-reader text); the wordmark shows the mark without the name.
+- **From 1024 px:** every step with its detail and the full wordmark; the mission clock (UTC, MTC, MSD) from
+  1280 px.
+The full detail is always in the step's accessible name.
 
 ## URL state
 `#/<stage>?site=<EZ>|lat=&lon=&mission=&cand=` is written and restored by the shell (`useUrlState`).
@@ -156,8 +169,11 @@ A package may add components/files inside its folder and re-export through these
 ## Primitives — `src/components/primitives.tsx`
 `Kicker`, `Toponym` (place names in the condensed uppercase sans — Barlow Semi Condensed 600, caps; sizes
 sm/md/lg; no serif anywhere), `Measure` (mono value + unit, missing ≠ 0), `Figure` (key figure + label + basis),
-`Term` (plain label with technical term/definition popover, keys from `src/lib/glossary.ts`; the popover stays
-inside the viewport and terms with Greek symbols keep their case), `Disclosure`, `Tag`, `IconButton`, `Tabs`,
+`Term` (plain label with technical term/definition popover, keys from `src/lib/glossary.ts`; the popover is
+rendered in a portal at a fixed position — `termPopoverPlacement` in `src/lib/popover.ts` — so no scrolling
+panel, sheet or clipped strip can cut it: it opens above the term when there is room, below it otherwise,
+stays inside the viewport and follows the term while a panel scrolls; terms with Greek symbols keep their
+case), `Disclosure`, `Tag`, `IconButton`, `Tabs`,
 `Dots` (availability), `PanelHeader`, `PanelBody`, `PanelFooter`, `Block`, `SPRING` (Motion spring: bounce 0,
 0.35 s), `radioGroupKeys`, `useTermTriggers`. Legacy `components/ui.tsx` (`Button`, `Segmented`, `Chip`, `Note`,
 `Spinner`, `Bar`, `fmt`, `pct`, `cx`) restyled and still available.

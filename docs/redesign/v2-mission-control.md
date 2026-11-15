@@ -61,7 +61,8 @@ Contrast: `faint` on `space` ≥ 5:1; never put text in `line` colours.
 Scale bar with end ticks, altitude and centre readouts as labelled mono values, nav stack of
 square buttons with hairline dividers (+, −, north, tilt 2D/3D, home), reticle = gapped crosshair
 with corner brackets. A mission clock in the top bar shows real UTC and Mars Coordinated Time
-(MTC, Mars24 algorithm). No fake telemetry.
+(MTC, Mars24 algorithm) from 1280 px; narrower rails give that room to the investigation trail, whose
+step names never shrink or overlap (foundation-api.md, "Top rail"). No fake telemetry.
 
 ## 6. 3D
 
