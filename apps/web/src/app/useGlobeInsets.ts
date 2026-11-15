@@ -35,6 +35,18 @@ export function computeInsets(frame: DOMRect, occluders: DOMRect[]): Insets {
 }
 
 /**
+ * A frame's border box in viewport coordinates without its own CSS translate. The Mars frame glides back
+ * from the intro pose (App.tsx) over 600 ms; framing must aim at where the frame comes to rest, not at a
+ * position halfway through that glide (e.g. "Start with Jezero" closes the intro and flies at once).
+ */
+function restingRect(el: HTMLElement): DOMRect {
+  const parent = el.offsetParent as HTMLElement | null;
+  if (!parent) return el.getBoundingClientRect();
+  const p = parent.getBoundingClientRect();
+  return new DOMRect(p.left + parent.clientLeft + el.offsetLeft, p.top + parent.clientTop + el.offsetTop, el.offsetWidth, el.offsetHeight);
+}
+
+/**
  * Keep both globes informed of the area their surrounding UI covers, so camera framing, the centre
  * crosshair and keyboard picks all use the visible part of the planet. Re-measures on resize and on
  * any attribute/class change in the stage (panels opening, sheets snapping, stage transitions).
@@ -50,7 +62,8 @@ export function useGlobeInsets(stageEl: React.RefObject<HTMLElement>, frames: Re
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         for (const planet of ["mars", "earth"] as Planet[]) {
-          const frame = frames[planet].current?.getBoundingClientRect();
+          const el = frames[planet].current;
+          const frame = el ? restingRect(el) : null;
           if (!frame || frame.width === 0) continue;
           const occ = Array.from(root.querySelectorAll<HTMLElement>(`[data-occludes="${planet}"], [data-occludes="both"]`))
             .filter((el) => el.offsetParent !== null && getComputedStyle(el).visibility !== "hidden" && Number(getComputedStyle(el).opacity) > 0.05)

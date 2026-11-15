@@ -32,6 +32,8 @@ const ReportView = lazy(() => import("../features/report/ReportView"));
 /**
  * Where the Mars frame sits while the intro is open: right of the copy in landscape from 768 px, raised
  * above it in portrait (phones and portrait tablets). Intro.tsx sizes its column against these offsets.
+ * Tailwind v4 translate utilities set the CSS `translate` property (not `transform`), so the frame's
+ * transition lists `translate`: the planet glides back to centre when the intro closes.
  */
 const INTRO_POSE = "portrait:-translate-y-[24%] portrait:md:-translate-y-[20%] landscape:md:translate-x-[20vw] landscape:xl:translate-x-[16vw]";
 
@@ -109,7 +111,7 @@ function Workspace() {
             Full pages (Evidence, Report) hide it entirely (spec §15), so no globe or Cesium credit shows under the text. */}
         <div aria-hidden={fullPage || undefined} className={cx("absolute inset-0 transition-opacity duration-500", fullPage && "pointer-events-none opacity-0")}>
           <div ref={marsFrame} {...inert(!marsActive)}
-            className={cx("absolute inset-y-0 left-0 transition-[opacity,transform] duration-[600ms] ease-[var(--ease-out-soft)]",
+            className={cx("absolute inset-y-0 left-0 transition-[opacity,translate] duration-[600ms] ease-[var(--ease-out-soft)]",
               split && !phone ? "w-1/2" : "w-full",
               introOpen && stage === "mars" && INTRO_POSE,
               marsShown ? "opacity-100" : "pointer-events-none opacity-0")}>
