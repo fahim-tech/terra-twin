@@ -49,7 +49,8 @@ describe("live discovery comparison model", () => {
   it("reads sizes from the payload and names no toponym", () => {
     const t = liveTargets(livePair(run("tied_set", ["a"]), "a")!);
     expect(t.earth.km).toBe(50);
-    expect(t.footprintLabel).toBe("50 km discovery window");
+    expect(t.footprintLabel).toBe("50 km window");
+    expect(t.mars.footprint).toBe(t.earth.footprint);
     expect(t.mars.name).toBe("InSight Elysium");
     expect(t.earth.name).toBe("Discovery window");
     expect(liveBasis(livePair(run("tied_set", ["a"]), "a")!)).toBe("Live discovery · 50 km windows · Earth as MOLA would observe it · 2/2 measures");

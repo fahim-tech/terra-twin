@@ -55,12 +55,13 @@ export const LIVE_WINDOW_NAME = "Discovery window";
 /** The two 50 km windows the run compared (sizes from the payload). */
 export function liveTargets({ r, c }: LivePair): CompareTargets {
   const km = r.window_km;
-  const win = `${km} km discovery window`;
+  // One wording on both planets, so the strip reads "50 km on both" when the run says the windows match.
+  const win = `${km} km window`;
   // The plate already prints the coordinates: the note line says where the window came from.
   const origin = liveOrigin(c);
   const sub = origin;
   return {
-    mars: { name: liveMarsName(r), lat: r.target.lat, lon: r.target.lon, km: r.target.window_km, size: `${r.target.window_km} km`, footprint: `${r.target.window_km} km target window` },
+    mars: { name: liveMarsName(r), lat: r.target.lat, lon: r.target.lon, km: r.target.window_km, size: `${r.target.window_km} km`, footprint: `${r.target.window_km} km window` },
     earth: { name: LIVE_WINDOW_NAME, sub, subShort: origin ?? cellLabel(c.lat, c.lon), lat: c.lat, lon: c.lon, km, size: `${km} km`, footprint: win },
     footprintLabel: win,
   };
