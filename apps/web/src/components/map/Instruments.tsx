@@ -1,7 +1,7 @@
 import { Home, Minus, Plus } from "lucide-react";
 import { useGlobeBus, useGlobeEvents } from "../../app/globeBus";
 import { isTilted } from "../../globes/camera";
-import { type Planet, viewName } from "../../globes/protocol";
+import { type Planet, tiltAnnouncement, viewName } from "../../globes/protocol";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { formatAltitude, niceScale } from "../../lib/instruments";
 import { useApp } from "../../store/app";
@@ -89,14 +89,20 @@ function NorthNeedle({ heading }: { heading: number }) {
 
 /**
  * Zoom, north-up needle, top-down ⇄ 3D tilt and reset. All have keyboard equivalents inside the globe
- * (±, N, T). The tilt button is a toggle: pressed while the view is tilted.
+ * (±, N, T). The tilt button is a toggle: pressed while the view is tilted — or, while the centre of the view
+ * is off the planet and there is no pitch to judge by, while the 3D preference is on (it applies to the next
+ * site flight; both globes share it).
  */
 export function NavControls({ planet, className, style }: { planet: Planet; className?: string; style?: React.CSSProperties }) {
   const bus = useGlobeBus();
   const heading = useGlobes((s) => s.camera[planet]?.headingDeg ?? 0);
-  const tilted = useGlobes((s) => isTilted(s.camera[planet]?.pitchDeg));
-  // The globe reports every switch (this button or T inside the globe); say which view it is now.
-  useGlobeEvents(planet, (m) => { if (m.t === "tilt") useApp.getState().announce(viewName(m.on)); });
+  const tilted = useGlobes((s) => {
+    const cam = s.camera[planet];
+    return cam?.center ? isTilted(cam.pitchDeg) : s.tilt;
+  });
+  // The globe reports every switch (this button or T inside the globe): say which view it is now, or that the
+  // choice holds for the next site flight when there was no ground under the centre to turn about.
+  useGlobeEvents(planet, (m) => { if (m.t === "tilt") useApp.getState().announce(tiltAnnouncement(m.on, m.turned !== false)); });
   return (
     <div style={style} className={cx("surface flex flex-col overflow-hidden rounded-control", className)} role="group" aria-label="Map navigation">
       <button className={cx(ctl, idle)} aria-label="Zoom in" title="Zoom in (+)" onClick={() => bus.send(planet, { t: "zoom", direction: "in" })}><Plus className="h-4 w-4" strokeWidth={1.6} /></button>

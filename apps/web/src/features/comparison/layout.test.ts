@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { footprintPx, matchedHeightKm } from "./framing";
+import { OBLIQUE_PITCH_DEG } from "../../globes/camera";
+import { R_EARTH_MEAN_M, R_MARS_M } from "../../lib/geodesy";
+import { type CompareSide, FILL, aimEastForShift, footprintPx, fovyFor, matchedDepthKm, matchedHeightKm, projectedSquare } from "./framing";
 import { requestReframe, useCompareFraming, WHY_DRAWER_MAX_PX, WHY_MIN_SLIVER_PX, WHY_SLIVER_MARGIN_PX, whyLayout } from "./layout";
 
 describe("frame requests", () => {
@@ -61,5 +63,70 @@ describe("matched comparison altitude", () => {
     expect(footprintPx(50, capped, H)).toBeLessThanOrEqual(cap + 1);
     // A cap wider than the normal framing changes nothing.
     expect(matchedHeightKm(50, H, 300, 400)).toBe(matchedHeightKm(50, H, 300));
+  });
+});
+
+describe("comparison framing on projected corners", () => {
+  // 1440 × 900 desktop: each half 720 × 848, the strip covering the bottom 200 px of both.
+  const half = { w: 720, h: 848, insets: { top: 0, right: 0, bottom: 200, left: 0 } };
+  const mars = { lat: 18.38, lon: 77.58, km: 50, radiusM: R_MARS_M };
+  const earth = { lat: -24.09, lon: -69.99, km: 50, radiusM: R_EARTH_MEAN_M };
+  const sides: CompareSide[] = [{ square: mars, frame: half }, { square: earth, frame: half }];
+  const free = Math.min(720, 848 - 200);
+
+  it("uses Cesium's field of view: 60° across the wider side", () => {
+    expect(fovyFor(720, 848)).toBeCloseTo(Math.PI / 3, 12);
+    expect(fovyFor(1440, 848)).toBeCloseTo(2 * Math.atan(Math.tan(Math.PI / 6) / (1440 / 848)), 12);
+  });
+
+  it("looking straight down, reduces to the top-down framing", () => {
+    const d = matchedDepthKm(sides, -90);
+    expect(Math.abs(d - matchedHeightKm(50, 848, free)) / d).toBeLessThan(0.02);
+    const box = projectedSquare(earth, d, -90, half)!;
+    expect(box.w).toBeCloseTo(FILL * free, -1);
+    expect(box.h).toBeCloseTo(box.w, -1);
+  });
+
+  it("frames the tilted square by its projected corners: its near edge spans FILL, not its ground size", () => {
+    const d = matchedDepthKm(sides, OBLIQUE_PITCH_DEG);
+    for (const sq of [mars, earth]) {
+      const box = projectedSquare(sq, d, OBLIQUE_PITCH_DEG, half)!;
+      // The near edge is the widest part of the tilted square, and the square is foreshortened.
+      expect(Math.max(box.w, box.h)).toBeLessThanOrEqual(FILL * free + 1);
+      expect(box.h).toBeLessThan(box.w);
+    }
+    // The top-down distance would let the near edge run past FILL.
+    const flat = matchedHeightKm(50, 848, free);
+    expect(projectedSquare(earth, flat, OBLIQUE_PITCH_DEG, half)!.w).toBeGreaterThan(FILL * free + 2);
+    expect(d).toBeGreaterThan(flat);
+  });
+
+  it("keeps a tilted Earth window inside the room beside the Why brief", () => {
+    const stage = 1920, H = 1028;
+    const why = whyLayout(stage);
+    const frame = { w: stage / 2, h: H, insets: { top: 0, right: 0, bottom: 200, left: 0 } };
+    const cap = why.sliverPx - 2 * WHY_SLIVER_MARGIN_PX;
+    const d = matchedDepthKm([{ square: mars, frame }, { square: earth, frame, capPx: cap }], OBLIQUE_PITCH_DEG);
+    const east = aimEastForShift(earth, d, OBLIQUE_PITCH_DEG, frame, why.earthShiftPx);
+    const box = projectedSquare(earth, d, OBLIQUE_PITCH_DEG, frame, east)!;
+    // Centred in the room between the seam (x = 0 of this half) and the drawer, with the margin on both sides.
+    const room = { left: 0, right: why.sliverPx };
+    expect((box.left + box.right) / 2).toBeCloseTo((room.left + room.right) / 2, 0);
+    expect(box.left).toBeGreaterThanOrEqual(room.left + WHY_SLIVER_MARGIN_PX - 1);
+    expect(box.right).toBeLessThanOrEqual(room.right - WHY_SLIVER_MARGIN_PX + 1);
+  });
+
+  it("shifts by the projection, not by a fixed 60° field of view", () => {
+    // A wide half (landscape canvas): the vertical field of view is narrower than 60°.
+    const wide = { w: 1280, h: 700, insets: { top: 0, right: 0, bottom: 0, left: 0 } };
+    const east = aimEastForShift(earth, 300, OBLIQUE_PITCH_DEG, wide, 200);
+    const box = projectedSquare(earth, 300, OBLIQUE_PITCH_DEG, wide, east)!;
+    expect((box.left + box.right) / 2).toBeCloseTo(640 - 200, 0);
+    const naive = (200 * 2 * 300_000 * Math.tan(Math.PI / 6)) / 700;
+    expect(east).toBeLessThan(naive * 0.8);
+  });
+
+  it("falls back to the default distance before the stage is measured", () => {
+    expect(matchedDepthKm([{ square: mars, frame: { w: 0, h: 0, insets: half.insets } }], -90)).toBe(420);
   });
 });

@@ -16,6 +16,13 @@ interface GlobeState {
   /** Recent imagery tile failures per planet (null = none reported). */
   imagery: Record<Planet, { layer: string; failures: number; at: number } | null>;
   reportImagery: (p: Planet, layer: string, failures: number) => void;
+  /**
+   * The 3D preference, one for both globes: site flights end in the oblique 3D view (true) or look straight
+   * down. Each globe frame keeps its globe's copy in step (GlobeFrame), and a switch made inside a globe (the
+   * T key) comes back here, so the two planets — and the two halves of the comparison — always agree.
+   */
+  tilt: boolean;
+  setTilt: (on: boolean) => void;
   setHover: (h: { planet: Planet; lat: number; lon: number } | null) => void;
   setCamera: (p: Planet, c: CameraTelemetry) => void;
   setAnchors: (p: Planet, a: AnchorPosition[]) => void;
@@ -31,6 +38,8 @@ export const useGlobes = create<GlobeState>((set) => ({
   setInsets: (p, i) => set((s) => ({ insets: { ...s.insets, [p]: i } })),
   imagery: { mars: null, earth: null },
   reportImagery: (p, layer, failures) => set((s) => ({ imagery: { ...s.imagery, [p]: { layer, failures, at: Date.now() } } })),
+  tilt: true,
+  setTilt: (tilt) => set((s) => (s.tilt === tilt ? s : { tilt })),
   setHover: (hover) => set({ hover }),
   setCamera: (p, c) => set((s) => ({ camera: { ...s.camera, [p]: c } })),
   setAnchors: (p, a) => set((s) => ({ anchors: { ...s.anchors, [p]: Object.fromEntries(a.map((x) => [x.id, x])) } })),

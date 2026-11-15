@@ -78,6 +78,12 @@ export const GlobeFrame = forwardRef<GlobeHandle, Props>(function GlobeFrame({ p
     },
   }), [planet, send]);
 
+  // The shared 3D preference: this globe keeps its own copy for its flights (no camera move, no event).
+  useEffect(() => {
+    send({ t: "setTilt", on: useGlobes.getState().tilt, turn: false });
+    return useGlobes.subscribe((s, prev) => { if (s.tilt !== prev.tilt) send({ t: "setTilt", on: s.tilt, turn: false }); });
+  }, [send]);
+
   useEffect(() => {
     function onMsg(ev: MessageEvent) {
       if (ev.origin !== location.origin || ev.source !== frame.current?.contentWindow || !isEnvelope(ev.data)) return;
@@ -103,6 +109,9 @@ export const GlobeFrame = forwardRef<GlobeHandle, Props>(function GlobeFrame({ p
       } else if (msg.t === "snapshot") {
         pending.current.get(msg.requestId)?.(msg.dataUrl ? { dataUrl: msg.dataUrl, width: msg.width, height: msg.height, imagery: msg.imagery } : null);
         return;
+      } else if (msg.t === "tilt") {
+        // A switch made in this globe (its T key, or a setTilt) becomes the preference for both globes.
+        useGlobes.getState().setTilt(msg.on);
       }
       handler.current?.(msg);
     }
