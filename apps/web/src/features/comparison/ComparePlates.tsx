@@ -1,59 +1,72 @@
-import { ScaleBar } from "../../components/map/Instruments";
+import { AltitudeReadout, ScaleBar } from "../../components/map/Instruments";
 import { cx } from "../../components/ui";
 import type { Planet } from "../../globes/protocol";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { useGlobes } from "../../store/globes";
-import { WHY_DRAWER_MAX_PX } from "./layout";
+import { FootprintGauge } from "./FootprintGauge";
+import { PlanetLabel } from "./marks";
 import type { CompareTargets } from "./model";
 
 /**
- * Location plates over each half of the split view: planet kicker, toponym, coordinates and what the
- * white square is, plus a live scale bar each so ground scale can be read off both globes.
+ * Over each half of the split view: a designation plate (planet, role, toponym, coordinates and what
+ * the white square is), the footprint's dimension line, and the half's own instruments (live scale
+ * and altitude, which read the same on both halves at the matched comparison altitude). While the Why
+ * drawer is open its header names the Earth candidate, so the Earth plate gives the narrowed half back
+ * to the footprint.
  */
-export function ComparePlates({ targets, planets, whyOpen = false }: { targets: CompareTargets; planets: Planet[]; whyOpen?: boolean }) {
+export function ComparePlates({ targets, planets, whyOpen = false, compact = false }: {
+  targets: CompareTargets; planets: Planet[]; whyOpen?: boolean;
+  /** A mode is expanded: plates keep only planet, toponym and coordinates, so they stay clear of the footprint. */
+  compact?: boolean;
+}) {
   const half = planets.length === 2;
   return (
     <>
-      {planets.map((p) => (
-        <div key={p} className={cx("pointer-events-none absolute inset-y-0 z-10", half ? "w-1/2" : "w-full", p === "mars" || !half ? "left-0" : "right-0")}>
-          <Plate planet={p} targets={targets} drawerOpen={whyOpen && p === "earth"} />
-          <Scale planet={p} />
-        </div>
-      ))}
+      {planets.map((p) => {
+        const t = p === "mars" ? targets.mars : targets.earth;
+        return (
+          <div key={p} className={cx("@container pointer-events-none absolute inset-y-0 z-10", half ? "w-1/2" : "w-full", p === "mars" || !half ? "left-0" : "right-0")}>
+            <FootprintGauge planet={p} lat={t.lat} lon={t.lon} km={t.km} />
+            {!(whyOpen && p === "earth") && <Plate planet={p} targets={targets} compact={compact} />}
+            <HalfInstruments planet={p} />
+          </div>
+        );
+      })}
     </>
   );
 }
 
-function Plate({ planet, targets, drawerOpen }: { planet: Planet; targets: CompareTargets; drawerOpen: boolean }) {
+function Plate({ planet, targets, compact }: { planet: Planet; targets: CompareTargets; compact: boolean }) {
   const t = planet === "mars" ? targets.mars : targets.earth;
   const sub = planet === "earth" ? targets.earth.sub : null;
-  // With the Why drawer open the Earth plate wraps inside the part of the half the drawer leaves free.
-  const maxWidth = drawerOpen ? `min(320px, calc(100% - min(${WHY_DRAWER_MAX_PX}px, 200% - 24px) - 44px))` : undefined;
   return (
-    // Labels on a basalt plate (not a scrim), so they stay legible over bright terrain and clouds.
-    <section aria-label={`${planet === "mars" ? "Mars" : "Earth"} location`} style={{ maxWidth }}
-      className="surface absolute left-4 top-4 w-max max-w-[min(320px,calc(100%-32px))] rounded-surface px-3.5 py-3">
-      <div className="flex items-center gap-2 text-kicker font-semibold uppercase tracking-[0.08em] text-muted">
-        <span aria-hidden className={cx("h-2 w-2 rounded-full", planet === "mars" ? "bg-mars" : "bg-earth")} />
-        {planet === "mars" ? "Mars" : "Earth"}
-      </div>
-      <div className="toponym mt-1 text-toponym-sm text-ink">{t.name}</div>
-      <div className="num mt-1 text-num-sm text-ink">{formatLat(t.lat, 3)} {formatLon(t.lon, 3)}</div>
-      <div className="mt-0.5 flex items-baseline gap-1.5 text-caption text-muted">
-        <span aria-hidden className="inline-block h-2.5 w-2.5 shrink-0 translate-y-[1px] border border-ink" />
-        <span>{t.footprint}</span>
-      </div>
-      {/* Narrowed beside the Why drawer the note wraps in full rather than being cut off. */}
-      {sub && <div className={cx("mt-1 text-caption text-faint", !drawerOpen && "line-clamp-2")} title={sub}>{sub}</div>}
+    // A dark glass plate (not a scrim), so the labels stay legible over bright terrain and cloud.
+    <section aria-label={`${planet === "mars" ? "Mars" : "Earth"} location`}
+      className="surface frame absolute left-3 top-3 w-max max-w-[min(280px,calc(100%-24px))] rounded-surface px-3.5 pb-3 pt-2.5 [--frame-l:8px]">
+      <PlanetLabel planet={planet} role={planet === "mars" ? "Target" : "Candidate"} />
+      <div className="toponym mt-2 text-[20px] leading-[1.02] tracking-[0.04em] text-ink">{t.name}</div>
+      <div className="num mt-1.5 text-num-sm text-ink/90">{formatLat(t.lat, 3)}&ensp;{formatLon(t.lon, 3)}</div>
+      {!compact && (
+        <div className="mt-1.5 flex items-baseline gap-2 text-caption text-muted">
+          {/* The same square the globe draws, as a legend key. */}
+          <span aria-hidden className="inline-block h-2.5 w-2.5 shrink-0 translate-y-[1px] border border-ink" />
+          <span>{t.footprint}</span>
+        </div>
+      )}
+      {/* The pool note makes the plate tall; narrower halves leave it to the Why brief so the plate stays clear of the footprint. */}
+      {sub && !compact && <div className="mt-1.5 hidden border-t border-line pt-1.5 text-caption text-faint @min-[680px]:line-clamp-3" title={sub}>{sub}</div>}
     </section>
   );
 }
 
-function Scale({ planet }: { planet: Planet }) {
+/** Live scale and altitude for one half, bottom-left of its free area and clear of the imagery credit. */
+function HalfInstruments({ planet }: { planet: Planet }) {
   const ins = useGlobes((s) => s.insets[planet]);
   return (
-    <div className="on-imagery absolute left-5 transition-[bottom] duration-300 motion-reduce:transition-none" style={{ bottom: ins.bottom + 16 }}>
-      <ScaleBar planet={planet} />
+    <div className="on-imagery frame absolute flex items-end gap-5 bg-[rgb(2_3_4/0.55)] px-3 py-2 [--frame-l:6px] transition-[bottom] duration-300 motion-reduce:transition-none"
+      style={{ left: ins.left + 12, bottom: ins.bottom + 30 }}>
+      <ScaleBar planet={planet} maxPx={100} />
+      <AltitudeReadout planet={planet} />
     </div>
   );
 }
