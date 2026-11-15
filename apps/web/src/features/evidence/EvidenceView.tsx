@@ -200,7 +200,8 @@ function IndexBar({ active }: { active: SectionId | null }) {
                 className={cx("hit relative flex items-baseline gap-2 whitespace-nowrap px-2.5 py-3.5 transition-colors duration-150 active:text-ink active:duration-0", on ? "text-ink" : "text-muted hover:text-ink")}>
                 <span className={cx("num text-[10.5px] leading-none", on ? "text-ink" : "text-faint")}>{sectionNo(s.id)}</span>
                 <span className="text-[11px] font-semibold uppercase leading-none tracking-[0.12em]">{s.label}</span>
-                {on && <motion.span layoutId="ev-index-bar" transition={SPRING} className="absolute inset-x-2.5 -bottom-px h-px bg-ink" />}
+                {/* Inside the button: the row scrolls, so anything below it would be clipped. */}
+                {on && <motion.span layoutId="ev-index-bar" transition={SPRING} className="absolute inset-x-2.5 bottom-0 h-[2px] bg-ink" />}
               </button>
             </li>
           );
@@ -215,7 +216,8 @@ function IndexBar({ active }: { active: SectionId | null }) {
 /** Desktop: a sticky rail beside the brief with the section being read marked, and the validation basis always in view. */
 function IndexRail({ active }: { active: SectionId | null }) {
   return (
-    <nav aria-label="Sections" className="no-print hidden xl:sticky xl:top-10 xl:col-start-1 xl:row-span-2 xl:row-start-1 xl:block xl:self-start">
+    // z-10: sticky makes the rail its own stacking context; its glossary popover must paint over the brief.
+    <nav aria-label="Sections" className="no-print hidden xl:sticky xl:top-10 xl:z-10 xl:col-start-1 xl:row-span-2 xl:row-start-1 xl:block xl:self-start">
       <div className="flex items-baseline justify-between border-b border-line-strong pb-2.5">
         <span className="kicker">Index</span>
         <span className="num text-[11px] text-faint" aria-hidden>{active ? sectionNo(active) : "––"}/{String(SECTIONS.length).padStart(2, "0")}</span>
@@ -226,7 +228,7 @@ function IndexRail({ active }: { active: SectionId | null }) {
           return (
             <li key={s.id}>
               <button type="button" onClick={() => jumpTo(s.id)} aria-current={on ? "location" : undefined}
-                className={cx("group relative flex w-full items-baseline gap-3 py-[7px] pl-3.5 text-left transition-colors duration-150 active:text-ink active:duration-0", on ? "text-ink" : "text-muted hover:text-ink")}>
+                className={cx("hit group relative flex w-full items-center gap-3 py-[7px] pl-3.5 text-left transition-colors duration-150 active:text-ink active:duration-0", on ? "text-ink" : "text-muted hover:text-ink")}>
                 {on && <motion.span layoutId="ev-index-rail" transition={SPRING} className="absolute left-0 top-[calc(50%-6px)] h-3 w-[2px] bg-ink" />}
                 <span className={cx("num text-[10.5px] leading-none", on ? "text-ink" : "text-faint group-hover:text-muted")}>{sectionNo(s.id)}</span>
                 <span className="text-[11px] font-semibold uppercase leading-[1.25] tracking-[0.12em]">{s.label}</span>
@@ -354,7 +356,8 @@ const chunks = (s: string, n: number) => Array.from({ length: Math.ceil(s.length
 function Section({ id, title, tag, children }: { id: SectionId; title: string; tag?: ReactNode; children: ReactNode }) {
   return (
     <section id={id} aria-labelledby={`${id}-h`} className="mt-24 scroll-mt-[76px] first:mt-20 xl:mt-28 xl:scroll-mt-10 xl:first:mt-24">
-      <div className="flex items-center gap-3">
+      {/* Wraps on phones so a long tag drops below the rule instead of running off the page. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
         <span aria-hidden className="num text-[12px] leading-none text-faint">{sectionNo(id)}</span>
         <span className="text-[11px] font-semibold uppercase leading-none tracking-[0.16em] text-muted">{sectionLabel(id)}</span>
         <span aria-hidden className="h-px min-w-6 flex-1 bg-line-strong" />
