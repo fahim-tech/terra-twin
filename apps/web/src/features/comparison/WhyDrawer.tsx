@@ -1,13 +1,15 @@
 import { X } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useId, useRef, type ReactNode } from "react";
-import { IconButton, Kicker, Measure, SPRING, Term, Toponym } from "../../components/primitives";
+import { IconButton, Kicker, Measure, SPRING, Toponym } from "../../components/primitives";
+import { CompareTerm as Term } from "./CompareTerm";
 import { cx, pct } from "../../components/ui";
 import { formatLat, formatLon } from "../../lib/geodesy";
 import { G5 } from "../../lib/glossary";
 import type { AnalogSearch } from "../../types/contracts";
 import type { CandidateView } from "../analogs/candidates";
-import { basisFor, earthName, verdictFor } from "./model";
+import { WHY_DRAWER_WIDTH_CSS } from "./layout";
+import { basisFor, earthName, notLoadedReasons, verdictFor } from "./model";
 import { applications } from "./RelevanceMode";
 import { groupRows, type RatioRow } from "./science";
 
@@ -41,13 +43,15 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
   const g = groupRows(rows);
   const gate = c.t2?.landcover;
   const t1Basis = "Global-screen descriptors · 25 km · as measured";
+  const reasons = notLoadedReasons(c);
   const off = phone ? { y: 24, x: 0 } : { x: 24, y: 0 };
 
   return (
     <motion.div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId}
       initial={{ ...off, opacity: 0 }} animate={{ x: 0, y: 0, opacity: 1 }} exit={{ ...off, opacity: 0 }} transition={SPRING}
+      style={phone ? undefined : { width: WHY_DRAWER_WIDTH_CSS }}
       className={cx("surface-solid no-print absolute z-40 flex flex-col overflow-hidden",
-        phone ? "inset-0 rounded-t-surface" : "bottom-3 right-3 top-3 w-[min(440px,calc(100%-24px))] rounded-surface")}>
+        phone ? "inset-0 rounded-t-surface" : "bottom-3 right-3 top-3 rounded-surface")}>
       <header className="relative shrink-0 px-6 pb-4 pt-5">
         <Kicker>Why this analog?</Kicker>
         <Toponym as="h2" size="sm" id={titleId} tabIndex={-1} style={{ outline: "none" }} className="mt-1.5 pr-10">{name.name}</Toponym>
@@ -67,11 +71,23 @@ export function WhyDrawer({ search, c, rows, phone, onClose }: { search: AnalogS
           <p className="mt-1 text-caption text-faint">{basisFor(c)}</p>
         </section>
 
-        <Section title="Similar" basis={t1Basis}>
+        {c.tier === 2 ? (
+          <div>
+            <p className="text-label font-normal text-ink">
+              S comes from eight research descriptors on the 50 km windows, and their values are not loaded here. The two lists
+              below are global-screen context (seven descriptors, 25 km cells, Earth as measured), not what produced S.
+            </p>
+            <p className="mt-1 text-caption text-muted">Not loaded: {reasons.mars} {c.t2 && search.tier2.representation === "mars_observation_space" ? reasons.earthOom : ""}</p>
+          </div>
+        ) : (
+          <p className="text-caption text-ink">These seven global-screen descriptors are the ones the screening score above was computed from.</p>
+        )}
+
+        <Section title="Similar in the global screen" basis={t1Basis}>
           {g.similar.length ? g.similar.map((r) => <Li key={r.key}><span className="text-ink">{r.label}</span> · {r.relation}</Li>) : <Li>No descriptor falls inside the research tolerance.</Li>}
         </Section>
 
-        <Section title="Different" basis={gate?.available ? `${t1Basis}; surface cover from ESA WorldCover 2021` : t1Basis}>
+        <Section title="Different in the global screen" basis={gate?.available ? `${t1Basis}; surface cover from ESA WorldCover 2021` : t1Basis}>
           {g.different.length ? g.different.map((r) => <Li key={r.key}><span className="text-ink">{r.label}</span> · {r.relation}</Li>) : <Li>None outside the research tolerance.</Li>}
           {gate?.available && gate.gate === "fail" && <Li>Surface cover: {gate.reason}</Li>}
           {g.missing.map((r) => <Li key={r.key}>{r.label}: not comparable, a value is missing.</Li>)}
