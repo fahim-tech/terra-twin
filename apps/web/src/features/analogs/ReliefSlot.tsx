@@ -44,7 +44,8 @@ export function ReliefSlot({ candidate, windowId, index }: ReliefSlotProps) {
   if (!phone) {
     return (
       <div className="mt-6">
-        <SectionHead index={index} aside="3D · real elevation">{TITLE}</SectionHead>
+        {/* Set like the report's plate strips ("NADIR 420 KM · N UP"): an instrument tag, not a sentence. */}
+        <SectionHead index={index} aside="3D · REAL ELEVATION">{TITLE}</SectionHead>
         <div className="mt-2.5">{view}</div>
       </div>
     );
