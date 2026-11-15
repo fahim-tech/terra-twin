@@ -549,3 +549,50 @@ describe("accessible summary", () => {
     expect(s).toContain("100.0 % of cells have no elevation");
   });
 });
+
+describe("orbit framing at the current azimuth", () => {
+  const m = buildModel(plane(20, 30, 500, 0.01, 0.02))!; // a wider-than-tall window, so the side seen matters
+  /** Share of the frame the box's projected outline covers (the larger of width and height), and its bounds. */
+  const fill = (cam: ReturnType<typeof camera>, w: number, h: number) => {
+    let l = Infinity, r = -Infinity, t = Infinity, b = -Infinity;
+    for (const [x, z] of [[-m.hx, -m.hz], [m.hx, -m.hz], [m.hx, m.hz], [-m.hx, m.hz]]) {
+      for (const y of [0, (m.zMax - m.zBase) * cam.ys]) {
+        const s = project(cam.viewProj, [x, y, z], w, h);
+        l = Math.min(l, s.x); r = Math.max(r, s.x); t = Math.min(t, s.y); b = Math.max(b, s.y);
+      }
+    }
+    return { l, r, t, b, share: Math.max((r - l) / w, (b - t) / h) };
+  };
+
+  it("fits one azimuth no further back than the eight-azimuth bound at those azimuths", () => {
+    for (let azDeg = 0; azDeg < 360; azDeg += 45) {
+      const az = (azDeg * Math.PI) / 180;
+      expect(fitDistance(m, 0.1, 1.6, 0.5, 0.84, az)).toBeLessThanOrEqual(fitDistance(m, 0.1, 1.6, 0.5) + 1e-9);
+    }
+  });
+
+  it("fills most of the view at rest, desktop and phone, and keeps the whole box inside", () => {
+    for (const [w, h] of [[700, 520], [358, 300]]) {
+      for (const azDeg of [0, 45, 120, 205, 300]) {
+        const az = (azDeg * Math.PI) / 180;
+        const rest = fill(camera(m, { ...homePose(4), az, fitAz: az }, w, h), w, h);
+        const bound = fill(camera(m, { ...homePose(4), az }, w, h), w, h);
+        expect(rest.share).toBeGreaterThanOrEqual(0.78);
+        expect(rest.share).toBeGreaterThan(bound.share); // tighter than the eight-azimuth framing
+        expect(rest.l).toBeGreaterThanOrEqual(0); expect(rest.r).toBeLessThanOrEqual(w);
+        expect(rest.t).toBeGreaterThanOrEqual(0); expect(rest.b).toBeLessThanOrEqual(h);
+      }
+    }
+  });
+
+  it("never crops the block mid-orbit, whatever azimuth the fit is still held at", () => {
+    const [w, h] = [700, 520];
+    for (const fitDeg of [0, 45, 90]) {
+      for (let azDeg = 0; azDeg < 360; azDeg += 15) {
+        const c = fill(camera(m, { ...homePose(4), az: (azDeg * Math.PI) / 180, fitAz: (fitDeg * Math.PI) / 180 }, w, h), w, h);
+        expect(c.l).toBeGreaterThanOrEqual(0); expect(c.r).toBeLessThanOrEqual(w);
+        expect(c.t).toBeGreaterThanOrEqual(0); expect(c.b).toBeLessThanOrEqual(h);
+      }
+    }
+  });
+});

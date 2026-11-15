@@ -63,6 +63,32 @@ describe("Orbit", () => {
     expect(o.az.v).toBe(0);
   });
 
+  it("holds the framing azimuth while a turn is held or gliding, then re-fits to where it rests", () => {
+    const o = new Orbit(HOME, false);
+    o.beginDrag(100, 100, 0);
+    for (let i = 1; i <= 10; i++) o.moveDrag(100 + i * 30, 100, i * 8, 960);
+    o.step(1 / 120, 80);
+    expect(o.pose.fitAz).toBeCloseTo(HOME.az, 9); // held: framing stays put
+    o.endDrag(82);
+    o.step(1 / 120, 90);
+    expect(o.pose.fitAz).toBeCloseTo(HOME.az, 9); // gliding: still put
+    run(o, 6, 90);
+    expect(o.az.v).toBe(0);
+    expect(o.pose.fitAz).toBeCloseTo(o.az.x, 4); // at rest: framed for the side in view
+    expect(o.step(1 / 120, 10_000)).toBe(false);
+  });
+
+  it("re-fits at once with reduced motion, and alongside an animated step", () => {
+    const r = new Orbit(HOME, true);
+    r.nudge("az", 0.5);
+    r.step(1 / 60, 10);
+    expect(r.pose.fitAz).toBeCloseTo(HOME.az + 0.5, 9);
+    const o = new Orbit(HOME, false);
+    o.faceNorth();
+    run(o, 3);
+    expect(o.pose.fitAz).toBeCloseTo(o.az.x, 4);
+  });
+
   it("has no glide with reduced motion", () => {
     const o = new Orbit(HOME, true);
     o.beginDrag(0, 0, 0);

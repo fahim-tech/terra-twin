@@ -419,6 +419,11 @@ export interface Pose {
   zoom: number;
   /** Vertical exaggeration. */
   ve: number;
+  /**
+   * Azimuth the camera distance is fitted at (the orbit view: the current one once an orbit rests, so the block
+   * fills the frame). Absent: fitted over eight azimuths, so the distance never depends on the azimuth.
+   */
+  fitAz?: number;
 }
 
 export const FOV = (30 * Math.PI) / 180;
@@ -438,17 +443,18 @@ export interface Camera {
 }
 
 /**
- * Camera distance at which the whole box (floor to top) fits inside `margin` of the frame when seen
- * from elevation `el` at any of eight azimuths. Depends on the exaggeration, the frame's aspect and the
- * tilt, not on the azimuth, so orbiting never changes the distance and tilting never crops the block.
+ * Camera distance at which the whole box (floor to top) fits inside `margin` of the frame when seen from
+ * elevation `el`. With `az` given, at that one azimuth (the orbit view: the block fills the frame from where it
+ * is seen, re-fitted when an orbit comes to rest); without it, at any of eight azimuths (a distance that does
+ * not depend on the azimuth, used for stills framed on their own and as the conservative bound).
  */
-export function fitDistance(m: Model, top: number, aspect: number, el: number, margin = 0.84): number {
+export function fitDistance(m: Model, top: number, aspect: number, el: number, margin = 0.84, az?: number): number {
   const tanV = Math.tan(FOV / 2), tanH = tanV * aspect;
   const pts: Vec3[] = [];
   for (const [x, z] of corners(m.hx, m.hz)) for (const y of [-top * TARGET_Y, top * (1 - TARGET_Y)]) pts.push([x, y, z]);
   let need = 0;
-  for (let k = 0; k < 8; k++) {
-    const az = (k * Math.PI) / 4;
+  const azimuths = az === undefined ? Array.from({ length: 8 }, (_, k) => (k * Math.PI) / 4) : [az];
+  for (const az of azimuths) {
     const e: Vec3 = [Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el)];
     // right = forward × up with forward = −e; camera up = right × forward
     let rx = e[2], rz = -e[0];
@@ -472,6 +478,13 @@ export function fitDistance(m: Model, top: number, aspect: number, el: number, m
 const TARGET_Y = 0.32;
 
 /**
+ * Share of the frame the block may fill in the orbit view, fitted at the one azimuth in view (tighter than the
+ * eight-azimuth bound's 0.84, which must leave room for the widest side); the scale labels are held inside by
+ * `layoutLabels`.
+ */
+export const ORBIT_MARGIN = 0.9;
+
+/**
  * Nearest camera distance that stays outside the block: beyond it the eye would be over the window and
  * below the block's top, i.e. possibly inside the terrain.
  */
@@ -492,7 +505,12 @@ export function camera(m: Model, pose: Pose, width: number, height: number): Cam
   const top = (m.zMax - m.zBase) * ys;
   const target: Vec3 = [0, top * TARGET_Y, 0];
   const aspect = Math.max(0.2, width / Math.max(1, height));
-  const d = Math.max(fitDistance(m, top, aspect, pose.el) * pose.zoom, clearDistance(m, top, pose.az, pose.el));
+  // Orbit view: fitted at the rest azimuth, and never closer than the fit at the azimuth now shown, so turning
+  // toward a wider side backs off live (the block is never cropped) and turning toward a narrower one closes in
+  // only once the orbit rests and `fitAz` follows.
+  const fit = pose.fitAz === undefined ? fitDistance(m, top, aspect, pose.el)
+    : Math.max(fitDistance(m, top, aspect, pose.el, ORBIT_MARGIN, pose.fitAz), fitDistance(m, top, aspect, pose.el, ORBIT_MARGIN, pose.az));
+  const d = Math.max(fit * pose.zoom, clearDistance(m, top, pose.az, pose.el));
   const ce = Math.cos(pose.el);
   const eye: Vec3 = [target[0] + d * Math.sin(pose.az) * ce, target[1] + d * Math.sin(pose.el), target[2] - d * Math.cos(pose.az) * ce];
   const view = lookAt(eye, target);

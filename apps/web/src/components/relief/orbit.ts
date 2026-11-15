@@ -104,6 +104,8 @@ export class Orbit {
   /** Natural log of the zoom multiple. */
   readonly zoom: Axis;
   readonly ve: Axis;
+  /** Azimuth the camera distance is fitted at (`Pose.fitAz`): follows `az` once an orbit rests, so the block refills the view. */
+  readonly fit: Axis;
   reduced: boolean;
   private home: Pose;
   private drag: { x0: number; y0: number; az0: number; el0: number; az: Sample[]; el: Sample[] } | null = null;
@@ -118,10 +120,24 @@ export class Orbit {
     this.el = axis(home.el, LIMITS.elMin, LIMITS.elMax, LIMITS.elBand);
     this.zoom = axis(Math.log(home.zoom), LIMITS.zoomMin, LIMITS.zoomMax);
     this.ve = axis(home.ve, 1, 8);
+    this.fit = axis(home.az);
   }
 
   get pose(): Pose {
-    return { az: this.az.x, el: this.el.x, zoom: Math.exp(this.zoom.x), ve: this.ve.x };
+    return { az: this.az.x, el: this.el.x, zoom: Math.exp(this.zoom.x), ve: this.ve.x, fitAz: this.fit.x };
+  }
+
+  /**
+   * Re-fit: once nothing turns the block (no hold, no glide), the fitted azimuth springs to where the turn rests
+   * (an animated step's target, else the azimuth itself), so the camera eases to frame the side now in view.
+   */
+  private refit(): void {
+    if (this.held || this.az.v !== 0) return;
+    const rest = this.az.target ?? this.az.x;
+    if (Math.abs(this.fit.x - rest) < 1e-5 || this.fit.target === rest) return;
+    if (this.reduced) { this.fit.x = rest; this.fit.v = 0; this.fit.target = null; return; }
+    this.fit.target = rest;
+    this.fit.w = UI;
   }
 
   get held(): boolean {
@@ -134,6 +150,7 @@ export class Orbit {
     this.az.x = this.home.az - 0.7;
     this.el.x = 1.2;
     this.zoom.x = Math.log(1.55);
+    this.fit.x = this.az.x;
     for (const a of [this.az, this.el, this.zoom]) { a.v = 0; a.w = ESTABLISH; }
     this.az.target = this.home.az;
     this.el.target = this.home.el;
@@ -254,12 +271,13 @@ export class Orbit {
    */
   step(dt: number, now: number): boolean {
     const wheelActive = now - this.lastWheel <= 150;
-    const all = [this.az, this.el, this.zoom, this.ve];
+    this.refit();
+    const all = [this.az, this.el, this.zoom, this.ve, this.fit];
     if (dt <= 0) return wheelActive || all.some((a) => a.target !== null || a.v !== 0);
     let moving = false;
     if (!wheelActive && !this.pinch) this.settleLimits(this.zoom);
     for (const a of all) {
-      if (this.held && a !== this.ve) continue;
+      if (this.held && a !== this.ve && a !== this.fit) continue;
       if (a === this.zoom && wheelActive) continue;
       if (a.target !== null) {
         [a.x, a.v] = springStep(a.x, a.v, a.target, a.w, dt);
@@ -273,7 +291,9 @@ export class Orbit {
       }
       hardStop(a);
     }
-    return moving || wheelActive;
+    // A glide that came to rest in this step re-fits now, so the frame loop keeps running for it.
+    this.refit();
+    return moving || wheelActive || this.fit.target !== null;
   }
 }
 
