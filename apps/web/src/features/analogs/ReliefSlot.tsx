@@ -2,7 +2,7 @@ import { ChevronDown } from "lucide-react";
 import { useId, useState } from "react";
 import { useLayout } from "../../app/useLayout";
 import { Term } from "../../components/primitives";
-import { GridFacts, ReliefView, type Exaggeration } from "../../components/relief";
+import { GridFacts, ReliefView, scoreBasisLine, type Exaggeration } from "../../components/relief";
 import { cx } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
 import type { Relief, Tier2Candidate } from "../../types/contracts";
@@ -83,7 +83,7 @@ function Caption({ relief, ve }: { relief: Relief; ve: Exaggeration }) {
       <p className="text-muted">
         {relief.source.title} · <GridFacts relief={relief} /> · <span className="whitespace-nowrap">vertical exaggeration <span className="num">×{ve}</span></span>
       </p>
-      {measured && <p className="text-faint">The research score uses “{G5.toggleOom}”.</p>}
+      {measured && <p className="text-faint">{scoreBasisLine(2, "research")}</p>}
     </div>
   );
 }

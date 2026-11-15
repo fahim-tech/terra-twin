@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ComponentType, type ReactNode, type RefObject } from "react";
 import { radioGroupKeys, Term } from "../../components/primitives";
-import { ExaggerationSwitch, GridFacts, ReliefNotice, ReliefView, reliefWindowId, unavailableWords, type Exaggeration } from "../../components/relief";
+import { ExaggerationSwitch, GridFacts, ReliefNotice, ReliefView, reliefWindowId, scoreBasisLine, unavailableWords, type Exaggeration } from "../../components/relief";
 import { cx, Spinner } from "../../components/ui";
 import { G5 } from "../../lib/glossary";
 import { ApiError, useEarthPool, useMarsRelief, useRelief } from "../../services/api";
@@ -15,10 +15,10 @@ import type { CompareTargets } from "./model";
  *
  * Earth is the compared research window's relief grid, fetched by its exact research-pool id; a screening cell
  * or a window the pool does not list has none, and no other terrain is shown in its place. That grid is Earth as
- * measured (the MOLA observation model is not applied); the comparison's score uses Earth as MOLA would observe
- * it, and the caption says both. Mars is the Exploration Zone's grid, which needs a MOLA mosaic the server does
- * not have yet: that half says so in plain words. When both grids exist they share one vertical exaggeration,
- * set by one control, and the line beside it says so.
+ * measured (the MOLA observation model is not applied); a research window's score uses Earth as MOLA would observe
+ * it and a screening cell's uses Earth as measured, and the caption says which (`scoreBasisLine`). Mars is the
+ * Exploration Zone's grid, which needs a MOLA mosaic the server does not have yet: that half says so in plain words.
+ * When both grids exist they share one vertical exaggeration, set by one control, and the line beside it says so.
  */
 export interface ReliefViewerProps {
   search: AnalogSearch;
@@ -57,6 +57,13 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
   const sceneH = phone ? PHONE_SCENE : Math.max(SCENE.min, Math.min(SCENE.max, room.height - reserve));
   // A half with no grid draws its notice over the scene and status bar's height, so both halves end level.
   const noticeH = sceneH + STATUS_BAR;
+  // Why the Earth half has no grid, in the same words in its notice and in the caption (null while it may still get one).
+  const earthMissing = earthId ? null
+    : c.tier === 1 ? "A global-screen cell has no relief grid."
+      : pool.isPending ? null
+        : pool.isError ? "The research pool could not be loaded." : "This window is not in the research pool, so it has no relief grid.";
+  const earthLine = earth.isError ? unavailableWords("earth", earth.error instanceof ApiError ? earth.error : { message: earth.error.message }).plain
+    : earthMissing ?? (earthId ? "Loading the elevation grid." : "Loading the research pool.");
 
   const half = (planet: "mars" | "earth") => planet === "mars" ? (
     <Half planet="mars" name={targets.mars.name} kind={zone ? "Exploration Zone" : "Search target"} relief={mars.data ?? null}>
@@ -75,13 +82,11 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
       {earthId ? (
         <ReliefView key={earthId} planet="earth" id={earthId} title={targets.earth.name} density="compact" controls={controls} sceneHeight={earth.isError ? noticeH : sceneH}
           wheel="modifier" exaggeration={ve} onExaggerationChange={setVe} exaggerationControl={!both} />
-      ) : c.tier === 2 && pool.isPending ? (
+      ) : !earthMissing ? (
         <div className="grid place-items-center border border-line-strong bg-[#030405]" style={{ height: noticeH }}><Spinner label="Loading the research pool" /></div>
       ) : (
         <ReliefNotice planet="earth" title="No relief grid" height={noticeH}>
-          <p className="text-body text-ink">
-            {c.tier === 1 ? "A global-screen cell has no relief grid." : pool.isError ? "The research pool could not be loaded." : "This window is not in the research pool, so it has no relief grid."}
-          </p>
+          <p className="text-body text-ink">{earthMissing}</p>
           <p className="mt-1.5">{c.tier === 1 ? "Relief grids exist only for the research pool's windows. " : ""}No other terrain is shown in its place.</p>
         </ReliefNotice>
       )}
@@ -111,7 +116,7 @@ function CompareRelief({ search, c, targets, phone }: ReliefViewerProps) {
           </div>
         </>
       )}
-      <Caption earth={earth.data ?? null} earthId={earthId} mars={mars.data ?? null} zone={zone} ve={ve} both={both}
+      <Caption earth={earth.data ?? null} earthLine={earthLine} mars={mars.data ?? null} zone={zone} ve={ve} both={both} tier={c.tier}
         marsWhy={mars.isError ? unavailableWords("mars", mars.error instanceof ApiError ? mars.error : { message: mars.error.message }).plain : null} />
     </div>
   );
@@ -162,9 +167,13 @@ function PlanetSwitch({ value, onChange }: { value: "mars" | "earth"; onChange: 
   );
 }
 
-/** What each half is, from its own payload, and the basis the comparison's score uses instead. */
-function Caption({ earth, earthId, mars, zone, ve, both, marsWhy }: {
-  earth: Relief | null; earthId: string | null; mars: Relief | null; zone: string | null; ve: Exaggeration; both: boolean; marsWhy: string | null;
+/**
+ * What each half is, from its own payload, and the basis the comparison's score uses instead: a research window's S is
+ * computed on Earth as MOLA would observe it, a screening cell's on Earth as measured.
+ */
+function Caption({ earth, earthLine, mars, zone, ve, both, tier, marsWhy }: {
+  earth: Relief | null; earthLine: string; mars: Relief | null; zone: string | null; ve: Exaggeration; both: boolean; tier: 1 | 2;
+  marsWhy: string | null;
 }) {
   const row = "grid grid-cols-[3.5rem_minmax(0,1fr)] items-baseline gap-x-3 py-1.5";
   return (
@@ -179,7 +188,7 @@ function Caption({ earth, earthId, mars, zone, ve, both, marsWhy }: {
                 : <>{G5.toggleOom} · </>}
               {earth.source.title} · <GridFacts relief={earth} />
             </>
-          ) : earthId ? "Loading the elevation grid." : "No relief grid for this candidate."}
+          ) : earthLine}
         </dd>
       </div>
       <div className={row}>
@@ -193,7 +202,7 @@ function Caption({ earth, earthId, mars, zone, ve, both, marsWhy }: {
         <dt className="kicker">Scale</dt>
         <dd className="text-muted">
           {both ? <>Same vertical exaggeration on both halves: <span className="num text-ink">×{ve}</span>.</> : <>Vertical exaggeration <span className="num text-ink">×{ve}</span>.</>}
-          {" "}The comparison&apos;s score uses “{G5.toggleOom}”.
+          {" "}{scoreBasisLine(tier, "comparison")}
         </dd>
       </div>
     </dl>
