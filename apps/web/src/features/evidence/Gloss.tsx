@@ -1,10 +1,12 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useTermTriggers } from "../../components/primitives";
 
 /**
  * Local term-on-demand for chart jargon that is not in the shared glossary (MRR, MEGDR, AEQD, ρ, κ).
- * Mirrors the shared <Term> behaviour and styling: hover, focus or tap opens; Escape or a click outside closes.
- * Definitions are taken from the research code (vendor/terratwin) and the dataset records, never invented.
+ * Mirrors the shared <Term> behaviour and styling: hover (mouse), focus or tap opens; Escape or a click
+ * outside closes. Definitions are taken from the research code (vendor/terratwin) and the dataset
+ * records, never invented.
  * Shared-file request: move these entries into src/lib/glossary.ts so <Term> can serve them.
  */
 export const LOCAL_TERMS = {
@@ -44,6 +46,7 @@ export type LocalTermKey = keyof typeof LOCAL_TERMS;
 export function Gloss({ k, children }: { k: LocalTermKey; children?: ReactNode }) {
   const g: { label: string; term: string; definition: string; source?: string } = LOCAL_TERMS[k];
   const [open, setOpen] = useState(false);
+  const triggers = useTermTriggers(setOpen);
   const id = useId();
   const ref = useRef<HTMLSpanElement>(null);
   // Keep the popover inside the viewport (16 px gutter): shift it left when the term sits near the right edge.
@@ -64,16 +67,17 @@ export function Gloss({ k, children }: { k: LocalTermKey; children?: ReactNode }
     return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", esc, true); };
   }, [open]);
   return (
-    <span ref={ref} className="relative inline" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <button type="button" aria-describedby={open ? id : undefined} aria-expanded={open} onClick={() => setOpen((o) => !o)} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}
-        className="cursor-help underline decoration-faint/60 decoration-dotted underline-offset-[3px] hover:decoration-ink">
+    <span ref={ref} className="relative inline" {...triggers.wrapper}>
+      <button type="button" aria-describedby={open ? id : undefined} aria-expanded={open} {...triggers.button}
+        className="term-hit cursor-help underline decoration-faint/70 decoration-dotted underline-offset-[3px] hover:decoration-ink">
         {children ?? g.label}
       </button>
       <AnimatePresence>
         {open && (
           <motion.span id={id} role="tooltip" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 4 }} transition={{ duration: 0.14 }} style={{ left: shift }}
-            className="surface-solid absolute bottom-[calc(100%+8px)] left-0 z-50 block w-[min(320px,80vw)] rounded-[10px] p-3 text-left font-sans text-caption font-normal normal-case tracking-normal text-muted">
-            <span className="mb-1 block text-label text-ink">{g.term}</span>
+            className="surface-solid frame absolute bottom-[calc(100%+8px)] left-0 z-50 block w-[min(320px,80vw)] rounded-control p-3 text-left font-sans text-caption font-normal normal-case tracking-normal text-muted">
+            {/* Sentence case on purpose: upper-casing would turn ρ and κ into look-alike Latin capitals. */}
+            <span className="mb-1.5 block text-label font-semibold text-ink">{g.term}</span>
             {g.definition}
             {g.source ? <span className="mt-1.5 block font-mono text-[11px] text-faint">{g.source}</span> : null}
           </motion.span>
