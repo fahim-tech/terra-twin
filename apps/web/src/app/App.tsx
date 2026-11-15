@@ -206,7 +206,17 @@ function ContextSurface({ stage, phone, open, children }: { stage: "mars" | "ear
 function Instruments({ planet, phone }: { planet: Planet; phone: boolean }) {
   const ins = useGlobes((s) => s.insets[planet]);
   if (phone) {
-    return <NavControls planet={planet} className="no-print absolute right-3 top-[68px] z-10" />;
+    // Spec §7: phones keep the scale bar and the nav controls. The scale bar sits just above whatever
+    // covers the bottom of the globe (sheet peek, comparison strip), as measured by the insets.
+    return (
+      <>
+        <div className="no-print on-imagery pointer-events-none absolute z-10 rounded-[8px] bg-[rgb(5_7_10/0.5)] px-2 py-1.5 transition-[left,bottom] duration-300"
+          style={{ left: ins.left + 12, bottom: ins.bottom + 12 }}>
+          <ScaleBar planet={planet} maxPx={88} />
+        </div>
+        <NavControls planet={planet} className="no-print absolute right-3 top-[68px] z-10" />
+      </>
+    );
   }
   return (
     <>
