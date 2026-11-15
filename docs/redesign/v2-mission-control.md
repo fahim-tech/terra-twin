@@ -43,8 +43,8 @@ Contrast: `faint` on `space` ≥ 5:1; never put text in `line` colours.
 
 - Radii: `rounded-control` = 2 px, `rounded-surface` = 2 px. `rounded-full` only for true circles
   in data graphics (map markers, chart points) — never for buttons, tags, tabs or containers.
-- `.surface`: near-black glass (`rgb(5 7 9 / .84)`, 18 px blur), 1 px `rgb(255 255 255/.09)`
-  border. `.frame` adds corner brackets (10 px, 1 px, ink at 55 %). Shared classes live in
+- `.surface`: a solid instrument panel (`surface #07090c`, no blur, no soft drop shadow), 1 px
+  `rgb(255 255 255/.09)` border and a 1 px inner top highlight; imagery never tints a panel. `.frame` adds corner brackets (10 px, 1 px, ink at 55 %). Shared classes live in
   `@layer components`, so a utility on the same element always wins (see foundation-api.md).
 - Buttons (`Button` in `components/ui.tsx`): rectangular, UPPERCASE 12 px +0.12em.
   `primary` = solid ink with space text; `primary-mars` / `primary-earth` = solid ink with a
@@ -53,7 +53,10 @@ Contrast: `faint` on `space` ≥ 5:1; never put text in `line` colours.
 - Tags: square, 1 px border, mono 10.5 px uppercase. Status marks are 6 px squares (filled = on,
   outlined = off), always with words.
 - Segmented controls: joined square cells with 1 px dividers; selected cell inverted (ink fill).
-- Tabs: UPPERCASE labels, 1 px ink underline on the selected tab.
+  One Tab stop, arrows / Home / End move the selection; unit symbols stay lowercase (`25 km`).
+- Tabs: UPPERCASE labels, 1 px ink underline on the selected tab; ARIA tabs keys (roving tab stop).
+- Focus ring: 1 px ink outline; on 2 px controls it sits on the edge (offset 0) so its corners stay square.
+- Large displays (>= 2200 px): `.chrome-scale` scales the rail, panels, HUD clusters and the intro console 1.2x.
 - Section headers inside panels: index + title + hairline, e.g. `02  TERRAIN ─────────`.
 
 ## 5. HUD instruments
@@ -62,7 +65,18 @@ Scale bar with end ticks, altitude and centre readouts as labelled mono values, 
 square buttons with hairline dividers (+, −, north, tilt 2D/3D, home), reticle = gapped crosshair
 with corner brackets. A mission clock in the top bar shows real UTC and Mars Coordinated Time
 (MTC, Mars24 algorithm) from 1280 px; narrower rails give that room to the investigation trail, whose
-step names never shrink or overlap (foundation-api.md, "Top rail"). No fake telemetry.
+step names never shrink or overlap (foundation-api.md, "Top rail"). No fake telemetry. The clock's
+title says the globes are lit for legibility, not by the Sun. From 1280 px the rail also carries a GIS
+status item (grid cell size and discovery state from /api/gis/status) that opens Evidence.
+
+Intro (v3): a mission briefing console beside Mars. Systems rows (research API version and data check,
+GIS grids and discovery from /api/gis/status), a dataset table in which each figure names the record it was
+read from, one primary command and a Jezero row with its coordinates from /api/mars/sites. The imagery
+credit is what the Mars globe reports it draws (lib/credits.ts), followed by "Presentation light · not
+solar". From 1280 px a planet HUD adds registration brackets around the disc, the same light note at the
+terminator, and the sub-observer point and altitude from the camera telemetry. Phones held sideways
+(under 500 px tall) get a compact console with the commands in the first screen and a right-hand side
+sheet for panels.
 
 ## 6. 3D
 

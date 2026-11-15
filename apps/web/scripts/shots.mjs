@@ -189,7 +189,8 @@ const browser = await chromium.launch({
 });
 const failures = [];
 for (const [w, h] of SIZES) {
-  const mobile = w < 768;
+  // Phones in either orientation (a landscape phone is under 500 px tall) get touch and a phone user agent.
+  const mobile = w < 768 || h < 500;
   for (const name of names) {
     const view = VIEWS[name];
     if (!view) { console.error(`unknown view ${name}`); continue; }
