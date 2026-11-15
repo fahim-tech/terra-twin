@@ -133,6 +133,24 @@ describe("names and footprints", () => {
     expect(poolKindLabel(null)).toBeNull();
   });
 
+  it("labels each square with the same size its footprint line states", () => {
+    const s = search({ type: "named_leader", members: ["Atacama Yungay"], rotations_checked: 4, label: null });
+    const t2 = compareTargets(s, t2cand("Atacama Yungay", 0.614))!;
+    expect(t2.mars.size).toBe("50 km");
+    expect(t2.earth.size).toBe("50 km");
+    expect(t2.earth.footprint.startsWith(t2.earth.size)).toBe(true);
+    // An approximate screening cell (25.07 km N–S, 24.74 km E–W): one nominal figure everywhere, never "25.1 km".
+    const cell = {
+      id: "t1:gmted25k:207754", tier: 1, rank: 1, lat: 52.787, lon: -124.883, label: "Cell at 52.79° N 124.88° W", score: 0.909, coverage: 1,
+      t1: { region_id: "gmted25k:207754", known_analog: { status: "none", name: null }, footprint: { kind: "approx_cell", cell_km_ns: 25.06776, cell_km_ew: 24.73774, bbox: [0, 0, 1, 1] } },
+    } as unknown as CandidateView;
+    const t1 = compareTargets(s, cell)!;
+    expect(t1.earth.size).toBe("25 km");
+    expect(t1.mars.size).toBe("25 km");
+    expect(t1.earth.footprint).toBe("25 km screening cell");
+    expect(t1.earth.km).toBeCloseTo(25.06776);
+  });
+
   it("does not call the Mars square the compared cell for a tier-1 zone target", () => {
     const s = search({ type: "named_leader", members: ["Atacama Yungay"], rotations_checked: 4, label: null });
     const c = {

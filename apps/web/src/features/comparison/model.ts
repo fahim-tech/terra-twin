@@ -101,9 +101,12 @@ export function earthName(c: CandidateView): { name: string; sub: string | null 
 }
 
 export interface CompareTargets {
-  /** `footprint` says what the white square on that planet is, and what the descriptors describe. */
-  mars: { name: string; lat: number; lon: number; km: number; footprint: string };
-  earth: { name: string; sub: string | null; lat: number; lon: number; km: number; footprint: string };
+  /**
+   * `footprint` says what the white square on that planet is, and what the descriptors describe; `size`
+   * is the side of that square exactly as the footprint line states it (the dimension line's label).
+   */
+  mars: { name: string; lat: number; lon: number; km: number; size: string; footprint: string };
+  earth: { name: string; sub: string | null; lat: number; lon: number; km: number; size: string; footprint: string };
   /** What is being compared: the 50 km research window or the 25 km screening cell. */
   footprintLabel: string;
 }
@@ -121,19 +124,23 @@ export function compareTargets(search: AnalogSearch, c: CandidateView): CompareT
     const marsKm = tg.window_km;
     const win = (k: number) => `${k} km research window`;
     return {
-      mars: { name, lat: tg.lat, lon: tg.lon, km: marsKm, footprint: win(marsKm) },
-      earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km, footprint: win(km) },
+      mars: { name, lat: tg.lat, lon: tg.lon, km: marsKm, size: `${marsKm} km`, footprint: win(marsKm) },
+      earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km, size: `${km} km`, footprint: win(km) },
       footprintLabel: win(km),
     };
   }
   const km = c.t1?.footprint.cell_km_ns ?? screenCellKm(search);
   if (km === null) return null; // no cell size in the record: nothing honest to draw or label
-  const cell = `${Math.round(km)} km screening cell`;
+  // A screening cell is an approximate cell (the record gives slightly different N–S and E–W extents), so
+  // the square is drawn at the record's N–S extent and labelled with the cell's nominal size, the same
+  // figure every line states ("25 km screening cell"), never a decimal that only one edge has.
+  const size = `${Math.round(km)} km`;
+  const cell = `${size} screening cell`;
   return {
     // For a research zone the Mars global-screen descriptors are the median of the zone's screening
     // cells, so the square only marks the target point; it is not the area that was measured.
-    mars: { name, lat: t.lat, lon: t.lon, km, footprint: t.siteId ? `Target point, ${Math.round(km)} km square for scale · descriptors: zone median` : cell },
-    earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km, footprint: cell },
+    mars: { name, lat: t.lat, lon: t.lon, km, size, footprint: t.siteId ? `Target point, ${size} square for scale · descriptors: zone median` : cell },
+    earth: { name: e.name, sub: e.sub, lat: c.lat, lon: c.lon, km, size, footprint: cell },
     footprintLabel: cell,
   };
 }

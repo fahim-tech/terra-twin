@@ -12,10 +12,11 @@ const SLASH = 3.5;
 /**
  * Dimension line under the compared footprint on one globe: extension lines from the square's two
  * lower corners as projected on screen (globe anchors, so it follows tilt, heading and zoom) and the
- * footprint size from the record. Hidden while a corner is off-screen or the square is too small to
- * label. Fills the planet's own frame: anchors are in that frame's pixels.
+ * footprint size as the record states it (`label`, the same figure as the footprint line; defaults to
+ * the drawn size). Hidden while a corner is off-screen or the square is too small to label. Fills the
+ * planet's own frame: anchors are in that frame's pixels.
  */
-export function FootprintGauge({ planet, lat, lon, km }: { planet: Planet; lat: number; lon: number; km: number }) {
+export function FootprintGauge({ planet, lat, lon, km, label }: { planet: Planet; lat: number; lon: number; km: number; label?: string }) {
   const bus = useGlobeBus();
   // The globe draws the same square: squareFootprint on the planet's mean sphere.
   const corners = useMemo(() => squareFootprint(lat, lon, km, planet === "mars" ? R_MARS_M : R_EARTH_MEAN_M), [planet, lat, lon, km]);
@@ -43,7 +44,7 @@ export function FootprintGauge({ planet, lat, lon, km }: { planet: Planet; lat: 
       </svg>
       <span className="num absolute whitespace-nowrap bg-space/85 px-1.5 py-[3px] text-[11px] leading-none text-ink"
         style={{ left: dim.label.x, top: dim.label.y, transform: `translate(-50%, -50%) rotate(${dim.label.angle}deg)` }}>
-        {kmLabel(km)}
+        {label ?? kmLabel(km)}
       </span>
     </div>
   );

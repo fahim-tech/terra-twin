@@ -27,7 +27,7 @@ export function ComparePlates({ targets, planets, whyOpen = false, compact = fal
         const t = p === "mars" ? targets.mars : targets.earth;
         return (
           <div key={p} className={cx("@container pointer-events-none absolute inset-y-0 z-10", half ? "w-1/2" : "w-full", p === "mars" || !half ? "left-0" : "right-0")}>
-            <FootprintGauge planet={p} lat={t.lat} lon={t.lon} km={t.km} />
+            <FootprintGauge planet={p} lat={t.lat} lon={t.lon} km={t.km} label={t.size} />
             {!(whyOpen && p === "earth") && <Plate planet={p} targets={targets} compact={compact} />}
             <HalfInstruments planet={p} />
           </div>
