@@ -271,6 +271,22 @@ function dataSource(group: string, opts: MarkerGroupOptions = {}): CustomDataSou
   return ds;
 }
 
+/**
+ * Replace all of a data source's entities. Cesium treats an id that is removed and added again inside one
+ * suspended batch as unchanged, so its visualizers keep drawing the old entity object — the user's point
+ * stayed at the previous click, a glyph kept its old frame. The removal is flushed as its own event first,
+ * then the new entities are added in one batch.
+ */
+function replaceEntities(ds: CustomDataSource, add: () => void) {
+  ds.entities.removeAll();
+  ds.entities.suspendEvents();
+  try {
+    add();
+  } finally {
+    ds.entities.resumeEvents();
+  }
+}
+
 function styleCluster(entities: Entity[], cluster: { billboard: { show: boolean }; label: any; point: any }) {
   cluster.billboard.show = false;
   cluster.point.show = true;
@@ -332,36 +348,35 @@ function hudLabel(m: GlobeMarker, show: CallbackProperty, dx: number) {
 function setMarkers(group: string, markers: GlobeMarker[], opts: MarkerGroupOptions = {}) {
   if (!viewer) return;
   const ds = dataSource(group, opts);
-  ds.entities.suspendEvents();
-  ds.entities.removeAll();
   for (const key of [...markerRecs.keys()]) if (key.startsWith(`${group}::`)) markerRecs.delete(key);
   const labels = opts.labels ?? "selected";
-  for (const m of markers) {
-    const ground = pos(m.lat, m.lon);
-    const rec: MarkerRec = { ...m, group, labels, ground, up: ellipsoid.geodeticSurfaceNormal(ground, new Cartesian3()) };
-    markerRecs.set(`${group}::${m.id}`, rec);
-    // A stemmed marker is drawn by its stem; the ground glyph stands down meanwhile.
-    const shown = new CallbackProperty(() => onNearSide(ground) && !isStemmed(rec), false);
-    const g = GLYPH_KINDS.has(m.kind) ? glyph(m.kind, false) : null;
-    const pt = POINT[m.kind];
-    ds.entities.add({
-      id: `${group}::${m.id}`,
-      position: ground,
-      billboard: g ? { image: g.url, width: g.size, height: g.size, show: shown, disableDepthTestDistance: Number.POSITIVE_INFINITY } : undefined,
-      point: !g && pt ? {
-        show: shown,
-        pixelSize: pt.size,
-        color: pt.color,
-        outlineColor: pt.outline,
-        outlineWidth: pt.outlineWidth,
-        heightReference: HeightReference.NONE,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        scaleByDistance: new NearFarScalar(1e5, 1.25, 2.5e7, 0.8),
-      } : undefined,
-      label: m.label && labels === "all" ? hudLabel(m, shown, (g?.size ?? pt?.size ?? 8) / 2 + 5) : undefined,
-    });
-  }
-  ds.entities.resumeEvents();
+  replaceEntities(ds, () => {
+    for (const m of markers) {
+      const ground = pos(m.lat, m.lon);
+      const rec: MarkerRec = { ...m, group, labels, ground, up: ellipsoid.geodeticSurfaceNormal(ground, new Cartesian3()) };
+      markerRecs.set(`${group}::${m.id}`, rec);
+      // A stemmed marker is drawn by its stem; the ground glyph stands down meanwhile.
+      const shown = new CallbackProperty(() => onNearSide(ground) && !isStemmed(rec), false);
+      const g = GLYPH_KINDS.has(m.kind) ? glyph(m.kind, false) : null;
+      const pt = POINT[m.kind];
+      ds.entities.add({
+        id: `${group}::${m.id}`,
+        position: ground,
+        billboard: g ? { image: g.url, width: g.size, height: g.size, show: shown, disableDepthTestDistance: Number.POSITIVE_INFINITY } : undefined,
+        point: !g && pt ? {
+          show: shown,
+          pixelSize: pt.size,
+          color: pt.color,
+          outlineColor: pt.outline,
+          outlineWidth: pt.outlineWidth,
+          heightReference: HeightReference.NONE,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          scaleByDistance: new NearFarScalar(1e5, 1.25, 2.5e7, 0.8),
+        } : undefined,
+        label: m.label && labels === "all" ? hudLabel(m, shown, (g?.size ?? pt?.size ?? 8) / 2 + 5) : undefined,
+      });
+    }
+  });
   rebuildStems();
 }
 
@@ -389,28 +404,29 @@ function rebuildStems() {
     stems = new CustomDataSource("stems");
     void viewer.dataSources.add(stems);
   }
-  stems.entities.suspendEvents();
-  stems.entities.removeAll();
-  for (const m of markerRecs.values()) {
-    if (!isStemmed(m)) continue;
-    const g = glyph(m.kind, m.id === selectedId);
-    const near = new CallbackProperty(() => onNearSide(m.ground), false);
-    stems.entities.add({
-      // `stem:<group>::<id>` keeps the marker id after "::", so a click on the glyph reports the marker.
-      id: `stem:${m.group}::${m.id}`,
-      position: new CallbackPositionProperty((_t, result) => stemTop(m, result), false),
-      billboard: { image: g.url, width: g.size, height: g.size, show: near, disableDepthTestDistance: Number.POSITIVE_INFINITY },
-      polyline: {
-        positions: new CallbackProperty(() => [m.ground, stemTop(m)], false),
-        width: 1.25,
-        arcType: ArcType.NONE,
-        material: (STEM_COLOR[m.kind] ?? INK).withAlpha(0.9),
-        show: new CallbackProperty(() => onNearSide(m.ground) && stemHeight(m.ground) > 0, false),
-      },
-      label: m.label && m.labels !== "none" ? hudLabel(m, near, g.size / 2 + 3) : undefined,
-    });
-  }
-  stems.entities.resumeEvents();
+  const ds = stems;
+  // Every stem is rebuilt with the same ids on each marker or selection change: flush the old ones first.
+  replaceEntities(ds, () => {
+    for (const m of markerRecs.values()) {
+      if (!isStemmed(m)) continue;
+      const g = glyph(m.kind, m.id === selectedId);
+      const near = new CallbackProperty(() => onNearSide(m.ground), false);
+      ds.entities.add({
+        // `stem:<group>::<id>` keeps the marker id after "::", so a click on the glyph reports the marker.
+        id: `stem:${m.group}::${m.id}`,
+        position: new CallbackPositionProperty((_t, result) => stemTop(m, result), false),
+        billboard: { image: g.url, width: g.size, height: g.size, show: near, disableDepthTestDistance: Number.POSITIVE_INFINITY },
+        polyline: {
+          positions: new CallbackProperty(() => [m.ground, stemTop(m)], false),
+          width: 1.25,
+          arcType: ArcType.NONE,
+          material: (STEM_COLOR[m.kind] ?? INK).withAlpha(0.9),
+          show: new CallbackProperty(() => onNearSide(m.ground) && stemHeight(m.ground) > 0, false),
+        },
+        label: m.label && m.labels !== "none" ? hudLabel(m, near, g.size / 2 + 3) : undefined,
+      });
+    }
+  });
   requestRender();
 }
 
@@ -457,48 +473,47 @@ function volumeStyle(kind: GlobeFootprint["kind"]) {
 function setFootprints(group: string, fps: GlobeFootprint[]) {
   if (!viewer) return;
   const ds = dataSource(`fp:${group}`);
-  ds.entities.suspendEvents();
-  ds.entities.removeAll();
-  for (const f of fps) {
-    const st = FOOT[f.kind];
-    const vol = volumeStyle(f.kind);
-    const corners = footprintCorners(f, meanR).map((c) => ({ lat: c.lat, lon: normLon(c.lon) }));
-    // Densified outline (footprints.ts explains the gaps a few long chords left in the window outline).
-    const ring = outlineRing(f, meanR);
-    // Scan-volume wall height: visual only, it gives the outline depth in the 3D view and is never a
-    // measurement (a footprint is a ground area).
-    const H = scanHeightM(f, meanR);
-    // The base outline floats a hair above the surface so it never z-fights the imagery tiles.
-    const lift = 20 + H * 0.002;
-    const id = `fp:${group}::${f.id}`;
-    ds.entities.add({
-      id,
-      polygon: { hierarchy: new PolygonHierarchy(corners.map((c) => pos(c.lat, c.lon))), material: st.color.withAlpha(st.fill), outline: false },
-      polyline: { positions: ring.map((p) => pos(p.lat, p.lon, lift)), width: st.width, material: st.color.withAlpha(st.line), arcType: ArcType.NONE },
-    });
-    ds.entities.add({
-      id: `${id}::wall`,
-      wall: {
-        positions: ring.map((p) => pos(p.lat, p.lon)),
-        minimumHeights: ring.map(() => 0),
-        maximumHeights: ring.map(() => H),
-        material: vol.wall,
-        outline: false,
-        show: vol.show,
-      },
-    });
-    ds.entities.add({
-      id: `${id}::top`,
-      polyline: { positions: ring.map((p) => pos(p.lat, p.lon, H)), width: 1, material: vol.edge, arcType: ArcType.NONE, show: vol.show },
-    });
-    if (st.posts) {
-      corners.forEach((c, i) => ds.entities.add({
-        id: `${id}::post${i}`,
-        polyline: { positions: [pos(c.lat, c.lon, lift), pos(c.lat, c.lon, H)], width: 1, material: vol.edge, arcType: ArcType.NONE, show: vol.show },
-      }));
+  replaceEntities(ds, () => {
+    for (const f of fps) {
+      const st = FOOT[f.kind];
+      const vol = volumeStyle(f.kind);
+      const corners = footprintCorners(f, meanR).map((c) => ({ lat: c.lat, lon: normLon(c.lon) }));
+      // Densified outline (footprints.ts explains the gaps a few long chords left in the window outline).
+      const ring = outlineRing(f, meanR);
+      // Scan-volume wall height: visual only, it gives the outline depth in the 3D view and is never a
+      // measurement (a footprint is a ground area).
+      const H = scanHeightM(f, meanR);
+      // The base outline floats a hair above the surface so it never z-fights the imagery tiles.
+      const lift = 20 + H * 0.002;
+      const id = `fp:${group}::${f.id}`;
+      ds.entities.add({
+        id,
+        polygon: { hierarchy: new PolygonHierarchy(corners.map((c) => pos(c.lat, c.lon))), material: st.color.withAlpha(st.fill), outline: false },
+        polyline: { positions: ring.map((p) => pos(p.lat, p.lon, lift)), width: st.width, material: st.color.withAlpha(st.line), arcType: ArcType.NONE },
+      });
+      ds.entities.add({
+        id: `${id}::wall`,
+        wall: {
+          positions: ring.map((p) => pos(p.lat, p.lon)),
+          minimumHeights: ring.map(() => 0),
+          maximumHeights: ring.map(() => H),
+          material: vol.wall,
+          outline: false,
+          show: vol.show,
+        },
+      });
+      ds.entities.add({
+        id: `${id}::top`,
+        polyline: { positions: ring.map((p) => pos(p.lat, p.lon, H)), width: 1, material: vol.edge, arcType: ArcType.NONE, show: vol.show },
+      });
+      if (st.posts) {
+        corners.forEach((c, i) => ds.entities.add({
+          id: `${id}::post${i}`,
+          polyline: { positions: [pos(c.lat, c.lon, lift), pos(c.lat, c.lon, H)], width: 1, material: vol.edge, arcType: ArcType.NONE, show: vol.show },
+        }));
+      }
     }
-  }
-  ds.entities.resumeEvents();
+  });
   settle();
 }
 
