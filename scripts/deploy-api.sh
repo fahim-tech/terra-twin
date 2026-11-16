@@ -5,6 +5,7 @@
 set -euo pipefail
 HOST="${TERRATWIN_HOST:-trade-1}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+source "$ROOT/scripts/judging-freeze.sh"
 
 rsync -az --delete --exclude .venv --exclude __pycache__ --exclude .pytest_cache --exclude .ruff_cache \
   "$ROOT/apps/api/" "$HOST:/srv/terratwin-app/api/"

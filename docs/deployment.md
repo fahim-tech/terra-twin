@@ -8,6 +8,24 @@
 | API | us-east-1 Lightsail host `100.27.159.94` (SSH alias `trade-1`, user `ubuntu`), shared with other production services | systemd `terratwin-api` (`deploy/terratwin-api.service`): uvicorn on `127.0.0.1:8710` as the `terratwin` account, one worker, memory bounded. nginx site `deploy/nginx/terratwin-api.conf` serves it only for requests addressed to the host's IP. Code in `/srv/terratwin-app/api`, venv `/srv/terratwin-app/venv` built on the GIS conda env (so GDAL, numpy, pandas, scipy and pyarrow are the GIS versions). |
 | Data | `/srv/terratwin` on the same host (the GIS workstream, repo `fahim-tech/terratwin-dataset`) | The USGS MOLA 463 m mosaic and the MEGDR counts tiles are connected read-only (`TERRATWIN_MOLA_MOSAIC`, `TERRATWIN_MEGDR_COUNTS_DIR`): Mars relief is served and `/api/datasets` reports them as connected. The research package tables ship with the API (`apps/api/data/research`). Nothing is downloaded to a laptop. |
 
+### Judging freeze (16 November 2026 – 26 January 2027)
+
+The NASA Space Apps 2026 submission links (https://terratwin-five.vercel.app, `/deck/`, the demo video) are
+reviewed by judges after the hackathon (Global Nominees 3 Dec 2026, Finalists 17 Dec 2026, Winners 26 Jan
+2027). The submitted version is tag `spaceapps-2026-submitted` (commit `f66e90e`); production serves it and
+must keep doing so. `scripts/judging-freeze.sh`, sourced by both production deploy scripts, refuses a
+production deploy until 27 January 2027 unless `TERRATWIN_ALLOW_PROD_DEPLOY=1` is set, which is only for an
+outage fix that changes no behaviour (API results, cached discovery runs and research records included).
+
+New work goes on `dev/post-submission` (or branches from it) and is deployed to a Vercel preview URL:
+
+```bash
+scripts/deploy-web-preview.sh    # Vercel preview of HEAD; prints its own https://terratwin-<hash>…vercel.app URL
+```
+
+A preview talks to the same production API through `vercel.json`, so API changes cannot be previewed
+without changing the judged app; keep them on the branch until the freeze ends, or run the API locally.
+
 Caveats: the Vercel-to-host hop is plain HTTP (the API serves public research data only and holds no secrets);
 the API has no authentication or rate limit. The GIS live refinement (`TERRATWIN_GIS_PROVIDER`), discovery jobs,
 the global ~1 km grids and the context layers are not wired yet; the app says so where they would appear.
