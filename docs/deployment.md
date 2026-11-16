@@ -17,14 +17,19 @@ must keep doing so. `scripts/judging-freeze.sh`, sourced by both production depl
 production deploy until 27 January 2027 unless `TERRATWIN_ALLOW_PROD_DEPLOY=1` is set, which is only for an
 outage fix that changes no behaviour (API results, cached discovery runs and research records included).
 
-New work goes on `dev/post-submission` (or branches from it) and is deployed to a Vercel preview URL:
+New work goes on `dev/post-submission` (or branches from it) and is deployed to a **separate Vercel project**,
+`terratwin-dev`, with its own stable public URL, or to a one-off preview URL of the judged project:
 
 ```bash
-scripts/deploy-web-preview.sh    # Vercel preview of HEAD; prints its own https://terratwin-<hash>…vercel.app URL
+scripts/deploy-web-dev.sh        # production of the separate project terratwin-dev (stable URL, public)
 ```
 
-A preview talks to the same production API through `vercel.json`, so API changes cannot be previewed
-without changing the judged app; keep them on the branch until the freeze ends, or run the API locally.
+```bash
+scripts/deploy-web-preview.sh    # one-off preview of HEAD on the judged project; sign-in protected by default
+```
+
+Both talk to the same production API through `vercel.json`, so API changes cannot be shown without changing
+the judged app; keep them on the branch until the freeze ends, or run the API locally.
 
 Caveats: the Vercel-to-host hop is plain HTTP (the API serves public research data only and holds no secrets);
 the API has no authentication or rate limit. The GIS live refinement (`TERRATWIN_GIS_PROVIDER`), discovery jobs,
